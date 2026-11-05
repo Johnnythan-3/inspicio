@@ -2,6 +2,9 @@
 {
   "name": "inspicio",
   "compatibility_date": "2026-10-01",
+  // Serve the site on <name>.<account>.workers.dev, and give branch builds their own preview URLs.
+  "workers_dev": true,
+  "preview_urls": true,
   "assets": {
     "directory": "./public",
     "not_found_handling": "404-page"
