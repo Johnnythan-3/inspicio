@@ -1,12 +1,12 @@
 /* ---------- Tokens ---------- */
 
 :root {
-  --bg: #d1d9d7;
+  --bg: #e9f0ee;
   --bg-glow: rgba(25, 68, 138, 0.08);
   --surface: rgba(255, 255, 255, 0.72);
   --card: #ffffff;
   --card-hover: #fbfbfa;
-  --stage: #c8d1ce;
+  --stage: #dfe7e4;
   --text: #17171a;
   --muted: #55555d;
   --faint: #9d9da6;
