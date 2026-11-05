@@ -421,7 +421,8 @@
     const box = el('div', { class: 'map-box' });
     const button = el('button', { class: 'map-link', type: 'button' }, icon('pin'), 'Show map');
     const note = el('p', { class: 'map-note' },
-      'Loads a map from Mapbox. This sends only the coordinates; your photo stays here.');
+      'Loads a map from Mapbox, which receives the coordinates and, like any website, your IP address. '
+      + 'Your photo stays here.');
 
     button.addEventListener('click', () => {
       const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -448,7 +449,17 @@
       });
       img.src = src;
 
-      box.replaceChildren(el('div', { class: 'map-frame' }, img));
+      // Mapbox requires a text attribution near static maps (Product Terms §1.4); the credit drawn
+      // into the image is too small to read or click at panel width.
+      const credit = (href, text) => el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, text);
+      box.replaceChildren(
+        el('div', { class: 'map-frame' }, img),
+        el('p', { class: 'map-credit' },
+          credit('https://www.mapbox.com/about/maps/', '© Mapbox'), ' ',
+          credit('https://www.openstreetmap.org/copyright', '© OpenStreetMap'), ' ',
+          el('strong', null, credit('https://www.mapbox.com/map-feedback/', 'Improve this map')),
+        ),
+      );
     }, { once: true });
 
     box.append(button, note);
