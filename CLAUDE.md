@@ -48,7 +48,7 @@
 
 ## Status (2026-11-05, end of session 2)
 
-- Live and deployed (last commit "Show RAW photos using the camera's embedded preview"). Added this session: photo left / panel right, new colors, opt-in Mapbox map, copy coordinates, full-resolution zoom and pan, ~20% larger fit with a gap above the caption, collapsible sections, small-copy notice, RAW previews.
+- All live. Added this session: photo left / panel right, new colors, opt-in Mapbox map, copy coordinates, full-resolution zoom and pan, ~20% larger fit with a gap above the caption, collapsible sections, small-copy notice, RAW previews.
 - The user tests in **Firefox** on a Mac. Their originals are often iPhone 15 Pro ProRAW DNGs (48 MP) and Sony A7C II ARWs.
 - **First thing next session:** ask how these went on the live site (hard refresh first) and fix what they report:
   - Dragging `IMG_0169.DNG` and a Sony `.ARW` from Finder (not Photos): RAW preview sharp and full size.
@@ -81,4 +81,4 @@ wrangler.jsonc           Cloudflare static assets config (serves ./public)
 - Test with a real camera or phone JPEG that has GPS, a screenshot with no metadata, a HEIC file and a RAW file.
 - The user's console warnings about "SF Pro" fonts and a CSP-blocked inline script come from Firefox fingerprinting protection and a browser extension, not the site.
 - GitHub push protection flags the Mapbox `pk.` token as a secret. It was allowed as a false positive; a new token would need the same.
-- In the in-app browser pane while hidden, `img.decode()` and view transitions never finish. For tests, stub `HTMLImageElement.prototype.decode` and set `document.startViewTransition = undefined`. Load test files via `DataTransfer` on `#file-input`; the CSP blocks `fetch`, so serve big files from `404.html` (no CSP) into a same-origin iframe.
+- Hidden in-app browser pane: `img.decode()` and view transitions never finish, so stub `decode` and unset `document.startViewTransition` in tests. Load files via `DataTransfer` on `#file-input`.
