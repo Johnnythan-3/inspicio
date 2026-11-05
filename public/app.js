@@ -488,9 +488,10 @@
         `Small copy: ${img.width} × ${img.height} pixels`,
         'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging a photo '
         + 'straight out of the Photos app gives the browser only a small preview, and messaging apps often '
-        + 'shrink photos too. For the full photo, click New photo, choose Photos in the sidebar of the window '
-        + 'that opens, and pick it there. Or drag it from Photos to your Desktop first, then drop that file here. '
-        + 'In Safari, dragging straight from Photos also works.',
+        + 'shrink photos too. For the full photo, click the button below, choose Photos in the sidebar of the '
+        + 'window that opens, and pick it there. Or drag it from Photos to your Desktop first, then drop that '
+        + 'file here. In Safari, dragging straight from Photos also works.',
+        { label: 'Choose full-size photo', onClick: () => fileInput.click() },
       ));
     }
 
@@ -619,10 +620,15 @@
     return nodes.filter(Boolean);
   }
 
-  function notice(title, text) {
+  function notice(title, text, action) {
+    let button = null;
+    if (action) {
+      button = el('button', { class: 'map-link notice-action', type: 'button' }, action.label);
+      button.addEventListener('click', action.onClick);
+    }
     return el('div', { class: 'notice', role: 'status' },
       icon('info'),
-      el('div', null, el('strong', null, title), el('p', null, text)),
+      el('div', null, el('strong', null, title), el('p', null, text), button),
     );
   }
 

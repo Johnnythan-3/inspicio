@@ -735,6 +735,8 @@ body.loading .overlay-loading { display: inline-flex; }
 button.map-link { width: 100%; border: 0; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
 button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+.notice-action { margin: 10px 0 0; }
+
 .map-box { margin: 6px 0 2px; }
 .map-box .map-link { margin: 0; }
 
