@@ -66,6 +66,7 @@ public/                  everything Cloudflare serves
   styles.css             all styles, light/dark tokens, animations
   app.js                 file handling, exifr calls, rendering
   _headers               security headers for Cloudflare
+  privacy.html, terms.html  legal pages (BC law; contact inspicio.app@proton.me)
   404.html, favicon.svg
   vendor/                exifr 7.1.3 full UMD build and its MIT license
 wrangler.jsonc           Cloudflare static assets config (serves ./public)
