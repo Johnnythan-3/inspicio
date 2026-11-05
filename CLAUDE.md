@@ -12,7 +12,7 @@
   - **Camera:** make, model, lens, software.
   - **Exposure:** ISO, shutter speed, aperture, focal length, flash, white balance.
   - **Date/Time:** original capture time, modified time, time zone offset.
-  - **Location:** GPS latitude/longitude, altitude, an "open in map" link, and an opt-in "Show map" button (Mapbox static map with a pin).
+  - **Location:** GPS latitude/longitude (click either to copy "lat, lon"; the clicked row says "Copied to clipboard"), altitude, an "open in map" link, and an opt-in "Show map" button (Mapbox static map with a pin).
   - **Image:** pixel dimensions, orientation, color space, ICC profile.
   - **File:** name, size, MIME type, last modified.
   - **Raw:** every tag the parser found, as a flat list at the bottom.
@@ -33,6 +33,7 @@
 ## Design
 
 - Simple and sleek: a lot of whitespace, one accent color, system font stack or one clean web font.
+- Colors chosen by the user: accent `#19448A` (dark mode `#89ADE6`), light page background `#E9F0EE`. Check text contrast (4.5:1) when changing them.
 - Support light and dark mode with `prefers-color-scheme` and CSS custom properties.
 - Responsive layout: at narrow widths the metadata panel stacks below the preview.
 - Format values for people, for example `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`, readable dates, and file sizes in KB/MB. Keep the raw value available in the Raw section.
@@ -40,17 +41,22 @@
 ## Repo and deploy
 
 - **GitHub:** `Johnnythan-3/inspicio`, default branch `main`.
-- **Hosting:** Cloudflare Workers static assets (no Worker script), connected to the GitHub repo. Every push to `main` deploys automatically in under a minute. Other branches get preview URLs.
+- **Hosting:** Cloudflare Workers static assets (no Worker script), connected to the GitHub repo. Every push to `main` deploys automatically, usually in 30–90 s (once over 3 min). Other branches get preview URLs.
 - **Live URL:** https://inspicio.johnnythan.workers.dev
 - **Privacy rule for URLs:** the account's workers.dev subdomain is `johnnythan`. It was renamed from one that exposed the owner's email name. Never put the owner's email, or anything derived from it, in URLs, files or commits. Commits use the GitHub noreply address set in this repo's git config.
 - The site is fully static, so no server code is needed.
 
-## Status (2026-11-05)
+## Status (2026-11-05, end of session 2)
 
-- v1 is live and checked: security headers present, test photos parse, no console errors, light/dark and mobile layouts work.
-- **First thing next session:** remind the user to test the live site with their own real photos (a recent iPhone photo, a camera JPEG, a screenshot), and in Safari, the only browser that previews HEIC. Fix whatever they find.
-- Not tested yet: real-world photos, Safari, Firefox.
-- Possible later work, only if asked: tag search, copy as JSON, "download clean copy" that strips metadata, a custom domain.
+- Live and deployed (last commit "Show RAW photos using the camera's embedded preview"). Added this session: photo left / panel right, new colors, opt-in Mapbox map, copy coordinates, full-resolution zoom and pan, ~20% larger fit with a gap above the caption, collapsible sections, small-copy notice, RAW previews.
+- The user tests in **Firefox** on a Mac. Their originals are often iPhone 15 Pro ProRAW DNGs (48 MP) and Sony A7C II ARWs.
+- **First thing next session:** ask how these went on the live site (hard refresh first) and fix what they report:
+  - Dragging `IMG_0169.DNG` and a Sony `.ARW` from Finder (not Photos): RAW preview sharp and full size.
+  - Real trackpad in Firefox: pinch zooms, two-finger scroll pans when zoomed. The mouse-vs-trackpad detection in `attachZoom` is heuristic and may need tuning.
+  - Collapse animation and saved state; "Show map" with the real token; copy coordinates.
+- Open question: keep the panel at 340 px or go back to 400 px (the user didn't answer).
+- Not tested yet: Safari, real touch pinch on a phone.
+- Possible later work, only if asked: tag search, copy as JSON, "download clean copy" that strips metadata, a custom domain, an OpenStreetMap-tile fallback when Mapbox fails.
 
 ## File layout
 
@@ -72,4 +78,7 @@ wrangler.jsonc           Cloudflare static assets config (serves ./public)
 ## Working notes
 
 - Keep this file under 8 KB.
-- Test with a real camera or phone JPEG that has GPS, a screenshot with no metadata, and a HEIC file.
+- Test with a real camera or phone JPEG that has GPS, a screenshot with no metadata, a HEIC file and a RAW file.
+- The user's console warnings about "SF Pro" fonts and a CSP-blocked inline script come from Firefox fingerprinting protection and a browser extension, not the site.
+- GitHub push protection flags the Mapbox `pk.` token as a secret. It was allowed as a false positive; a new token would need the same.
+- In the in-app browser pane while hidden, `img.decode()` and view transitions never finish. For tests, stub `HTMLImageElement.prototype.decode` and set `document.startViewTransition = undefined`. Load test files via `DataTransfer` on `#file-input`; the CSP blocks `fetch`, so serve big files from `404.html` (no CSP) into a same-origin iframe.
