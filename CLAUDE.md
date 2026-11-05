@@ -36,7 +36,7 @@
 
 ## Repo and deploy
 
-- **GitHub:** `Jonathankim60420-lgtm/inspicio`, default branch `main`.
+- **GitHub:** `Johnnythan-3/inspicio`, default branch `main`.
 - **Hosting:** Cloudflare, connected to the GitHub repo, so every push to `main` deploys automatically. Prefer Workers static assets (a `wrangler.jsonc` with an `assets` directory and no Worker script). Cloudflare Pages is an acceptable fallback.
 - The site is fully static, so no server code is needed.
 
