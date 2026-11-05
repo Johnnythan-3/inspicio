@@ -534,6 +534,34 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
   color: var(--faint);
 }
 
+.copy-value {
+  display: block;
+  width: 100%;
+  min-height: 2.6em;
+  margin: -3px -6px;
+  padding: 3px 6px;
+  box-sizing: content-box;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: copy;
+  transition: background-color 0.2s;
+}
+
+.copy-value:hover { background: var(--accent-soft); }
+.copy-value:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.copy-value.is-copied { display: grid; place-items: center end; }
+
+.copy-done {
+  color: var(--accent);
+  font-weight: 600;
+  animation: rise 0.3s var(--ease) both;
+}
+
 .map-link {
   display: flex;
   align-items: center;

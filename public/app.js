@@ -310,20 +310,58 @@
     return svg;
   }
 
-  // rows: [label, value, note?]; rows with no value are dropped. Returns null if nothing is left.
+  // rows: [label, value, note?, copyText?]; rows with no value are dropped. Returns null if nothing
+  // is left. A row with copyText becomes a button that copies that text to the clipboard.
   function group(title, iconName, rows, index, extra) {
     const kept = rows.filter((r) => r && r[1] !== null && r[1] !== undefined && r[1] !== '');
     if (!kept.length && !extra) return null;
     return el('section', { class: 'group', vars: { '--i': index } },
       el('h2', { class: 'group-head' }, icon(iconName), title),
       kept.length ? el('dl', { class: 'rows' },
-        kept.map(([label, value, note]) => el('div', { class: 'row' },
+        kept.map(([label, value, note, copyText]) => el('div', { class: 'row' },
           el('dt', null, label),
-          el('dd', null, value, note ? el('small', null, note) : null),
+          el('dd', null, copyText
+            ? copyButton(copyText, [value, note ? el('small', null, note) : null])
+            : [value, note ? el('small', null, note) : null]),
         )),
       ) : null,
       extra || null,
     );
+  }
+
+  // Shows `content`; on click, copies `text` and briefly says so in place of the content.
+  function copyButton(text, content) {
+    const button = el('button', {
+      class: 'copy-value',
+      type: 'button',
+      title: `Copy ${text}`,
+      'aria-label': `Copy coordinates ${text}`,
+    }, content);
+    let timer = null;
+    const restore = () => {
+      clearTimeout(timer);
+      button.classList.remove('is-copied');
+      button.replaceChildren(...content.filter(Boolean));
+    };
+    button.restoreCopy = restore;
+    button.addEventListener('click', async () => {
+      let ok = true;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        ok = false;
+      }
+      // Only the row that was just clicked shows the message.
+      for (const other of document.querySelectorAll('.copy-value.is-copied')) {
+        if (other !== button) other.restoreCopy?.();
+      }
+      clearTimeout(timer);
+      button.classList.add('is-copied');
+      button.replaceChildren(el('span', { class: 'copy-done', role: 'status' },
+        ok ? 'Copied to clipboard' : 'Couldn’t copy'));
+      timer = setTimeout(restore, 1600);
+    });
+    return button;
   }
 
   // A "Show map" button that swaps itself for a Mapbox static map with a pin. No request is made
@@ -458,9 +496,10 @@
       ];
     }
 
+    const coords = hasCoords ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : null;
     nodes.push(group('Location', 'pin', [
-      ['Latitude', hasCoords ? fmtDMS(lat, 'N', 'S') : null, hasCoords ? lat.toFixed(6) : null],
-      ['Longitude', hasCoords ? fmtDMS(lon, 'E', 'W') : null, hasCoords ? lon.toFixed(6) : null],
+      ['Latitude', hasCoords ? fmtDMS(lat, 'N', 'S') : null, hasCoords ? lat.toFixed(6) : null, coords],
+      ['Longitude', hasCoords ? fmtDMS(lon, 'E', 'W') : null, hasCoords ? lon.toFixed(6) : null, coords],
       ['Altitude', altitude !== null ? `${round(altitude, 1)} m` : null],
       ['Facing', direction !== null ? `${Math.round(direction)}°` : null],
     ], i++, mapLink));
