@@ -12,7 +12,7 @@
   - **Camera:** make, model, lens, software.
   - **Exposure:** ISO, shutter speed, aperture, focal length, flash, white balance.
   - **Date/Time:** original capture time, modified time, time zone offset.
-  - **Location:** GPS latitude/longitude, altitude, and an "open in map" link.
+  - **Location:** GPS latitude/longitude, altitude, an "open in map" link, and an opt-in "Show map" button (Mapbox static map with a pin).
   - **Image:** pixel dimensions, orientation, color space, ICC profile.
   - **File:** name, size, MIME type, last modified.
   - **Raw:** every tag the parser found, as a flat list at the bottom.
@@ -23,6 +23,7 @@
 ## Hard rules
 
 - **Everything runs in the browser.** The photo never leaves the user's machine: no uploads, no analytics on file contents, no backend. This privacy promise is the product's main selling point, so never break it.
+- **One exception, opt-in only:** the "Show map" button requests a Mapbox static image, which sends only the photo's coordinates to Mapbox. Never request it before the user clicks, never auto-load it, and keep the note under the button that says what it sends. The public `pk.` token is `MAPBOX_TOKEN` in `app.js` (empty hides the button); it is URL-restricted in the Mapbox account, so the map `<img>` uses `referrerPolicy = 'strict-origin'`.
 - **No build step.** Plain HTML, CSS and JavaScript. Opening `index.html` (or serving the folder statically) must work.
 - **Metadata parsing:** use [`exifr`](https://github.com/MikeKovarik/exifr) (EXIF, GPS, IPTC, XMP, ICC, HEIC). Load it from a pinned CDN version, or vendor it into the repo. Do not hand-roll a parser.
 - **Revoke object URLs** (`URL.revokeObjectURL`) when the user loads a new photo.
@@ -62,7 +63,7 @@ public/                  everything Cloudflare serves
 wrangler.jsonc           Cloudflare static assets config (serves ./public)
 ```
 
-- The CSP (`default-src 'none'`) blocks every network request from the page. Keep it that way. It is the proof behind the privacy promise.
+- The CSP (`default-src 'none'`) blocks every network request from the page except `img-src https://api.mapbox.com` for the opt-in map. Keep it that way, in both `index.html` and `_headers`. It is the proof behind the privacy promise.
 - Metadata is untrusted input. Render it with `textContent` (the `el()` helper in `app.js`), never `innerHTML`.
 - Run locally: `python3 -m http.server 8788 --directory public`.
 

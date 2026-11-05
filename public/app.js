@@ -19,6 +19,14 @@
   let currentUrl = null;
   let loadToken = 0;
 
+  /* ---------- Mapbox (opt-in map) ---------- */
+
+  // Public Mapbox token (pk.…). It is visible to anyone, so restrict it to this site's URLs in the
+  // Mapbox account. Leave it empty to hide the "Show map" button entirely.
+  // The map image is requested only when the user clicks "Show map"; that request sends the
+  // photo's coordinates to Mapbox. Nothing else about the photo ever leaves the browser.
+  const MAPBOX_TOKEN = '';
+
   /* ---------- exifr ---------- */
 
   const EXIFR_OPTIONS = {
@@ -318,6 +326,46 @@
     );
   }
 
+  // A "Show map" button that swaps itself for a Mapbox static map with a pin. No request is made
+  // until the user clicks.
+  function mapPreview(lat, lon) {
+    const box = el('div', { class: 'map-box' });
+    const button = el('button', { class: 'map-link', type: 'button' }, icon('pin'), 'Show map');
+    const note = el('p', { class: 'map-note' },
+      'Loads a map from Mapbox. This sends only the coordinates; your photo stays here.');
+
+    button.addEventListener('click', () => {
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const style = dark ? 'dark-v11' : 'streets-v12';
+      const pinColor = dark ? '89ade6' : '19448a';
+      const lo = lon.toFixed(6);
+      const la = lat.toFixed(6);
+      const src = `https://api.mapbox.com/styles/v1/mapbox/${style}/static/`
+        + `pin-l+${pinColor}(${lo},${la})/${lo},${la},14,0/600x360@2x`
+        + `?access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
+
+      const img = el('img', {
+        class: 'map-img',
+        alt: 'Map with a pin where the photo was taken',
+        width: '600',
+        height: '360',
+      });
+      // Mapbox checks URL-restricted tokens against the Referer, so send this site's origin
+      // (and nothing more) for this one request. The rest of the site stays no-referrer.
+      img.referrerPolicy = 'strict-origin';
+      img.addEventListener('load', () => box.classList.add('is-loaded'));
+      img.addEventListener('error', () => {
+        box.replaceChildren(el('p', { class: 'map-note map-error' }, 'The map couldn’t load. Try the link below.'));
+      });
+      img.src = src;
+
+      box.replaceChildren(el('div', { class: 'map-frame' }, img));
+    }, { once: true });
+
+    box.append(button, note);
+    return box;
+  }
+
   /* ---------- Panel ---------- */
 
   function buildPanel(file, meta, img) {
@@ -399,12 +447,15 @@
     if (hasCoords) {
       const la = lat.toFixed(6);
       const lo = lon.toFixed(6);
-      mapLink = el('a', {
-        class: 'map-link',
-        href: `https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=16/${la}/${lo}`,
-        target: '_blank',
-        rel: 'noopener noreferrer',
-      }, 'Open in OpenStreetMap', icon('external'));
+      mapLink = [
+        MAPBOX_TOKEN ? mapPreview(lat, lon) : null,
+        el('a', {
+          class: 'map-link',
+          href: `https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=16/${la}/${lo}`,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        }, 'Open in OpenStreetMap', icon('external')),
+      ];
     }
 
     nodes.push(group('Location', 'pin', [
