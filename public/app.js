@@ -25,7 +25,7 @@
   // Mapbox account. Leave it empty to hide the "Show map" button entirely.
   // The map image is requested only when the user clicks "Show map"; that request sends the
   // photo's coordinates to Mapbox. Nothing else about the photo ever leaves the browser.
-  const MAPBOX_TOKEN = '';
+  const MAPBOX_TOKEN = 'pk.eyJ1Ijoiam9obm55dGhhbiIsImEiOiJjbXc0M3Z3OGIwMGxtMnlxOTBrbHp0NG5uIn0.-eNoje28G2ualpJeuOexnA';
 
   /* ---------- exifr ---------- */
 
