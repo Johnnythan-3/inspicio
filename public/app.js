@@ -480,6 +480,18 @@
       chips.length ? el('ul', { class: 'chips' }, chips.map((c) => el('li', null, c))) : null,
     ));
 
+    // A camera photo with few pixels is usually a shrunk copy, for example one dragged out of the
+    // Photos app (the browser receives a small preview) or sent through a messaging app.
+    const longSide = img.ok ? Math.max(img.width, img.height) : 0;
+    if (longSide && longSide < 1200 && (camera || get('DateTimeOriginal'))) {
+      nodes.push(notice(
+        `Small copy: ${img.width} × ${img.height} pixels`,
+        'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging straight '
+        + 'out of the Photos app or saving from a messaging app often gives a small copy. For the original, '
+        + 'use File › Export › Export Unmodified Original in Photos, or AirDrop it, then open that file.',
+      ));
+    }
+
     if (meta.error) {
       nodes.push(notice('Metadata couldn’t be read', meta.error));
     } else if (!photoTags.length) {
@@ -569,13 +581,18 @@
       ['Comment', toText(get('UserComment'))],
     ], i++));
 
-    // Image
-    const width = toNum(get('ExifImageWidth', 'PixelXDimension', 'ImageWidth')) || (img.ok ? img.width : null);
-    const height = toNum(get('ExifImageHeight', 'PixelYDimension', 'ImageHeight')) || (img.ok ? img.height : null);
+    // Image. Prefer the pixels actually in this file; EXIF may still describe the camera's original.
+    const exifW = toNum(get('ExifImageWidth', 'PixelXDimension', 'ImageWidth'));
+    const exifH = toNum(get('ExifImageHeight', 'PixelYDimension', 'ImageHeight'));
+    const width = (img.ok ? img.width : null) || exifW;
+    const height = (img.ok ? img.height : null) || exifH;
+    const exifBigger = img.ok && exifW && exifH && Math.max(exifW, exifH) > Math.max(img.width, img.height);
     const xres = toNum(get('XResolution'));
     const resUnit = toText(get('ResolutionUnit'));
     nodes.push(group('Image', 'image', [
-      ['Dimensions', width && height ? `${width} × ${height}` : null, width && height ? `${round((width * height) / 1e6, 1)} megapixels` : null],
+      ['Dimensions', width && height ? `${width} × ${height}` : null, width && height
+        ? `${round((width * height) / 1e6, 1)} megapixels${exifBigger ? ` · camera recorded ${exifW} × ${exifH}` : ''}`
+        : null],
       ['Orientation', toText(get('Orientation'))],
       ['Color space', colorSpaceText(get('ColorSpace')) || toText(get('ColorSpaceData'))],
       ['Color profile', toText(get('ProfileDescription'))],

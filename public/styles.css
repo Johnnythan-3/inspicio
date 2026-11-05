@@ -25,8 +25,8 @@
   --topbar-h: 64px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
   color-scheme: light dark;
@@ -359,7 +359,8 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 }
 
 /* The figure fills the stage and is a size container, so the frame can fit the photo exactly:
-   as wide as possible without passing the stage's width or height (or 2× the photo's own size). */
+   as wide as possible without passing the stage's width or height, or the photo's own size
+   (upscaling a small file only makes it blurrier). */
 .photo {
   --fit-h: 100cqh;
   display: grid;
@@ -375,7 +376,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
    ends, nothing keeps the photo on a scaled or blurred layer (which can leave it looking soft). */
 .zoom-frame {
   position: relative;
-  width: min(100cqw, var(--fit-h) * var(--ar), var(--nat-w) * 2);
+  width: min(100cqw, var(--fit-h) * var(--ar), var(--nat-w));
   aspect-ratio: var(--ar);
   overflow: hidden;
   border-radius: 12px;
