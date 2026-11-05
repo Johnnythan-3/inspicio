@@ -693,17 +693,24 @@
   let zoomObserver = null;
   const narrowLayout = window.matchMedia('(max-width: 860px)');
 
-  // Zoom and pan inside the photo's frame: wheel or trackpad pinch zooms at the cursor, two-finger
-  // touch pinch zooms, double-click toggles, drag pans, and + / − / 0 work when the frame has focus.
+  // Zoom and pan inside the photo's frame: a mouse wheel or trackpad pinch zooms at the cursor,
+  // two-finger trackpad scrolling pans, touch pinch zooms, double-click toggles, drag pans, and
+  // + / − / 0 work when the frame has focus.
+  //
+  // Zooming resizes the <img> itself (width/height as a % of the frame) and only translates it,
+  // instead of scaling it with a CSS transform. The browser then decodes and draws the photo at the
+  // size it is shown, so it stays as sharp as the original at every zoom level; a scale transform
+  // can stretch a smaller, already-decoded copy and look soft.
   function attachZoom(frame, img, ui) {
     let s = 1;
     let tx = 0;
     let ty = 0;
     const pointers = new Map();
     let pinch = null;
+    let lastTrackpad = 0;
 
     const maxScale = () => {
-      const shown = img.clientWidth || 1;
+      const shown = frame.clientWidth || 1;
       const toNative = img.naturalWidth / (shown * (window.devicePixelRatio || 1));
       return Math.max(3, toNative * 2); // up to 2× past one image pixel per screen pixel
     };
@@ -718,9 +725,12 @@
     const render = (motion) => {
       img.classList.toggle('is-animating', motion === 'smooth');
       img.classList.toggle('is-gliding', motion === 'glide');
-      img.style.transform = s === 1 ? '' : `translate(${tx}px, ${ty}px) scale(${s})`;
+      const size = s === 1 ? '' : `${s * 100}%`;
+      img.style.width = size;
+      img.style.height = size;
+      img.style.transform = s === 1 ? '' : `translate(${tx}px, ${ty}px)`;
       frame.classList.toggle('is-zoomed', s > 1);
-      const pct = Math.round((img.clientWidth * s / img.naturalWidth) * 100);
+      const pct = Math.round((frame.clientWidth * s / img.naturalWidth) * 100);
       ui.level.textContent = s === 1 ? 'Fit' : `${pct}%`;
       ui.out.disabled = s === 1;
       ui.zin.disabled = s >= maxScale() - 0.001;
@@ -743,14 +753,46 @@
     };
     const middle = () => [frame.clientWidth / 2, frame.clientHeight / 2];
 
+    // A mouse wheel reports lines (Firefox) or notches of 120 in the legacy wheelDelta (Chrome,
+    // Safari). Trackpads report small pixel deltas, often with some sideways movement. Once a
+    // trackpad is seen, its events keep counting as trackpad for a moment so a gesture never flips.
+    const isMouseWheel = (e) => {
+      if (e.deltaMode !== 0) return true;
+      if (performance.now() - lastTrackpad < 400) return false;
+      const legacy = e.wheelDeltaY;
+      return e.deltaX === 0 && typeof legacy === 'number' && legacy !== 0 && legacy % 120 === 0;
+    };
+
     frame.addEventListener('wheel', (e) => {
-      // In the stacked mobile layout the page scrolls, so a plain wheel only zooms once zoomed in.
-      if (!e.ctrlKey && narrowLayout.matches && s === 1) return;
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      const dx = e.deltaX * unit;
+      const dy = e.deltaY * unit;
+
+      // Trackpad pinch (and ctrl + wheel) zooms at the cursor and follows the fingers.
+      if (e.ctrlKey) {
+        e.preventDefault();
+        zoomTo(s * Math.exp(-dy * 0.01), ...local(e.clientX, e.clientY), null);
+        return;
+      }
+
+      if (isMouseWheel(e)) {
+        // In the stacked mobile layout the page scrolls, so a plain wheel only zooms once zoomed in.
+        if (narrowLayout.matches && s === 1) return;
+        e.preventDefault();
+        // Wheel notches are big jumps, so glide between them.
+        zoomTo(s * Math.exp(-dy * 0.0025), ...local(e.clientX, e.clientY), 'glide');
+        return;
+      }
+
+      // Two-finger trackpad scroll moves around the zoomed photo. At fit size there is nothing to
+      // move, so the event is left alone.
+      lastTrackpad = performance.now();
+      if (s === 1) return;
       e.preventDefault();
-      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      const factor = Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0025));
-      // Mouse wheels jump in big notches; glide those. Trackpads send many small deltas; follow them.
-      zoomTo(s * factor, ...local(e.clientX, e.clientY), Math.abs(dy) >= 50 ? 'glide' : null);
+      tx -= dx;
+      ty -= dy;
+      clamp();
+      render(null);
     }, { passive: false });
 
     frame.addEventListener('dblclick', (e) => {
