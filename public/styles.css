@@ -360,14 +360,19 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 
 /* The figure fills the stage and is a size container, so the frame can fit the photo exactly:
    as wide as possible without passing the stage's width or height, or the photo's own size
-   (upscaling a small file only makes it blurrier). */
+   (upscaling a small file only makes it blurrier). The bottom padding reserves a strip for the
+   caption, so the photo always ends above it with a gap; container units measure the content box,
+   so the photo fits in the space above that strip. */
 .photo {
   --fit-h: 100cqh;
+  --caption-strip: 52px;
   display: grid;
   place-items: center;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   margin: 0;
+  padding-bottom: var(--caption-strip);
   container-type: size;
   view-transition-name: hero;
 }
@@ -865,6 +870,7 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
     align-items: center;
     gap: 10px;
     height: auto;
+    padding-bottom: 0;
     container-type: inline-size;
   }
 

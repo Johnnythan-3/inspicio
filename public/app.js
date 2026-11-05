@@ -486,9 +486,10 @@
     if (longSide && longSide < 1200 && (camera || get('DateTimeOriginal'))) {
       nodes.push(notice(
         `Small copy: ${img.width} × ${img.height} pixels`,
-        'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging straight '
-        + 'out of the Photos app or saving from a messaging app often gives a small copy. For the original, '
-        + 'use File › Export › Export Unmodified Original in Photos, or AirDrop it, then open that file.',
+        'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging a photo '
+        + 'straight out of the Photos app, or saving one from a messaging app, often gives a small copy. '
+        + 'For full quality, export it from Photos first (File › Export › Export 1 Photo, Size: Full Size), '
+        + 'then open that file.',
       ));
     }
 
