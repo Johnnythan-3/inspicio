@@ -329,7 +329,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 
 .viewer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
   height: calc(100dvh - var(--topbar-h));
 }
 
@@ -352,20 +352,22 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
   display: grid;
   place-items: center;
   min-height: 0;
-  padding: clamp(20px, 4vw, 48px);
+  padding: clamp(12px, 1.2vw, 16px);
   background:
     radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--stage) 60%, transparent), var(--stage));
   overflow: hidden;
 }
 
+/* The figure fills the stage and is a size container, so the frame can fit the photo exactly:
+   as wide as possible without passing the stage's width or height (or 2× the photo's own size). */
 .photo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  max-width: 100%;
-  max-height: 100%;
+  --fit-h: 100cqh;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
   margin: 0;
+  container-type: size;
   view-transition-name: hero;
 }
 
@@ -373,7 +375,8 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
    ends, nothing keeps the photo on a scaled or blurred layer (which can leave it looking soft). */
 .zoom-frame {
   position: relative;
-  max-width: 100%;
+  width: min(100cqw, var(--fit-h) * var(--ar), var(--nat-w) * 2);
+  aspect-ratio: var(--ar);
   overflow: hidden;
   border-radius: 12px;
   box-shadow: var(--shadow-photo);
@@ -386,15 +389,10 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 .zoom-frame.is-dragging { cursor: grabbing; }
 .zoom-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.photo img {
-  display: block;
-  max-width: 100%;
-  max-height: calc(100dvh - var(--topbar-h) - 2 * clamp(20px, 4vw, 48px) - 44px);
-  width: auto;
-  height: auto;
-}
-
 .zoom-img {
+  display: block;
+  width: 100%;
+  height: 100%;
   transform-origin: 0 0;
   user-select: none;
   -webkit-user-select: none;
@@ -404,15 +402,38 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 .zoom-img.is-animating { transition: transform 0.35s var(--ease); }
 .zoom-img.is-gliding { transition: transform 0.14s ease-out; }
 
+/* The caption floats over the bottom of the stage instead of taking a row of its own, which leaves
+   that height to the photo. */
 .photo figcaption {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  max-width: calc(100% - 20px);
+  padding: 3px 3px 3px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+  box-shadow: var(--shadow);
   font-size: 12.5px;
   font-weight: 500;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
-  animation: rise 0.6s 0.15s var(--ease) both;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: caption-in 0.6s 0.15s var(--ease) both;
+}
+
+.photo figcaption > span { overflow: hidden; text-overflow: ellipsis; }
+
+@keyframes caption-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translateX(-50%); }
 }
 
 .zoom-controls {
@@ -537,7 +558,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 
 .group {
   margin: 0 0 12px;
-  padding: 14px 16px 8px;
+  padding: 0;
   border-radius: var(--radius);
   border: 1px solid var(--line);
   background: var(--card);
@@ -546,10 +567,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 }
 
 .group-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 11.5px;
   font-weight: 650;
   letter-spacing: 0.07em;
@@ -557,7 +575,56 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
   color: var(--faint);
 }
 
+/* The whole header is the collapse button. */
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: padding-bottom 0.32s var(--ease), color 0.2s;
+}
+
+.group-toggle:hover { color: var(--muted); }
+.group-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 .group-head svg { width: 14px; height: 14px; color: var(--accent); }
+
+.group-head .group-chevron {
+  margin-left: auto;
+  color: var(--faint);
+  transition: transform 0.32s var(--ease), color 0.2s;
+}
+
+.group-toggle:hover .group-chevron { color: var(--muted); }
+
+/* Smooth collapse: the body's single grid row animates between its full height and zero. */
+.group-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.32s var(--ease), opacity 0.24s ease;
+}
+
+.group-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 16px;
+}
+
+.group-inner > :last-child { margin-bottom: 8px; }
+
+.group.is-collapsed .group-toggle { padding-bottom: 14px; }
+.group.is-collapsed .group-chevron { transform: rotate(-90deg); }
+.group.is-collapsed .group-body { grid-template-rows: 0fr; opacity: 0; }
 
 .rows { margin: 0; }
 
@@ -779,10 +846,26 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 
   .stage {
     min-height: 0;
-    padding: 20px 16px;
+    padding: 16px;
   }
 
-  .photo img { max-height: 62vh; }
+  /* The stage has no fixed height here, so fit to the width and 66% of the screen height, with the
+     caption back in the flow below the photo. */
+  .photo {
+    --fit-h: 66svh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    height: auto;
+    container-type: inline-size;
+  }
+
+  .photo figcaption {
+    position: static;
+    transform: none;
+    animation: rise 0.6s 0.15s var(--ease) both;
+  }
 
   .panel {
     overflow: visible;

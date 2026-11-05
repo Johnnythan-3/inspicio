@@ -7,7 +7,7 @@
 - **Empty state:** a large drag-and-drop zone with a click-to-browse fallback.
 - **Loaded state:**
   - **Left side:** a large preview of the photo at full resolution, with smooth zoom and pan (wheel/trackpad pinch, touch pinch, double-click, drag, +/−/Fit controls, keys + − 0).
-  - **Right panel:** metadata, grouped into sections.
+  - **Right panel:** metadata, grouped into sections (max 340 px wide so the photo gets more room). Clicking a section header collapses it smoothly; collapsed section titles are saved in `localStorage` (`inspicio.collapsed`). Store only display preferences there, never anything from a photo.
 - **Metadata groups** (show a group only when it has data):
   - **Camera:** make, model, lens, software.
   - **Exposure:** ISO, shutter speed, aperture, focal length, flash, white balance.

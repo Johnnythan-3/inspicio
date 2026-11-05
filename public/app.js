@@ -310,23 +310,74 @@
     return svg;
   }
 
+  /* ---------- Collapsed sections ---------- */
+
+  // Which sections the viewer has collapsed, by title. This is a display preference only; it never
+  // holds anything from a photo. Storage can be blocked (private mode), so every access is guarded.
+  const COLLAPSED_KEY = 'inspicio.collapsed';
+  const collapsed = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]');
+      return new Set(Array.isArray(saved) ? saved.filter((t) => typeof t === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  })();
+
+  function saveCollapsed() {
+    try {
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]));
+    } catch {
+      // Not saved; the choice still applies until the page is closed.
+    }
+  }
+
+  let groupSeq = 0;
+
   // rows: [label, value, note?, copyText?]; rows with no value are dropped. Returns null if nothing
   // is left. A row with copyText becomes a button that copies that text to the clipboard.
+  // Clicking the header collapses or expands the section, and the choice is remembered.
   function group(title, iconName, rows, index, extra) {
     const kept = rows.filter((r) => r && r[1] !== null && r[1] !== undefined && r[1] !== '');
     if (!kept.length && !extra) return null;
-    return el('section', { class: 'group', vars: { '--i': index } },
-      el('h2', { class: 'group-head' }, icon(iconName), title),
-      kept.length ? el('dl', { class: 'rows' },
-        kept.map(([label, value, note, copyText]) => el('div', { class: 'row' },
-          el('dt', null, label),
-          el('dd', null, copyText
-            ? copyButton(copyText, [value, note ? el('small', null, note) : null])
-            : [value, note ? el('small', null, note) : null]),
-        )),
-      ) : null,
-      extra || null,
+
+    const bodyId = `group-body-${++groupSeq}`;
+    const isCollapsed = collapsed.has(title);
+    const body = el('div', { class: 'group-body', id: bodyId, inert: isCollapsed },
+      el('div', { class: 'group-inner' },
+        kept.length ? el('dl', { class: 'rows' },
+          kept.map(([label, value, note, copyText]) => el('div', { class: 'row' },
+            el('dt', null, label),
+            el('dd', null, copyText
+              ? copyButton(copyText, [value, note ? el('small', null, note) : null])
+              : [value, note ? el('small', null, note) : null]),
+          )),
+        ) : null,
+        extra || null,
+      ),
     );
+    const toggle = el('button', {
+      class: 'group-toggle',
+      type: 'button',
+      'aria-expanded': String(!isCollapsed),
+      'aria-controls': bodyId,
+    }, icon(iconName), el('span', { class: 'group-title' }, title), icon('chevron', 'group-chevron'));
+    const section = el('section', { class: `group${isCollapsed ? ' is-collapsed' : ''}`, vars: { '--i': index } },
+      el('h2', { class: 'group-head' }, toggle),
+      body,
+    );
+
+    toggle.addEventListener('click', () => {
+      const nowCollapsed = !section.classList.contains('is-collapsed');
+      section.classList.toggle('is-collapsed', nowCollapsed);
+      toggle.setAttribute('aria-expanded', String(!nowCollapsed));
+      body.inert = nowCollapsed;
+      if (nowCollapsed) collapsed.add(title);
+      else collapsed.delete(title);
+      saveCollapsed();
+    });
+
+    return section;
   }
 
   // Shows `content`; on click, copies `text` and briefly says so in place of the content.
@@ -608,6 +659,7 @@
       });
       const frame = el('div', {
         class: 'zoom-frame',
+        vars: { '--ar': String(img.width / img.height), '--nat-w': `${img.width}px` },
         tabindex: '0',
         role: 'img',
         'aria-label': `${file.name}. Scroll, pinch or double-click to zoom; drag to move.`,
