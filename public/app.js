@@ -489,7 +489,8 @@
         'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging a photo '
         + 'straight out of the Photos app gives the browser only a small preview, and messaging apps often '
         + 'shrink photos too. For the full photo, click New photo, choose Photos in the sidebar of the window '
-        + 'that opens, and pick it there. Or drag it from Photos to your Desktop first, then drop that file here.',
+        + 'that opens, and pick it there. Or drag it from Photos to your Desktop first, then drop that file here. '
+        + 'In Safari, dragging straight from Photos also works.',
       ));
     }
 
@@ -1006,7 +1007,16 @@
       /\.(jpe?g|heic|heif|avif|png|tiff?|webp|gif|bmp)$/i.test(file.name) || RAW_EXT.test(file.name);
   }
 
+  // Loading overlay, for when opening takes a moment: a slow decode, or Safari waiting for the
+  // Photos app to export a dragged photo (Safari fires `drop` only once the file is written).
+  let slowTimer = 0;
+  function setLoading(on) {
+    document.body.classList.toggle('loading', on);
+    app.setAttribute('aria-busy', String(on));
+  }
+
   async function handleFile(file) {
+    if (!file || !looksLikeImage(file)) setLoading(false);
     if (!file) return;
     if (!looksLikeImage(file)) {
       if (app.dataset.state === 'empty') showError(`“${file.name}” doesn’t look like an image. Try a JPEG, HEIC or PNG.`);
@@ -1017,6 +1027,8 @@
 
     const token = ++loadToken;
     document.body.classList.add('busy');
+    clearTimeout(slowTimer);
+    slowTimer = setTimeout(() => setLoading(true), 250);
     let url = URL.createObjectURL(file);
 
     const [meta, decoded] = await Promise.all([readMetadata(file), decodeImage(url)]);
@@ -1037,6 +1049,8 @@
       return;
     }
     document.body.classList.remove('busy');
+    clearTimeout(slowTimer);
+    setLoading(false);
 
     const previousUrl = currentUrl;
     currentUrl = url;
@@ -1076,30 +1090,61 @@
   let dragDepth = 0;
   const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
 
+  // Browsers fire `dragover` every few hundred ms while a drag is over the page, even when the
+  // pointer is still. If it stops with no `dragleave` or `drop`, the user let go and the browser
+  // is waiting for the file (Safari with a Photos drag), so show the loading overlay.
+  let quietTimer = 0;
+  let stuckTimer = 0;
+  const isBusy = () => document.body.classList.contains('busy');
+
+  function endDrag() {
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    clearTimeout(quietTimer);
+    clearTimeout(stuckTimer);
+  }
+
+  function dragActivity() {
+    clearTimeout(quietTimer);
+    clearTimeout(stuckTimer);
+    if (!isBusy()) setLoading(false);
+    quietTimer = setTimeout(() => {
+      setLoading(true);
+      // Give up if no file ever arrives.
+      stuckTimer = setTimeout(() => {
+        endDrag();
+        if (!isBusy()) setLoading(false);
+      }, 30000);
+    }, 600);
+  }
+
   window.addEventListener('dragenter', (e) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
     dragDepth++;
     document.body.classList.add('dragging');
+    dragActivity();
   });
 
   window.addEventListener('dragover', (e) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
+    dragActivity();
   });
 
   window.addEventListener('dragleave', (e) => {
     if (!hasFiles(e)) return;
     dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0) document.body.classList.remove('dragging');
+    if (dragDepth > 0) return;
+    endDrag();
+    if (!isBusy()) setLoading(false);
   });
 
   window.addEventListener('drop', (e) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    dragDepth = 0;
-    document.body.classList.remove('dragging');
+    endDrag();
     handleFile(e.dataTransfer.files[0]);
   });
 

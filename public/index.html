@@ -64,7 +64,10 @@
   </main>
 
   <div class="drag-overlay" id="drag-overlay" aria-hidden="true">
-    <div class="drag-overlay-inner">Drop to inspect</div>
+    <div class="drag-overlay-inner">
+      <span class="overlay-drop">Drop to inspect</span>
+      <span class="overlay-loading"><span class="spinner"></span>Opening photo…</span>
+    </div>
   </div>
 
   <input type="file" id="file-input" accept="image/*,.heic,.heif,.dng,.arw,.cr2,.cr3,.nef,.nrw,.orf,.rw2,.raf,.pef,.srw,.gpr" hidden>
