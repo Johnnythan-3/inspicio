@@ -329,7 +329,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 
 .viewer {
   display: grid;
-  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
   height: calc(100dvh - var(--topbar-h));
 }
 
@@ -338,7 +338,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 22px 18px 40px;
-  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
   background: var(--surface);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -630,7 +630,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 }
 
 @keyframes panel-in {
-  from { opacity: 0; transform: translateX(-24px); }
+  from { opacity: 0; transform: translateX(24px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -659,7 +659,6 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
   }
 
   .stage {
-    order: -1;
     min-height: 0;
     padding: 20px 16px;
   }
@@ -668,7 +667,7 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
 
   .panel {
     overflow: visible;
-    border-right: 0;
+    border-left: 0;
     border-top: 1px solid var(--line);
     padding: 20px 16px 48px;
   }

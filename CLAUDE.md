@@ -6,8 +6,8 @@
 
 - **Empty state:** a large drag-and-drop zone with a click-to-browse fallback.
 - **Loaded state:**
-  - **Left panel:** metadata, grouped into sections.
-  - **Right side:** a large preview of the photo.
+  - **Left side:** a large preview of the photo.
+  - **Right panel:** metadata, grouped into sections.
 - **Metadata groups** (show a group only when it has data):
   - **Camera:** make, model, lens, software.
   - **Exposure:** ISO, shutter speed, aperture, focal length, flash, white balance.
