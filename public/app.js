@@ -597,9 +597,31 @@
   function buildStage(file, img, url) {
     if (img.ok) {
       const caption = [`${img.width} × ${img.height}`, fmtBytes(file.size)].filter(Boolean).join('  ·  ');
+      // The <img> points at the original file, so zooming in shows its full resolution.
+      const photo = el('img', {
+        class: 'zoom-img',
+        src: url,
+        alt: `Preview of ${file.name}`,
+        width: img.width,
+        height: img.height,
+        draggable: 'false',
+      });
+      const frame = el('div', {
+        class: 'zoom-frame',
+        tabindex: '0',
+        role: 'img',
+        'aria-label': `${file.name}. Scroll, pinch or double-click to zoom; drag to move.`,
+      }, photo);
+      const out = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom out' }, '−');
+      const level = el('button', { class: 'zoom-level', type: 'button', title: 'Fit to view' }, 'Fit');
+      const zin = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom in' }, '+');
+      attachZoom(frame, photo, { out, level, zin });
       return el('figure', { class: 'photo' },
-        el('img', { src: url, alt: `Preview of ${file.name}`, width: img.width, height: img.height, decoding: 'async' }),
-        el('figcaption', null, caption),
+        frame,
+        el('figcaption', null,
+          el('span', null, caption),
+          el('div', { class: 'zoom-controls' }, out, level, zin),
+        ),
       );
     }
     const heic = /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type);
@@ -612,6 +634,142 @@
           : 'This browser can’t display this file format. The metadata on the left is still complete.'),
       ),
     );
+  }
+
+  /* ---------- Zoom ---------- */
+
+  let zoomObserver = null;
+  const narrowLayout = window.matchMedia('(max-width: 860px)');
+
+  // Zoom and pan inside the photo's frame: wheel or trackpad pinch zooms at the cursor, two-finger
+  // touch pinch zooms, double-click toggles, drag pans, and + / − / 0 work when the frame has focus.
+  function attachZoom(frame, img, ui) {
+    let s = 1;
+    let tx = 0;
+    let ty = 0;
+    const pointers = new Map();
+    let pinch = null;
+
+    const maxScale = () => {
+      const shown = img.clientWidth || 1;
+      const toNative = img.naturalWidth / (shown * (window.devicePixelRatio || 1));
+      return Math.max(3, toNative * 2); // up to 2× past one image pixel per screen pixel
+    };
+
+    const clamp = () => {
+      const w = frame.clientWidth;
+      const h = frame.clientHeight;
+      tx = Math.min(0, Math.max(w - w * s, tx));
+      ty = Math.min(0, Math.max(h - h * s, ty));
+    };
+
+    const render = (motion) => {
+      img.classList.toggle('is-animating', motion === 'smooth');
+      img.classList.toggle('is-gliding', motion === 'glide');
+      img.style.transform = s === 1 ? '' : `translate(${tx}px, ${ty}px) scale(${s})`;
+      frame.classList.toggle('is-zoomed', s > 1);
+      const pct = Math.round((img.clientWidth * s / img.naturalWidth) * 100);
+      ui.level.textContent = s === 1 ? 'Fit' : `${pct}%`;
+      ui.out.disabled = s === 1;
+      ui.zin.disabled = s >= maxScale() - 0.001;
+    };
+
+    const zoomTo = (next, px, py, motion) => {
+      next = Math.min(maxScale(), Math.max(1, next));
+      const k = next / s;
+      tx = px - (px - tx) * k;
+      ty = py - (py - ty) * k;
+      s = next;
+      if (s < 1.01) { s = 1; tx = 0; ty = 0; }
+      clamp();
+      render(motion);
+    };
+
+    const local = (x, y) => {
+      const r = frame.getBoundingClientRect();
+      return [x - r.left, y - r.top];
+    };
+    const middle = () => [frame.clientWidth / 2, frame.clientHeight / 2];
+
+    frame.addEventListener('wheel', (e) => {
+      // In the stacked mobile layout the page scrolls, so a plain wheel only zooms once zoomed in.
+      if (!e.ctrlKey && narrowLayout.matches && s === 1) return;
+      e.preventDefault();
+      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+      const factor = Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0025));
+      // Mouse wheels jump in big notches; glide those. Trackpads send many small deltas; follow them.
+      zoomTo(s * factor, ...local(e.clientX, e.clientY), Math.abs(dy) >= 50 ? 'glide' : null);
+    }, { passive: false });
+
+    frame.addEventListener('dblclick', (e) => {
+      if (s > 1) zoomTo(1, 0, 0, 'smooth');
+      else zoomTo(Math.min(2.5, maxScale()), ...local(e.clientX, e.clientY), 'smooth');
+    });
+
+    frame.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pointers.size === 2) {
+        const [[ax, ay], [bx, by]] = [...pointers.values()];
+        pinch = { d0: Math.hypot(bx - ax, by - ay) || 1, s0: s, mid: local((ax + bx) / 2, (ay + by) / 2) };
+      }
+      if (s > 1 || pointers.size === 2) {
+        frame.setPointerCapture(e.pointerId);
+        frame.classList.add('is-dragging');
+      }
+    });
+
+    frame.addEventListener('pointermove', (e) => {
+      const prev = pointers.get(e.pointerId);
+      if (!prev) return;
+      pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pointers.size === 2 && pinch) {
+        const [[ax, ay], [bx, by]] = [...pointers.values()];
+        const mid = local((ax + bx) / 2, (ay + by) / 2);
+        tx += mid[0] - pinch.mid[0];
+        ty += mid[1] - pinch.mid[1];
+        pinch.mid = mid;
+        zoomTo(pinch.s0 * (Math.hypot(bx - ax, by - ay) / pinch.d0), mid[0], mid[1], null);
+      } else if (pointers.size === 1 && s > 1) {
+        tx += e.clientX - prev[0];
+        ty += e.clientY - prev[1];
+        clamp();
+        render(null);
+      }
+    });
+
+    const release = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (!pointers.size) frame.classList.remove('is-dragging');
+    };
+    frame.addEventListener('pointerup', release);
+    frame.addEventListener('pointercancel', release);
+
+    frame.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '+' || e.key === '=') zoomTo(s * 1.6, ...middle(), 'smooth');
+      else if (e.key === '-' || e.key === '_') zoomTo(s / 1.6, ...middle(), 'smooth');
+      else if (e.key === '0') zoomTo(1, 0, 0, 'smooth');
+      else return;
+      e.preventDefault();
+    });
+
+    ui.zin.addEventListener('click', () => zoomTo(s * 1.6, ...middle(), 'smooth'));
+    ui.out.addEventListener('click', () => zoomTo(s / 1.6, ...middle(), 'smooth'));
+    ui.level.addEventListener('click', () => zoomTo(1, 0, 0, 'smooth'));
+
+    // A new window size changes the fitted size, so go back to fit.
+    zoomObserver?.disconnect();
+    let lastWidth = 0;
+    zoomObserver = new ResizeObserver(() => {
+      const w = frame.clientWidth;
+      if (lastWidth && w !== lastWidth && s !== 1) zoomTo(1, 0, 0, null);
+      lastWidth = w;
+    });
+    zoomObserver.observe(frame);
+    img.addEventListener('load', () => render(null), { once: true });
+    render(null);
   }
 
   /* ---------- State ---------- */

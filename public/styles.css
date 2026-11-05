@@ -369,24 +369,82 @@ body.dragging[data-state="viewer"] .drag-overlay-inner { transform: scale(1); }
   view-transition-name: hero;
 }
 
+/* The frame clips the zoomed photo. Its entrance animation only fills "backwards" so that, once it
+   ends, nothing keeps the photo on a scaled or blurred layer (which can leave it looking soft). */
+.zoom-frame {
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: var(--shadow-photo);
+  cursor: zoom-in;
+  touch-action: pan-y;
+  animation: photo-in 0.7s var(--ease) backwards;
+}
+
+.zoom-frame.is-zoomed { cursor: grab; touch-action: none; }
+.zoom-frame.is-dragging { cursor: grabbing; }
+.zoom-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .photo img {
   display: block;
   max-width: 100%;
-  max-height: calc(100dvh - var(--topbar-h) - 2 * clamp(20px, 4vw, 48px) - 40px);
+  max-height: calc(100dvh - var(--topbar-h) - 2 * clamp(20px, 4vw, 48px) - 44px);
   width: auto;
   height: auto;
-  border-radius: 12px;
-  box-shadow: var(--shadow-photo);
-  animation: photo-in 0.7s var(--ease) both;
 }
 
+.zoom-img {
+  transform-origin: 0 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.zoom-img.is-animating { transition: transform 0.35s var(--ease); }
+.zoom-img.is-gliding { transition: transform 0.14s ease-out; }
+
 .photo figcaption {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   animation: rise 0.6s 0.15s var(--ease) both;
 }
+
+.zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.zoom-btn,
+.zoom-level {
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.zoom-btn { width: 26px; font-size: 16px; line-height: 1; }
+.zoom-level { min-width: 52px; padding: 0 8px; color: var(--muted); }
+.zoom-btn:hover:not(:disabled),
+.zoom-level:hover { background: var(--accent-soft); color: var(--accent); }
+.zoom-btn:disabled { color: var(--faint); cursor: default; }
+.zoom-btn:focus-visible,
+.zoom-level:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .preview-fallback {
   display: flex;

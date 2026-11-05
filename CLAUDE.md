@@ -6,7 +6,7 @@
 
 - **Empty state:** a large drag-and-drop zone with a click-to-browse fallback.
 - **Loaded state:**
-  - **Left side:** a large preview of the photo.
+  - **Left side:** a large preview of the photo at full resolution, with smooth zoom and pan (wheel/trackpad pinch, touch pinch, double-click, drag, +/−/Fit controls, keys + − 0).
   - **Right panel:** metadata, grouped into sections.
 - **Metadata groups** (show a group only when it has data):
   - **Camera:** make, model, lens, software.
