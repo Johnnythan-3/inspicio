@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Drop in a photo and see all of its metadata. Everything runs in your browser. Your photo is never uploaded.">
+  <title>Inspicio · See what your photos say</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/exifr-7.1.3.full.umd.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Inspicio home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="16" cy="16" r="5.5" fill="currentColor"/>
+      </svg>
+      <span>Inspicio</span>
+    </a>
+    <div class="topbar-right">
+      <p class="local-badge">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"/></svg>
+        <span>Stays on your device</span>
+      </p>
+      <button class="btn" id="open-another" type="button" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>New photo</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="app" data-state="empty">
+    <section class="empty" id="empty-view">
+      <div class="hero-copy">
+        <h1>See what your photos say.</h1>
+        <p>Camera, settings, date, location and every hidden tag, read right here in your browser.</p>
+      </div>
+
+      <button class="dropzone" id="dropzone" type="button">
+        <span class="dropzone-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48">
+            <rect x="6" y="10" width="36" height="28" rx="6" fill="none" stroke="currentColor" stroke-width="2.5"/>
+            <circle cx="17" cy="20" r="3.5" fill="currentColor"/>
+            <path d="M8 34l10-9 7 6 6-5 9 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="dropzone-title">Drop a photo here</span>
+        <span class="dropzone-sub">or click to choose one from your computer</span>
+        <span class="dropzone-formats">JPEG · HEIC · PNG · TIFF · AVIF</span>
+      </button>
+
+      <p class="error" id="error" role="alert" hidden></p>
+      <p class="empty-note">Nothing is uploaded. Your photo never leaves this browser.</p>
+    </section>
+
+    <section class="viewer" id="viewer-view" hidden>
+      <aside class="panel" id="panel" aria-label="Photo metadata"></aside>
+      <div class="stage" id="stage"></div>
+    </section>
+  </main>
+
+  <div class="drag-overlay" id="drag-overlay" aria-hidden="true">
+    <div class="drag-overlay-inner">Drop to inspect</div>
+  </div>
+
+  <input type="file" id="file-input" accept="image/*,.heic,.heif,.dng" hidden>
+</body>
+</html>

@@ -1,0 +1,9 @@
+// Cloudflare Workers static assets. No Worker script: Cloudflare serves the files in ./public as-is.
+{
+  "name": "inspicio",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "404-page"
+  }
+}

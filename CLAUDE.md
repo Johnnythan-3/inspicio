@@ -40,14 +40,22 @@
 - **Hosting:** Cloudflare, connected to the GitHub repo, so every push to `main` deploys automatically. Prefer Workers static assets (a `wrangler.jsonc` with an `assets` directory and no Worker script). Cloudflare Pages is an acceptable fallback.
 - The site is fully static, so no server code is needed.
 
-## Planned file layout
+## File layout
 
 ```
-index.html      page markup
-styles.css      all styles
-app.js          file handling, exifr calls, rendering
-wrangler.jsonc  Cloudflare static assets config (added when deploying)
+public/                  everything Cloudflare serves
+  index.html             page markup and the CSP meta tag
+  styles.css             all styles, light/dark tokens, animations
+  app.js                 file handling, exifr calls, rendering
+  _headers               security headers for Cloudflare
+  404.html, favicon.svg
+  vendor/                exifr 7.1.3 full UMD build and its MIT license
+wrangler.jsonc           Cloudflare static assets config (serves ./public)
 ```
+
+- The CSP (`default-src 'none'`) blocks every network request from the page. Keep it that way. It is the proof behind the privacy promise.
+- Metadata is untrusted input. Render it with `textContent` (the `el()` helper in `app.js`), never `innerHTML`.
+- Run locally: `python3 -m http.server 8788 --directory public`.
 
 ## Working notes
 
