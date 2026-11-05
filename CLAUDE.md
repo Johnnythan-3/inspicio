@@ -37,8 +37,17 @@
 ## Repo and deploy
 
 - **GitHub:** `Johnnythan-3/inspicio`, default branch `main`.
-- **Hosting:** Cloudflare, connected to the GitHub repo, so every push to `main` deploys automatically. Prefer Workers static assets (a `wrangler.jsonc` with an `assets` directory and no Worker script). Cloudflare Pages is an acceptable fallback.
+- **Hosting:** Cloudflare Workers static assets (no Worker script), connected to the GitHub repo. Every push to `main` deploys automatically in under a minute. Other branches get preview URLs.
+- **Live URL:** https://inspicio.johnnythan.workers.dev
+- **Privacy rule for URLs:** the account's workers.dev subdomain is `johnnythan`. It was renamed from one that exposed the owner's email name. Never put the owner's email, or anything derived from it, in URLs, files or commits. Commits use the GitHub noreply address set in this repo's git config.
 - The site is fully static, so no server code is needed.
+
+## Status (2026-11-05)
+
+- v1 is live and checked: security headers present, test photos parse, no console errors, light/dark and mobile layouts work.
+- **First thing next session:** remind the user to test the live site with their own real photos (a recent iPhone photo, a camera JPEG, a screenshot), and in Safari, the only browser that previews HEIC. Fix whatever they find.
+- Not tested yet: real-world photos, Safari, Firefox.
+- Possible later work, only if asked: tag search, copy as JSON, "download clean copy" that strips metadata, a custom domain.
 
 ## File layout
 
