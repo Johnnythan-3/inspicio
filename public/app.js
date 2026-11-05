@@ -483,7 +483,7 @@
     // A camera photo with few pixels is usually a shrunk copy, for example one dragged out of the
     // Photos app (the browser receives a small preview) or sent through a messaging app.
     const longSide = img.ok ? Math.max(img.width, img.height) : 0;
-    if (longSide && longSide < 1200 && (camera || get('DateTimeOriginal'))) {
+    if (longSide && longSide < 1200 && !img.rawPreview && (camera || get('DateTimeOriginal'))) {
       nodes.push(notice(
         `Small copy: ${img.width} × ${img.height} pixels`,
         'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging a photo '
@@ -592,7 +592,9 @@
     const resUnit = toText(get('ResolutionUnit'));
     nodes.push(group('Image', 'image', [
       ['Dimensions', width && height ? `${width} × ${height}` : null, width && height
-        ? `${round((width * height) / 1e6, 1)} megapixels${exifBigger ? ` · camera recorded ${exifW} × ${exifH}` : ''}`
+        ? `${round((width * height) / 1e6, 1)} megapixels`
+          + (img.rawPreview ? ' · embedded preview' : '')
+          + (exifBigger ? ` · camera recorded ${exifW} × ${exifH}` : '')
         : null],
       ['Orientation', toText(get('Orientation'))],
       ['Color space', colorSpaceText(get('ColorSpace')) || toText(get('ColorSpaceData'))],
@@ -654,6 +656,99 @@
 
   /* ---------- Preview ---------- */
 
+  /* ---------- RAW previews ---------- */
+
+  // Browsers can't decode camera RAW data, but almost every RAW file (DNG, ARW, CR2, CR3, NEF, RAF,
+  // ORF, RW2, …) carries one or more ordinary JPEG previews that the camera made. This finds them by
+  // their start marker and reads only each one's frame header to learn its size; the picture data
+  // is decoded by the browser as usual. Metadata still comes from exifr.
+  const RAW_EXT = /\.(dng|arw|srf|sr2|cr2|cr3|crw|nef|nrw|orf|rw2|raf|pef|srw|3fr|iiq|erf|mef|mos|rwl|gpr)$/i;
+
+  // Width and height from a JPEG's frame header, for the kinds of JPEG browsers can decode
+  // (baseline, extended, progressive). Returns null for anything else, such as the lossless JPEG
+  // that many RAW files use for the sensor data itself.
+  function jpegSize(b, soi) {
+    let p = soi + 2;
+    for (let n = 0; n < 64 && p + 9 < b.length; n++) {
+      if (b[p] !== 0xFF) return null;
+      const m = b[p + 1];
+      if (m === 0xFF) { p += 1; continue; }
+      const len = (b[p + 2] << 8) | b[p + 3];
+      if (len < 2) return null;
+      if (m === 0xC0 || m === 0xC1 || m === 0xC2) {
+        const h = (b[p + 5] << 8) | b[p + 6];
+        const w = (b[p + 7] << 8) | b[p + 8];
+        return w && h ? { w, h } : null;
+      }
+      if ((m >= 0xC3 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) || m === 0xDA || m === 0xD9) return null;
+      p += 2 + len;
+    }
+    return null;
+  }
+
+  // The largest decodable JPEG embedded in the file, as a Blob that starts at its first byte (the
+  // browser stops reading at the JPEG's own end marker, so the rest of the file is ignored).
+  async function rawPreview(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let best = null;
+    let found = 0;
+    for (let i = bytes.indexOf(0xFF); i !== -1 && i < bytes.length - 4; i = bytes.indexOf(0xFF, i + 1)) {
+      if (bytes[i + 1] !== 0xD8 || bytes[i + 2] !== 0xFF) continue;
+      const size = jpegSize(bytes, i);
+      if (size && (!best || size.w * size.h > best.w * best.h)) best = { ...size, start: i };
+      if (++found > 200) break;
+    }
+    return best ? { blob: file.slice(best.start, file.size, 'image/jpeg'), width: best.w, height: best.h } : null;
+  }
+
+  // RAW previews are often stored unrotated, with the rotation only in the RAW file's own EXIF.
+  // If the preview has no orientation of its own, draw it upright on a canvas. The canvas is kept
+  // under ~16 megapixels, which every browser (including iOS Safari) can handle.
+  async function orientPreview(blob, orientation) {
+    if (!orientation || orientation === 1) return blob;
+    let own;
+    try { own = await window.exifr.orientation(blob); } catch { own = undefined; }
+    if (own) return blob;
+
+    const bmp = await createImageBitmap(blob);
+    const swap = orientation >= 5;
+    const outW = swap ? bmp.height : bmp.width;
+    const outH = swap ? bmp.width : bmp.height;
+    const scale = Math.min(1, Math.sqrt(16e6 / (outW * outH)));
+    const cw = Math.round(outW * scale);
+    const ch = Math.round(outH * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext('2d');
+    const t = {
+      2: [-1, 0, 0, 1, cw, 0], 3: [-1, 0, 0, -1, cw, ch], 4: [1, 0, 0, -1, 0, ch],
+      5: [0, 1, 1, 0, 0, 0], 6: [0, 1, -1, 0, cw, 0], 7: [0, -1, -1, 0, cw, ch], 8: [0, -1, 1, 0, 0, ch],
+    }[orientation];
+    if (t) ctx.transform(...t);
+    ctx.drawImage(bmp, 0, 0, bmp.width * scale, bmp.height * scale);
+    bmp.close();
+    return new Promise((resolve) => canvas.toBlob((out) => resolve(out || blob), 'image/jpeg', 0.95));
+  }
+
+  // For a RAW file, returns { url, img } for its best embedded preview, or null.
+  async function loadRawPreview(file) {
+    try {
+      const found = await rawPreview(file);
+      if (!found) return null;
+      let orientation;
+      try { orientation = await window.exifr.orientation(file); } catch { orientation = undefined; }
+      const blob = await orientPreview(found.blob, orientation);
+      const url = URL.createObjectURL(blob);
+      const img = await decodeImage(url);
+      if (img.ok) return { url, img: { ...img, rawPreview: true } };
+      URL.revokeObjectURL(url);
+    } catch {
+      // No usable preview; the placeholder is shown instead.
+    }
+    return null;
+  }
+
   function decodeImage(url) {
     const probe = new Image();
     probe.src = url;
@@ -665,8 +760,10 @@
 
   function buildStage(file, img, url) {
     if (img.ok) {
-      const caption = [`${img.width} × ${img.height}`, fmtBytes(file.size)].filter(Boolean).join('  ·  ');
-      // The <img> points at the original file, so zooming in shows its full resolution.
+      const caption = [img.rawPreview ? 'RAW preview' : null, `${img.width} × ${img.height}`, fmtBytes(file.size)]
+        .filter(Boolean).join('  ·  ');
+      // The <img> points at the original file (or a RAW file's embedded preview), so zooming in
+      // shows its full resolution.
       const photo = el('img', {
         class: 'zoom-img',
         src: url,
@@ -700,8 +797,10 @@
         icon('image'),
         el('strong', null, 'Preview not available'),
         el('span', null, heic
-          ? 'This browser can’t display HEIC photos. Safari can. The metadata on the left is complete.'
-          : 'This browser can’t display this file format. The metadata on the left is still complete.'),
+          ? 'This browser can’t display HEIC photos. Safari can. The metadata is still complete.'
+          : RAW_EXT.test(file.name)
+            ? 'This RAW file has no preview the browser can show. The metadata is still complete.'
+            : 'This browser can’t display this file format. The metadata is still complete.'),
       ),
     );
   }
@@ -904,7 +1003,7 @@
 
   function looksLikeImage(file) {
     return (file.type && file.type.startsWith('image/')) ||
-      /\.(jpe?g|heic|heif|avif|png|tiff?|webp|gif|dng|bmp)$/i.test(file.name);
+      /\.(jpe?g|heic|heif|avif|png|tiff?|webp|gif|bmp)$/i.test(file.name) || RAW_EXT.test(file.name);
   }
 
   async function handleFile(file) {
@@ -918,9 +1017,21 @@
 
     const token = ++loadToken;
     document.body.classList.add('busy');
-    const url = URL.createObjectURL(file);
+    let url = URL.createObjectURL(file);
 
-    const [meta, img] = await Promise.all([readMetadata(file), decodeImage(url)]);
+    const [meta, decoded] = await Promise.all([readMetadata(file), decodeImage(url)]);
+    let img = decoded;
+
+    // A RAW file the browser can't show: use the camera's embedded JPEG preview instead.
+    if (!img.ok && RAW_EXT.test(file.name)) {
+      const raw = await loadRawPreview(file);
+      if (raw) {
+        URL.revokeObjectURL(url);
+        url = raw.url;
+        img = raw.img;
+      }
+    }
+
     if (token !== loadToken) {
       URL.revokeObjectURL(url);
       return;

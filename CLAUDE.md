@@ -18,6 +18,8 @@
   - **Raw:** every tag the parser found, as a flat list at the bottom.
 - **No-metadata state:** many images have no metadata, for example screenshots and photos saved from social media or messaging apps. Show a clear, friendly message. Do not show an empty panel.
 - **HEIC:** Chrome and Firefox cannot display HEIC. Still read and show its metadata, and show a placeholder in place of the preview.
+- **RAW (DNG, ARW, CR2, CR3, NEF, …):** browsers can't decode RAW data, so `loadRawPreview` in `app.js` shows the largest JPEG preview the camera embedded (found by JPEG start marker + frame header, rotated by the RAW's EXIF orientation if the preview has none). Metadata still comes from exifr. iPhone ProRAW and Sony ARW embed full-size previews; DJI only 960 × 540.
+- **Photos app drags:** dragging straight out of macOS Photos gives the browser a small preview (e.g. 360 × 480 named by UUID). The panel shows a "Small copy" notice for camera photos under 1200 px.
 - **Out of scope for v1:** tag search, copy as JSON, and a "download clean copy" that strips metadata. These are possible later additions. Do not build them unless asked.
 
 ## Hard rules
