@@ -487,9 +487,9 @@
       nodes.push(notice(
         `Small copy: ${img.width} × ${img.height} pixels`,
         'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging a photo '
-        + 'straight out of the Photos app, or saving one from a messaging app, often gives a small copy. '
-        + 'For full quality, export it from Photos first (File › Export › Export 1 Photo, Size: Full Size), '
-        + 'then open that file.',
+        + 'straight out of the Photos app gives the browser only a small preview, and messaging apps often '
+        + 'shrink photos too. For the full photo, click New photo, choose Photos in the sidebar of the window '
+        + 'that opens, and pick it there. Or drag it from Photos to your Desktop first, then drop that file here.',
       ));
     }
 
