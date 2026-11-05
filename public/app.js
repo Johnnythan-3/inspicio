@@ -58,8 +58,8 @@
     exifEX: 'XMP · EXIF extras',
   };
 
-  // Segments that only describe the file container, not the photo. A PNG screenshot always has these.
-  const CONTAINER_SEGMENTS = new Set(['jfif', 'ihdr']);
+  // Segments that only describe the file or its colors, not the photo. Screenshots and exported images often have these.
+  const CONTAINER_SEGMENTS = new Set(['jfif', 'ihdr', 'icc']);
 
   async function readMetadata(file) {
     if (!window.exifr) return { segments: {}, error: 'The metadata reader failed to load. Reload the page and try again.' };
