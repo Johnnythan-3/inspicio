@@ -2,7 +2,7 @@
 
 :root {
   --bg: #f5f5f3;
-  --bg-glow: rgba(99, 102, 241, 0.10);
+  --bg-glow: rgba(25, 68, 138, 0.08);
   --surface: rgba(255, 255, 255, 0.72);
   --card: #ffffff;
   --card-hover: #fbfbfa;
@@ -12,9 +12,9 @@
   --faint: #9d9da6;
   --line: rgba(23, 23, 26, 0.08);
   --line-strong: rgba(23, 23, 26, 0.16);
-  --accent: #4f46e5;
-  --accent-soft: rgba(79, 70, 229, 0.09);
-  --accent-line: rgba(79, 70, 229, 0.35);
+  --accent: #19448a;
+  --accent-soft: rgba(25, 68, 138, 0.08);
+  --accent-line: rgba(25, 68, 138, 0.35);
   --danger: #c2410c;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px -12px rgba(0, 0, 0, 0.12);
@@ -35,7 +35,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0b0b0d;
-    --bg-glow: rgba(129, 140, 248, 0.10);
+    --bg-glow: rgba(137, 173, 230, 0.10);
     --surface: rgba(18, 18, 21, 0.72);
     --card: rgba(255, 255, 255, 0.035);
     --card-hover: rgba(255, 255, 255, 0.055);
@@ -45,9 +45,9 @@
     --faint: #6f6f79;
     --line: rgba(255, 255, 255, 0.07);
     --line-strong: rgba(255, 255, 255, 0.14);
-    --accent: #8b8dfb;
-    --accent-soft: rgba(139, 141, 251, 0.13);
-    --accent-line: rgba(139, 141, 251, 0.45);
+    --accent: #89ade6;
+    --accent-soft: rgba(137, 173, 230, 0.13);
+    --accent-line: rgba(137, 173, 230, 0.45);
     --danger: #fb923c;
     --shadow-sm: none;
     --shadow: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 10px 30px -12px rgba(0, 0, 0, 0.6);
