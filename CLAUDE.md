@@ -1,58 +1,60 @@
 # Inspicio
 
-*Inspicio* is Latin for "I look into." It is a simple, sleek website: the user picks or drops a photo from their computer, and the page shows every piece of metadata in that photo.
+*Inspicio* = Latin "I look into." Simple, sleek site: user picks or drops photo, page shows every piece of its metadata.
 
 ## Product
 
-- **Empty state:** a large drag-and-drop zone with a click-to-browse fallback.
+- **Empty state:** big drop zone, click-to-browse fallback.
 - **Loaded state:**
-  - **Left side:** a large preview of the photo at full resolution, with smooth zoom and pan (wheel/trackpad pinch, touch pinch, double-click, drag, +/−/Fit controls, keys + − 0).
-  - **Right panel:** metadata, grouped into sections (max 340 px wide so the photo gets more room). Clicking a section header collapses it smoothly; collapsed section titles are saved in `localStorage` (`inspicio.collapsed`). Store only display preferences there, never anything from a photo.
-- **Metadata groups** (show a group only when it has data):
+  - **Left:** full-res photo preview, smooth zoom/pan (wheel/trackpad pinch, touch pinch, double-click, drag, +/−/Fit controls, keys + − 0).
+  - **Right panel:** metadata in sections, max 340 px wide. Header click collapses section smoothly; collapsed titles saved in `localStorage` (`inspicio.collapsed`). Only display prefs there, never photo data.
+- **Metadata groups** (show only when data exists):
   - **Camera:** make, model, lens, software.
-  - **Exposure:** ISO, shutter speed, aperture, focal length, flash, white balance.
-  - **Date/Time:** original capture time, modified time, time zone offset.
-  - **Location:** GPS latitude/longitude (click either to copy "lat, lon"; the clicked row says "Copied to clipboard"), altitude, an "open in map" link, and an opt-in "Show map" button (Mapbox static map with a pin).
+  - **Exposure:** ISO, shutter, aperture, focal length, flash, white balance.
+  - **Date/Time:** capture time, modified time, time zone offset.
+  - **Location:** GPS lat/lon (click either copies "lat, lon"; clicked row says "Copied to clipboard"), altitude, "open in map" link, opt-in "Show map" button (Mapbox static map + pin).
   - **Image:** pixel dimensions, orientation, color space, ICC profile.
   - **File:** name, size, MIME type, last modified.
-  - **Raw:** every tag the parser found, as a flat list at the bottom.
-- **No-metadata state:** many images have no metadata, for example screenshots and photos saved from social media or messaging apps. Show a clear, friendly message. Do not show an empty panel.
-- **HEIC:** Chrome and Firefox cannot display HEIC. Still read and show its metadata, and show a placeholder in place of the preview.
-- **RAW (DNG, ARW, CR2, CR3, NEF, …):** browsers can't decode RAW data, so `loadRawPreview` in `app.js` shows the largest JPEG preview the camera embedded (found by JPEG start marker + frame header, rotated by the RAW's EXIF orientation if the preview has none). Metadata still comes from exifr. iPhone ProRAW and Sony ARW embed full-size previews; DJI only 960 × 540.
-- **Photos app drags:** dragging straight out of macOS Photos gives the browser a small preview (e.g. 360 × 480 named by UUID). The panel shows a "Small copy" notice for camera photos under 1200 px. Full size: picker's Photos sidebar, drag to Desktop first, or Safari (~3 s wait, loading overlay).
+  - **Raw:** every parsed tag, flat list at bottom.
+- **No-metadata state:** screenshots, social/messaging images often have none. Show clear friendly message, never empty panel.
+- **HEIC:** Chrome/Firefox can't display. Still show metadata, placeholder instead of preview.
+- **RAW (DNG, ARW, CR2, CR3, NEF, …):** browsers can't decode, so `loadRawPreview` in `app.js` shows largest embedded JPEG preview (JPEG start marker + frame header; rotated by RAW's EXIF orientation if preview has none). Metadata still from exifr. iPhone ProRAW, Sony ARW embed full size; DJI only 960 × 540.
+- **Photos app drags:** dragging out of macOS Photos gives small preview (e.g. 360 × 480, UUID name). Panel shows "Small copy" notice for camera photos under 1200 px. Full size: picker's Photos sidebar, drag to Desktop first, or Safari (~3 s wait, loading overlay).
 
 ## Hard rules
 
-- **Everything runs in the browser.** The photo never leaves the user's machine: no uploads, no analytics on file contents, no backend. This privacy promise is the product's main selling point, so never break it.
-- **One exception, opt-in only:** the "Show map" button requests a Mapbox static image, which sends the coordinates (and, like any request, the IP) to Mapbox. Mapbox's terms require the text credit under the map. Never request it before the user clicks, never auto-load it, and keep the note under the button that says what it sends. The public `pk.` token is `MAPBOX_TOKEN` in `app.js` (empty hides the button). It is the Default public token of Mapbox account `johnnythan`, which has no card on file: no URL restrictions (those need a card), 5,000 Static Images requests a month, and no possible charges. Over the limit, the map fails and the OpenStreetMap link remains. The map `<img>` uses `referrerPolicy = 'strict-origin'` so a URL-restricted token also works if one is added later.
-- **No build step.** Plain HTML, CSS and JavaScript. Opening `index.html` (or serving the folder statically) must work.
-- **Metadata parsing:** use [`exifr`](https://github.com/MikeKovarik/exifr) (EXIF, GPS, IPTC, XMP, ICC, HEIC). Load it from a pinned CDN version, or vendor it into the repo. Do not hand-roll a parser.
-- **Revoke object URLs** (`URL.revokeObjectURL`) when the user loads a new photo.
+- **Everything runs in browser.** Photo never leaves machine: no uploads, no analytics on file contents, no backend. Privacy promise = main selling point. Never break.
+- **One opt-in exception:** "Show map" requests Mapbox static image, sending coordinates (and IP) to Mapbox. Mapbox terms require text credit under map. Never request before click, never auto-load, keep note under button saying what it sends. Public `pk.` token = `MAPBOX_TOKEN` in `app.js` (empty hides button). Default public token of Mapbox account `johnnythan`, no card on file: no URL restrictions (need card), 5,000 Static Images requests/month, no possible charges. Over limit: map fails, OpenStreetMap link remains. Map `<img>` uses `referrerPolicy = 'strict-origin'` so URL-restricted token works if added later.
+- **No build step.** Plain HTML, CSS, JS. Opening `index.html` (or static serving) must work.
+- **Metadata parsing:** [`exifr`](https://github.com/MikeKovarik/exifr) (EXIF, GPS, IPTC, XMP, ICC, HEIC), pinned CDN version or vendored. No hand-rolled parser.
+- **Revoke object URLs** (`URL.revokeObjectURL`) when new photo loads.
 
 ## Design
 
-- Simple, sleek, one accent color, square corners everywhere. Logo: pixel "i" breaking out of a frame. Fonts, self-hosted in `vendor/`: Geist (text), Geist Mono (numbers), Departure Mono (wordmark, labels; 11 px grid).
-- Colors chosen by the user: accent `#19448A` (dark mode `#89ADE6`), light page background `#E9F0EE`. Check text contrast (4.5:1) when changing them.
-- Support light and dark mode with `prefers-color-scheme` and CSS custom properties.
-- Responsive layout: at narrow widths the metadata panel stacks below the preview.
-- Format values for people, for example `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`, readable dates, and file sizes in KB/MB. Keep the raw value available in the Raw section.
+- Simple, sleek, one accent color, square corners everywhere. Logo: pixel "i" breaking out of frame. Fonts self-hosted in `vendor/`: Geist (text), Geist Mono (numbers), Departure Mono (wordmark, labels; 11 px grid, use multiples of 5.5 px).
+- User's colors: accent `#19448A` (dark `#89ADE6`), light bg `#E9F0EE`. Check text contrast 4.5:1 on change.
+- Light + dark via `prefers-color-scheme` and CSS custom properties.
+- Narrow widths: panel stacks below preview.
+- Human formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`, readable dates, KB/MB. Raw value stays in Raw section.
 
 ## Repo and deploy
 
 - **GitHub:** `Johnnythan-3/inspicio`, default branch `main`.
-- **Hosting:** Cloudflare Workers static assets (no Worker script), connected to the GitHub repo. Every push to `main` deploys automatically, usually in 30–90 s (once over 3 min). Other branches get preview URLs.
+- **Hosting:** Cloudflare Workers static assets (no Worker script), linked to repo. Push to `main` auto-deploys, usually 30–90 s (once over 3 min). Other branches get preview URLs.
 - **Live URL:** https://inspicio.johnnythan.workers.dev
-- **Privacy rule for URLs:** the account's workers.dev subdomain is `johnnythan`. It was renamed from one that exposed the owner's email name. Never put the owner's email, or anything derived from it, in URLs, files or commits. Commits use the GitHub noreply address set in this repo's git config.
-- The site is fully static, so no server code is needed.
+- **URL privacy rule:** workers.dev subdomain `johnnythan`, renamed from one exposing owner's email name. Never put owner's email or anything derived from it in URLs, files, commits. Commits use GitHub noreply address from repo git config.
+- Fully static, no server code.
 
 ## Status (2026-11-05, session 4)
 
 - All live. Sessions 2–3: layout, colors, map, copy coordinates, zoom, collapsible sections, RAW previews, Photos-drag fixes, legal pages (BC PIPA, Mapbox terms), logo, fonts.
-- The user tests in **Firefox** on a Mac (Safari works for Photos drags). Originals are often iPhone 15 Pro ProRAW DNGs (48 MP) and Sony A7C II ARWs.
-- Session 4: Raw rows stack name above value. Motion: "scan + decode" on photo open (`.zoom-frame::after` scan line; `decodeValues` in `app.js` scrambles visible values and chips in Departure Mono, then resolves them). Empty page and badge restyled as "pixel frame": grid background, Departure Mono headline, square logo-style frames (gap in top edge, dot breaking out), square corners. Viewer and legal pages restyled to match. Next: ambient motion (metadata ticker and/or scan sweep).
-- Still unreported from session 2 (ask briefly): RAW previews from Finder, trackpad pinch/pan in Firefox (`attachZoom` heuristic), collapse state, map, copy coordinates. Panel stays 340 px.
-- Not tested yet: real touch pinch on a phone.
-- Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile fallback for the map.
+- User tests in **Firefox** on Mac (Safari for Photos drags). Originals often iPhone 15 Pro ProRAW DNGs (48 MP), Sony A7C II ARWs.
+- Session 4: Raw rows stack name above value. Motion "scan + decode" on photo open (`.zoom-frame::after` scan line; `decodeValues` in `app.js` scrambles visible values + chips in Departure Mono, then resolves). Whole site restyled "pixel frame": grid background on empty page, Departure Mono headlines, logo-style frames (gap in top edge, dot breaking out) for drop zone, badge, drag overlay; `--radius: 0`; outlined pixel buttons invert on hover. Logo 15% bigger. Empty-page footer line 60 px below format chips (user's choice).
+- **Next session:** ambient motion, empty page only. Offered: metadata ticker (faint rows of made-up example tags sliding behind headline) alone, or + slow scan sweep lighting frame. User not picked yet. Other ideas: drop morph, logo-dot hop, count-up numbers. Anime.js approved for springs/timelines/SVG drawing (vendor, never CDN); plain CSS otherwise.
+- Not checked in Firefox or with real ARW/DNG/HEIC since session 4 restyle + decode.
+- Unreported from session 2 (ask briefly): RAW previews from Finder, trackpad pinch/pan in Firefox (`attachZoom` heuristic), collapse state, map, copy coordinates. Panel stays 340 px.
+- Not tested: real touch pinch on phone.
+- Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile map fallback.
 
 ## File layout
 
@@ -68,14 +70,14 @@ public/                  everything Cloudflare serves
 wrangler.jsonc           Cloudflare static assets config (serves ./public)
 ```
 
-- The CSP (`default-src 'none'`) blocks every network request except same-origin files and `img-src https://api.mapbox.com` for the opt-in map. Keep it so in `index.html`, `privacy.html`, `terms.html` and `_headers`; it is the proof behind the privacy promise.
-- Metadata is untrusted input. Render it with `textContent` (the `el()` helper in `app.js`), never `innerHTML`.
+- CSP (`default-src 'none'`) blocks all requests except same-origin files and `img-src https://api.mapbox.com` for opt-in map. Keep in `index.html`, `privacy.html`, `terms.html`, `_headers`; proof behind privacy promise.
+- Metadata = untrusted input. Render with `textContent` (`el()` helper in `app.js`), never `innerHTML`.
 - Run locally: `python3 -m http.server 8788 --directory public`.
 
 ## Working notes
 
-- Keep this file under 8 KB.
-- Test with a real camera or phone JPEG that has GPS, a screenshot with no metadata, a HEIC file and a RAW file.
-- The user's console warnings about "SF Pro" fonts and a CSP-blocked inline script come from Firefox fingerprinting protection and a browser extension, not the site.
-- GitHub push protection flags the Mapbox `pk.` token as a secret. It was allowed as a false positive; a new token would need the same.
-- Hidden in-app browser pane: `img.decode()` and view transitions never finish, so stub `decode` and unset `document.startViewTransition` in tests. Load files via `DataTransfer` on `#file-input`.
+- Keep file under 8 KB.
+- Test with real camera/phone JPEG with GPS, no-metadata screenshot, HEIC, RAW.
+- User's console warnings about "SF Pro" fonts and CSP-blocked inline script: Firefox fingerprinting protection + browser extension, not site.
+- GitHub push protection flags Mapbox `pk.` token as secret. Allowed as false positive; new token needs same.
+- In-app browser pane: start server with Bash in background (preview_start can't run python in Desktop folder), then attach via `.claude/launch.json` url. Hidden pane: `img.decode()`, view transitions, CSS animations never finish; stub `decode`, unset `document.startViewTransition`, call `finish()` on `document.getAnimations()`. Pane caches `styles.css`; swap link href with `?t=` to refresh. CSP blocks `fetch`, so build test files in page (canvas, base64) and load via `DataTransfer` on `#file-input`.
