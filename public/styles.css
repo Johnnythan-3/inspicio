@@ -400,60 +400,14 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 
 .dropzone:active { transform: scale(0.99); }
 
-/* On hover, two short trails of pixels leave the gap in the top edge, run around the outside of
-   the frame (6 px clear of it) and meet at the bottom center, then run back up. The first four
-   pixels go right, the last four go left. Keyframe stops follow the frame's 11:7 shape, so the
-   speed stays even around the corners. */
+/* Canvas for the hover pixel trails (drawn by app.js). It reaches 40 px past the frame on every
+   side so shed pixels have room to drift away. */
 .runners {
-  --px: 6px;
   position: absolute;
-  inset: calc(-6px - var(--px));
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
   pointer-events: none;
-  opacity: 0;
-}
-
-.dropzone:hover .runners,
-body.dragging .runners {
-  opacity: 1;
-  transition: opacity 0.2s;
-}
-
-.runners i {
-  position: absolute;
-  top: 0;
-  left: calc(50% + var(--gap) / 2);
-  width: var(--px);
-  height: var(--px);
-  background: var(--accent);
-}
-
-.runners i:nth-child(n + 5) { left: calc(50% - var(--gap) / 2 - var(--px)); }
-
-.dropzone:hover .runners i,
-body.dragging .runners i {
-  animation: run-right 2.2s linear infinite alternate both;
-}
-
-.dropzone:hover .runners i:nth-child(n + 5),
-body.dragging .runners i:nth-child(n + 5) { animation-name: run-left; }
-
-/* Each trail: a lead pixel and three fading ones a step behind. */
-.runners i:nth-child(4n + 2) { opacity: 0.7; animation-delay: 0.03s !important; }
-.runners i:nth-child(4n + 3) { opacity: 0.45; animation-delay: 0.06s !important; }
-.runners i:nth-child(4n + 4) { opacity: 0.25; animation-delay: 0.09s !important; }
-
-@keyframes run-right {
-  0% { left: calc(50% + var(--gap) / 2); top: 0; }
-  27% { left: calc(100% - var(--px)); top: 0; }
-  68% { left: calc(100% - var(--px)); top: calc(100% - var(--px)); }
-  100% { left: calc(50% - var(--px) / 2); top: calc(100% - var(--px)); }
-}
-
-@keyframes run-left {
-  0% { left: calc(50% - var(--gap) / 2 - var(--px)); top: 0; }
-  27% { left: 0; top: 0; }
-  68% { left: 0; top: calc(100% - var(--px)); }
-  100% { left: calc(50% - var(--px) / 2); top: calc(100% - var(--px)); }
 }
 
 .dropzone-icon {
@@ -1233,8 +1187,8 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
     transition-duration: 0.001ms !important;
   }
 
-  /* An endless loop at near-zero duration would flicker, so the ticker rows stand still and the
-     drop zone's pixel trails stay hidden. */
+  /* An endless loop at near-zero duration would flicker, so the ticker rows stand still. The drop
+     zone's pixel trails stay hidden (app.js also skips them). */
   .ticker-row { animation: none !important; }
   .runners { display: none; }
 }

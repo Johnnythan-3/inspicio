@@ -1257,6 +1257,7 @@
     e.preventDefault();
     dragDepth++;
     document.body.classList.add('dragging');
+    startRunners();
     dragActivity();
   });
 
@@ -1281,6 +1282,189 @@
     endDrag();
     handleFile(e.dataTransfer.files[0]);
   });
+
+  /* ---------- Drop zone pixel trails ---------- */
+
+  // While the pointer is over the drop zone (or a file is dragged over the page), two trails of
+  // pixels leave the gap in the frame's top edge, run around the outside of the frame 6 px clear
+  // of it, meet at the bottom center and run back. The heads step from cell to cell; behind them
+  // each cell is shaved away pixel by pixel, and the shaved pixels drift off and fade.
+  const runnerCanvas = $('#runners');
+  const RUN = {
+    cell: 6, // head size and step, px
+    sub: 2, // size of the shaved pixels, px
+    clear: 6, // space between the trail and the frame, px
+    margin: 40, // how far the canvas reaches past the frame, px
+    speed: 286, // px per second
+    trail: 10, // cells in each trail behind the head
+  };
+  let runner = null;
+
+  // A fixed pseudo-random number in [0, 1) for each pixel, so a cell always loses the same pixels in the same order.
+  const hash = (a, b) => {
+    const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  function runnersActive() {
+    return !emptyView.hidden && !reduceMotion.matches
+      && (dropzone.matches(':hover') || document.body.classList.contains('dragging'));
+  }
+
+  function startRunners() {
+    if (!runnerCanvas || reduceMotion.matches) return;
+    if (runner) return; // already running; the loop picks the heads back up itself
+
+    const ctx = runnerCanvas.getContext('2d');
+    const { cell, sub, clear, margin } = RUN;
+    const particles = [];
+    let t0 = performance.now();
+    let last = t0;
+    let heads = true;
+    let geo = null;
+    const lastIndex = [null, null];
+
+    // The path of the right-hand trail as three straight runs (cell top-left corners); the
+    // left-hand trail is its mirror image.
+    function measure() {
+      const w = dropzone.offsetWidth;
+      const h = dropzone.offsetHeight;
+      const dpr = window.devicePixelRatio || 1;
+      const cw = w + margin * 2;
+      const ch = h + margin * 2;
+      if (runnerCanvas.width !== Math.round(cw * dpr) || runnerCanvas.height !== Math.round(ch * dpr)) {
+        runnerCanvas.width = Math.round(cw * dpr);
+        runnerCanvas.height = Math.round(ch * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const gap = parseFloat(getComputedStyle(dropzone).getPropertyValue('--gap')) || 76;
+      const cx = margin + w / 2;
+      const top = margin - clear - cell;
+      const right = margin + w + clear;
+      const bottom = margin + h + clear;
+      const startX = cx + gap / 2;
+      const endX = cx - cell / 2;
+      const runs = [
+        { x: startX, y: top, dx: 1, dy: 0, len: right - startX, nx: 0, ny: -1 },
+        { x: right, y: top, dx: 0, dy: 1, len: bottom - top, nx: 1, ny: 0 },
+        { x: right, y: bottom, dx: -1, dy: 0, len: right - endX, nx: 0, ny: 1 },
+      ];
+      const color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      geo = { cw, ch, cx, runs, color, length: runs.reduce((n, r) => n + r.len, 0) };
+    }
+
+    // Position and outward direction at distance d along the path, for side 0 (right) or 1 (left).
+    function at(d, side) {
+      let rest = Math.max(0, Math.min(d, geo.length));
+      let run = geo.runs[0];
+      for (run of geo.runs) {
+        if (rest <= run.len) break;
+        rest -= run.len;
+      }
+      rest = Math.min(rest, run.len);
+      let x = run.x + run.dx * rest;
+      const y = run.y + run.dy * rest;
+      let nx = run.nx;
+      if (side) { x = 2 * geo.cx - x - cell; nx = -nx; }
+      return { x, y, nx, ny: run.ny, tx: side ? -run.dx : run.dx, ty: run.dy };
+    }
+
+    // How much of the cell k steps behind the head is left (1 = whole, 0 = gone).
+    const keep = (k) => 1 - k / RUN.trail;
+    const per = cell / sub; // shaved pixels per row of a cell
+
+    function shed(index, k, side) {
+      // Pixels whose threshold falls between this cell's old and new "keep" just got shaved off.
+      const hi = keep(k - 1);
+      const lo = keep(k);
+      const p = at(index * cell, side);
+      for (let i = 0; i < per * per; i++) {
+        const r = hash(index + side * 1000, i);
+        if (r < lo || r >= hi || Math.random() < 0.35) continue;
+        const speed = 18 + Math.random() * 42;
+        const drift = (Math.random() - 0.5) * 24;
+        particles.push({
+          x: p.x + (i % per) * sub,
+          y: p.y + Math.floor(i / per) * sub,
+          vx: p.nx * speed + p.tx * drift,
+          vy: p.ny * speed + p.ty * drift,
+          age: 0,
+          life: 0.5 + Math.random() * 0.6,
+        });
+      }
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (!heads && runnersActive()) { heads = true; t0 = now; lastIndex.fill(null); }
+      if (heads && !runnersActive()) heads = false;
+      measure();
+      ctx.clearRect(0, 0, geo.cw, geo.ch);
+      ctx.fillStyle = geo.color;
+
+      if (heads) {
+        // Back and forth: out to the bottom center, then back to the gap.
+        const oneWay = geo.length / RUN.speed;
+        const phase = ((now - t0) / 1000) % (oneWay * 2);
+        const forward = phase < oneWay;
+        const d = (forward ? phase : oneWay * 2 - phase) * RUN.speed;
+        const index = Math.floor(d / cell);
+        const dir = forward ? 1 : -1;
+        const maxIndex = Math.floor(geo.length / cell);
+
+        for (let side = 0; side < 2; side++) {
+          // Each step onto a new cell shaves the cells behind the head a little further.
+          if (lastIndex[side] !== null && lastIndex[side] !== index) {
+            for (let k = 1; k <= RUN.trail; k++) {
+              const behind = index - k * dir;
+              if (behind >= 0 && behind <= maxIndex) shed(behind, k, side);
+            }
+          }
+          lastIndex[side] = index;
+
+          for (let k = RUN.trail - 1; k >= 0; k--) {
+            const cellIndex = index - k * dir;
+            if (cellIndex < 0 || cellIndex > maxIndex) continue;
+            const p = at(cellIndex * cell, side);
+            ctx.globalAlpha = 1 - k / (RUN.trail * 1.6);
+            if (k === 0) { ctx.fillRect(p.x, p.y, cell, cell); continue; }
+            for (let i = 0; i < per * per; i++) {
+              if (hash(cellIndex + side * 1000, i) >= keep(k)) continue;
+              ctx.fillRect(p.x + (i % per) * sub, p.y + Math.floor(i / per) * sub, sub, sub);
+            }
+          }
+        }
+      }
+
+      // Shaved pixels drift away, slow down and fade in steps, snapped to the 2 px grid.
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const q = particles[i];
+        q.age += dt;
+        if (q.age >= q.life) { particles.splice(i, 1); continue; }
+        q.x += q.vx * dt;
+        q.y += q.vy * dt;
+        q.vx *= 0.96;
+        q.vy *= 0.96;
+        ctx.globalAlpha = Math.ceil((1 - q.age / q.life) * 4) / 4 * 0.8;
+        ctx.fillRect(Math.round(q.x / sub) * sub, Math.round(q.y / sub) * sub, sub, sub);
+      }
+      ctx.globalAlpha = 1;
+
+      if (heads || particles.length) {
+        runner.raf = requestAnimationFrame(frame);
+      } else {
+        ctx.clearRect(0, 0, geo.cw, geo.ch);
+        runner = null;
+      }
+    }
+
+    runner = { raf: 0 };
+    measure();
+    runner.raf = requestAnimationFrame(frame);
+  }
+
+  dropzone.addEventListener('pointerenter', startRunners);
 
   /* ---------- Empty page ticker ---------- */
 
