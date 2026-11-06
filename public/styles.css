@@ -306,12 +306,12 @@ main { min-height: 0; }
 
 @keyframes fade-in { from { opacity: 0; } }
 
-/* A 30% wash of the page color behind the headline separates it from the ticker and grid. */
+/* An 85% wash of the page color behind the headline separates it from the ticker and grid. */
 .hero-copy h1 {
   width: fit-content;
   margin: 0 auto;
   padding: 5.5px 11px;
-  background: color-mix(in srgb, var(--bg) 30%, transparent);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   font-family: var(--pixel);
   font-size: 44px;
   font-weight: 400;
