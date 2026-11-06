@@ -1285,5 +1285,60 @@
     handleFile(e.dataTransfer.files[0]);
   });
 
+  /* ---------- Empty page ticker ---------- */
+
+  // Faint rows of made-up example tags drift behind the headline. Purely decorative: these values
+  // are invented and never come from a photo.
+  const TICKER_TAGS = [
+    'Make Apple', 'Model iPhone 15 Pro', 'LensModel 6.86 mm f/1.78', 'ISO 80', 'ExposureTime 1/120',
+    'FNumber 1.78', 'FocalLength 24 mm', 'GPSLatitude 49.2827 N', 'GPSLongitude 123.1207 W',
+    'GPSAltitude 12.4 m', 'DateTimeOriginal 2026:10:14 17:42:09', 'OffsetTime -07:00',
+    'ColorSpace sRGB', 'ProfileDescription Display P3', 'PixelXDimension 8064', 'PixelYDimension 6048',
+    'Flash Off', 'WhiteBalance Auto', 'Software 18.1', 'Orientation Horizontal', 'Make Sony',
+    'Model ILCE-7CM2', 'LensModel FE 35mm F1.8', 'ExposureTime 1/250', 'ISO 400', 'FNumber 2.8',
+    'MeteringMode Pattern', 'ExposureProgram Aperture priority', 'BitsPerSample 14',
+    'SceneCaptureType Standard', 'ExposureBias -0.3 EV', 'SubjectDistance 3.2 m', 'Contrast Normal',
+  ];
+  const TICKER_ROWS = 7;
+  const GRID = 22; // the empty page's grid cell, in px
+
+  function buildTicker() {
+    const ticker = $('#ticker');
+    if (!ticker) return;
+    for (let r = 0; r < TICKER_ROWS; r++) {
+      // Each row starts at a different tag and is long enough to cover a wide screen twice over.
+      const parts = [];
+      let len = 0;
+      for (let i = r * 7; len < 420; i++) {
+        const tag = TICKER_TAGS[i % TICKER_TAGS.length];
+        parts.push(tag);
+        len += tag.length + 5;
+      }
+      const text = parts.join('  ·  ') + '  ·  ';
+      // Two copies side by side; sliding by half the row loops without a seam.
+      const speed = 9 + ((r * 5) % 7); // px per second, 9 to 15
+      ticker.append(el('div', {
+        class: 'ticker-row',
+        vars: { '--dur': `${Math.round((len * 8) / speed)}s`, '--delay': `${-Math.round(Math.random() * 200)}s` },
+      }, el('span', {}, text), el('span', {}, text)));
+    }
+
+    // Center the rows on the headline, snapped so each row sits between two grid lines.
+    const hero = ticker.parentElement;
+    const h1 = hero.querySelector('h1');
+    const place = () => {
+      const heroTop = hero.getBoundingClientRect().top - emptyView.getBoundingClientRect().top;
+      const center = heroTop + h1.offsetTop + h1.offsetHeight / 2;
+      const top = Math.round((center - (TICKER_ROWS * GRID) / 2) / GRID) * GRID;
+      ticker.style.setProperty('--ticker-top', `${top - heroTop}px`);
+    };
+    // The headline moves when the page resizes, the fonts load, or the error line appears.
+    place();
+    const observer = new ResizeObserver(place);
+    for (const node of [emptyView, hero, errorBox]) observer.observe(node);
+  }
+
+  buildTicker();
+
   document.body.dataset.state = 'empty';
 })();
