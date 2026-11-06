@@ -503,11 +503,8 @@
     if (longSide && longSide < 1200 && !img.rawPreview && (camera || get('DateTimeOriginal'))) {
       nodes.push(notice(
         `Small copy: ${img.width} × ${img.height} pixels`,
-        'This file is a reduced copy of the photo, so it looks soft when shown large. Dragging a photo '
-        + 'straight out of the Photos app gives the browser only a small preview, and messaging apps often '
-        + 'shrink photos too. For the full photo, click the button below, choose Photos in the sidebar of the '
-        + 'window that opens, and pick it there. Or drag it from Photos to your Desktop first, then drop that '
-        + 'file here. In Safari, dragging straight from Photos also works.',
+        'Photos and messaging apps often hand over a reduced preview. For full size, pick it from Photos '
+        + 'in the window below, or drag it to your Desktop first.',
         { label: 'Choose full-size photo', onClick: () => fileInput.click() },
       ));
     }
