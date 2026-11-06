@@ -53,11 +53,11 @@
 - Session 5 (user likes all of it):
   - Empty page: ticker (`buildTicker`), 7 faint rows of made-up tags behind headline, snapped to 22 px grid. Feathered `backdrop-filter` blur behind headline. Subtitle "Every hidden tag, read here in your browser."
   - Drop zone icon: 3 diagonally stacked photos (`.stack-*`), spread 20 px apart on hover; `startBits` floats scrambled data bits up.
-  - Photo open: `pixelReveal` canvas, big pixels in photo's colors shrink in 9 steps until sharp (replaced scan line).
+  - Photo open: `pixelReveal` canvas, big pixels in photo's colors shrink in 10 steps until sharp (last: 1.5 px) (replaced scan line).
   - Shorter "Small copy" notice.
   - Tried and removed (user: clutter): pixel trails running around drop zone frame. Don't bring back.
 - Session 6: user confirmed in Firefox: iPhone ProRAW DNG from Finder shows full-size preview (pixel reveal smooth on 48 MP), trackpad pinch/pan, collapse state, map, copy coordinates. Photos drag gives 360 × 480 JPEG copy (expected); test RAW via Photos File › Export › Export Unmodified Original.
-- Not checked since session 4: Sony ARW, HEIC.
+- Sony ARW from Finder confirmed. Not checked since session 4: HEIC.
 - Not tested: real touch pinch on phone.
 - Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
 - Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile map fallback.

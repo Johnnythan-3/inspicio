@@ -835,7 +835,7 @@
   // each step at a tiny size; CSS scales it up without smoothing (image-rendering: pixelated).
   // Each step's colors are averages of that part of the photo, taken from a stack of
   // half-size copies made once at the start. Any zoom or pan input ends it at once.
-  const REVEAL_BLOCKS = [44, 32, 24, 17, 12, 8.5, 6, 4, 2.5]; // pixel size per step, CSS px
+  const REVEAL_BLOCKS = [44, 32, 24, 17, 12, 8.5, 6, 4, 2.5, 1.5]; // pixel size per step, CSS px
   const REVEAL_HOLD = 260; // ms on the first step, while the photo settles in
   const REVEAL_STEP = 85; // ms per later step
 
