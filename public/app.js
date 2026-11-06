@@ -1296,7 +1296,7 @@
     clear: 6, // space between the trail and the frame, px
     margin: 40, // how far the canvas reaches past the frame, px
     speed: 286, // px per second
-    trail: 10, // cells in each trail behind the head
+    trail: 7, // cells in each trail behind the head
   };
   let runner = null;
 
@@ -1389,7 +1389,7 @@
           vx: p.nx * speed + p.tx * drift,
           vy: p.ny * speed + p.ty * drift,
           age: 0,
-          life: 0.5 + Math.random() * 0.6,
+          life: 0.35 + Math.random() * 0.42,
         });
       }
     }
