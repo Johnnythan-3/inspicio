@@ -126,10 +126,12 @@ svg { display: block; }
   width: 22px;
   height: 22px;
   color: var(--accent);
-  transition: transform 0.6s var(--ease);
+  overflow: visible;
 }
 
-.brand:hover .brand-mark { transform: rotate(90deg) scale(1.08); }
+/* On hover the dot of the "i" hops further out of its frame. Units are the logo's 120-unit grid. */
+.brand-dot { transition: transform 0.45s var(--ease); }
+.brand:hover .brand-dot { transform: translateY(-12px); }
 
 .topbar-right {
   display: flex;
