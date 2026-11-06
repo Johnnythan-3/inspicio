@@ -45,16 +45,13 @@
 - **Privacy rule for URLs:** the account's workers.dev subdomain is `johnnythan`. It was renamed from one that exposed the owner's email name. Never put the owner's email, or anything derived from it, in URLs, files or commits. Commits use the GitHub noreply address set in this repo's git config.
 - The site is fully static, so no server code is needed.
 
-## Status (2026-11-05, end of session 2)
+## Status (2026-11-05, end of session 3)
 
-- All live. Added this session: photo left / panel right, new colors, opt-in Mapbox map, copy coordinates, full-resolution zoom and pan, ~20% larger fit with a gap above the caption, collapsible sections, small-copy notice, RAW previews.
-- The user tests in **Firefox** on a Mac. Their originals are often iPhone 15 Pro ProRAW DNGs (48 MP) and Sony A7C II ARWs.
-- **First thing next session:** ask how these went on the live site (hard refresh first) and fix what they report:
-  - Dragging `IMG_0169.DNG` and a Sony `.ARW` from Finder (not Photos): RAW preview sharp and full size.
-  - Real trackpad in Firefox: pinch zooms, two-finger scroll pans when zoomed. The mouse-vs-trackpad detection in `attachZoom` is heuristic and may need tuning.
-  - Collapse animation and saved state; "Show map" with the real token; copy coordinates.
-- Open question: keep the panel at 340 px or go back to 400 px (the user didn't answer).
-- Not tested yet: Safari, real touch pinch on a phone.
+- All live. Session 2: photo left / panel right, colors, opt-in map, copy coordinates, zoom and pan, collapsible sections, RAW previews. Session 3: Photos-drag fixes (notice button opens the picker, loading overlay for Safari's ~3 s wait), privacy and terms pages checked against BC PIPA and Mapbox terms (contact inspicio.app@proton.me), map credit line, new logo, fonts.
+- The user tests in **Firefox** on a Mac (Safari works for Photos drags). Originals are often iPhone 15 Pro ProRAW DNGs (48 MP) and Sony A7C II ARWs.
+- **Next session: motion.** The user wants high-quality motion visuals. Propose a few ideas first (e.g. a load sequence, the logo's dot, the drop moment, the panel reveal) and build the chosen one. Respect `prefers-reduced-motion`, keep it light, no libraries unless needed.
+- Still unreported from session 2 (ask briefly): RAW previews from Finder, trackpad pinch/pan in Firefox (`attachZoom` heuristic), collapse state, map, copy coordinates. Panel 340 px vs 400 px is still open.
+- Not tested yet: real touch pinch on a phone.
 - Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile fallback for the map.
 
 ## File layout
