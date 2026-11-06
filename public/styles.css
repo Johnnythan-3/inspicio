@@ -931,7 +931,9 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 
 .raw-segment:first-child { margin-top: 4px; }
 
-.raw .row { grid-template-columns: minmax(96px, 44%) 1fr; }
+/* Raw tags stack the name above the value: long tag names and XMP strings
+   get the full panel width instead of wrapping in two narrow columns. */
+.raw .row { grid-template-columns: 1fr; gap: 2px; }
 .raw .row dt { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
 .raw .row dd { font-family: var(--mono); font-size: 11.5px; font-weight: 400; text-align: left; }
 
