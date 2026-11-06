@@ -165,21 +165,51 @@ svg { display: block; }
   gap: 12px;
 }
 
+/* "Stays on your device" echoes the logo: a square frame with a gap in its top edge and a pixel dot
+   breaking out of it, above a pixel lock. The frame is drawn with background gradients so the gap
+   stays see-through over the blurred top bar. --gap-l and --gap-w place the gap over the lock. */
 .local-badge {
+  --b: 2px;
+  --gap-l: 9px;
+  --gap-w: 12px;
+  --edge: linear-gradient(var(--accent) 0 0);
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 30px;
   margin: 0;
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 500;
+  padding: 0 11px 0 10px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
-  background: var(--card);
-  border: 1px solid var(--line);
+  background:
+    var(--edge) left top / var(--b) 100%,
+    var(--edge) right top / var(--b) 100%,
+    var(--edge) left bottom / 100% var(--b),
+    var(--edge) left top / var(--gap-l) var(--b),
+    var(--edge) right top / calc(100% - var(--gap-l) - var(--gap-w)) var(--b);
+  background-repeat: no-repeat;
 }
 
-.local-badge svg { width: 13px; height: 13px; color: var(--accent); }
+.local-badge::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: calc(var(--gap-l) + (var(--gap-w) - 6px) / 2);
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  transition: transform 0.45s var(--ease);
+}
+
+.local-badge:hover::after { transform: translateY(-3px); }
+
+.local-badge svg { flex: none; width: 10px; height: 12px; color: var(--accent); }
 
 .btn {
   display: inline-flex;
@@ -1050,8 +1080,16 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 }
 
 @media (max-width: 520px) {
-  .local-badge span { display: none; }
-  .local-badge { padding: 7px; }
+  /* Icon only, but the words stay for screen readers. */
+  .local-badge span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .local-badge { width: 30px; padding: 0 10px; }
   .btn span { display: none; }
   .btn { padding: 0 9px; }
 }
