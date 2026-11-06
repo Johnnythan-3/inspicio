@@ -56,8 +56,8 @@
   - Photo open: `pixelReveal` canvas, big pixels in photo's colors shrink in 9 steps until sharp (replaced scan line).
   - Shorter "Small copy" notice.
   - Tried and removed (user: clutter): pixel trails running around drop zone frame. Don't bring back.
-- Not checked with real ARW/DNG/HEIC since session 4 (pixel reveal on 48 MP DNG untested).
-- Unreported from session 2 (ask briefly): RAW previews from Finder, Firefox trackpad pinch/pan, collapse state, map, copy coordinates.
+- Session 6: user confirmed in Firefox: iPhone ProRAW DNG from Finder shows full-size preview, trackpad pinch/pan, collapse state, map, copy coordinates. Photos drag gives 360 × 480 JPEG copy (expected); test RAW via Photos File › Export › Export Unmodified Original.
+- Not checked since session 4: Sony ARW, HEIC.
 - Not tested: real touch pinch on phone.
 - Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
 - Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile map fallback.
