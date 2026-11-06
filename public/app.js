@@ -1304,6 +1304,32 @@
   };
   let runner = null;
 
+  // Average time between animation frames, built up from consecutive frames only (so pauses
+  // between hovers don't count). Firefox's fingerprinting protection rounds timestamps (to 16.7 ms
+  // or even 100 ms), so positions computed straight from timestamps move in visible jerks;
+  // advancing by this average each frame stays smooth. A short warm-up at load gives it a start.
+  const frameClock = { time: 0, frames: 0, prev: null };
+  function clockFrame(now) {
+    if (frameClock.prev !== null) {
+      frameClock.time += (now - frameClock.prev) / 1000;
+      frameClock.frames++;
+    }
+    frameClock.prev = now;
+  }
+  const frameInterval = () => (frameClock.time > 0.3
+    ? Math.min(1 / 30, Math.max(1 / 240, frameClock.time / frameClock.frames))
+    : 1 / 60);
+  if (!reduceMotion.matches) {
+    let warm = 0;
+    const warmUp = (now) => {
+      if (runner) return; // the trails took over the clock
+      clockFrame(now);
+      if (++warm < 90) requestAnimationFrame(warmUp);
+      else frameClock.prev = null;
+    };
+    requestAnimationFrame(warmUp);
+  }
+
   // A fixed pseudo-random number in [0, 1) for each pixel, so a cell always loses the same pixels in the same order.
   const hash = (a, b) => {
     const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
@@ -1318,6 +1344,7 @@
   function startRunners() {
     if (!runnerCanvas || !streakCanvas || reduceMotion.matches) return;
     if (runner) return; // already running; the loop picks the gaps back up itself
+    frameClock.prev = null;
 
     const ctx = runnerCanvas.getContext('2d');
     const sctx = streakCanvas.getContext('2d');
@@ -1326,8 +1353,10 @@
     const rootStyle = getComputedStyle(document.documentElement);
     const zoneStyle = getComputedStyle(dropzone);
     const particles = [];
-    let t0 = performance.now();
-    let last = t0;
+    let frames = 0;
+    let t = 0; // seconds since the gaps started, on the averaged frame clock
+    let fill = '';
+    let accent = '';
     let heads = true;
     let geo = null;
     const lastIndex = [null, null];
@@ -1406,14 +1435,20 @@
     }
 
     function frame(now) {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      if (!heads && runnersActive()) { heads = true; t0 = now; lastIndex.fill(null); }
+      clockFrame(now);
+      frames++;
+      const dt = frameInterval();
+      t += dt;
+      if (!heads && runnersActive()) { heads = true; t = 0; lastIndex.fill(null); }
       if (heads && !runnersActive()) heads = false;
-      measure();
+      // Size and colors are read every 12th frame, not every frame, to keep each frame cheap.
+      if (frames % 12 === 1) {
+        measure();
+        fill = zoneStyle.getPropertyValue('--fill');
+        accent = rootStyle.getPropertyValue('--accent');
+      }
       ctx.clearRect(0, 0, geo.cw, geo.ch);
       sctx.clearRect(0, 0, geo.cw, geo.ch);
-      const fill = zoneStyle.getPropertyValue('--fill');
       ctx.fillStyle = fill;
       sctx.fillStyle = fill;
 
@@ -1421,7 +1456,7 @@
         // Back and forth: out to the bottom center, then back to the opening. The gap moves
         // continuously; only the shaved cells behind it sit on the 5 px grid.
         const oneWay = geo.length / RUN.speed;
-        const phase = ((now - t0) / 1000) % (oneWay * 2);
+        const phase = t % (oneWay * 2);
         const forward = phase < oneWay;
         const d = (forward ? phase : oneWay * 2 - phase) * RUN.speed;
         const index = Math.floor(d / cell);
@@ -1466,7 +1501,7 @@
 
       // Chips drift away, slow down and fade in steps. Damping is per second, so it looks the
       // same at any frame rate.
-      ctx.fillStyle = rootStyle.getPropertyValue('--accent');
+      ctx.fillStyle = accent;
       const damp = Math.pow(0.08, dt);
       for (let i = particles.length - 1; i >= 0; i--) {
         const q = particles[i];
@@ -1487,6 +1522,7 @@
       } else {
         ctx.clearRect(0, 0, geo.cw, geo.ch);
         sctx.clearRect(0, 0, geo.cw, geo.ch);
+        frameClock.prev = null;
         runner = null;
       }
     }
