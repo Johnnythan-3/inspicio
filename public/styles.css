@@ -400,9 +400,9 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 
 .dropzone:active { transform: scale(0.99); }
 
-/* Three photos stacked, the two behind peeking out one pixel (6 px) up and to each side. On hover,
-   or while a file is dragged over the page, they fan out sideways on the 6 px pixel grid and data
-   scrambles rise from them (app.js). */
+/* Three photos stacked diagonally, each one pixel (6 px) up and to the right of the one in front.
+   On hover, or while a file is dragged over the page, they spread out along the same diagonal on
+   the 6 px pixel grid and data scrambles rise from them (app.js). */
 .dropzone-icon {
   position: relative;
   display: block;
@@ -426,15 +426,15 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 .dropzone:hover .stack-fill,
 body.dragging .stack-fill { fill: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
 
-.stack-left { color: color-mix(in srgb, var(--accent) 45%, var(--bg)); transform: translate(-6px, -6px); }
-.stack-right { color: color-mix(in srgb, var(--accent) 65%, var(--bg)); transform: translate(6px, -6px); }
+.stack-back { color: color-mix(in srgb, var(--accent) 45%, var(--bg)); transform: translate(12px, -12px); }
+.stack-mid { color: color-mix(in srgb, var(--accent) 65%, var(--bg)); transform: translate(6px, -6px); }
 
-.dropzone:hover .stack-left,
-body.dragging .stack-left { transform: translate(-54px, 0); }
-.dropzone:hover .stack-right,
-body.dragging .stack-right { transform: translate(54px, 0); }
+.dropzone:hover .stack-back,
+body.dragging .stack-back { transform: translate(24px, -24px); }
+.dropzone:hover .stack-mid,
+body.dragging .stack-mid { transform: translate(0, -12px); transition-delay: 0.03s; }
 .dropzone:hover .stack-front,
-body.dragging .stack-front { transform: translateY(-6px); transition-delay: 0.04s; }
+body.dragging .stack-front { transform: translate(-24px, 0); transition-delay: 0.06s; }
 
 /* Data scrambles rising from the photos (spawned by app.js). */
 .data-bit {

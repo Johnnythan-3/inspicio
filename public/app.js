@@ -1321,8 +1321,8 @@
     photoStack.append(node);
     const bit = { node, text, age: 0 };
     bits.add(bit);
-    // Start somewhere across the fanned-out photos, rise 40 to 60 px with a little drift.
-    const x = (Math.random() * 2 - 1) * 70;
+    // Start somewhere across the spread-out photos, rise 40 to 60 px with a little drift.
+    const x = (Math.random() * 2 - 1) * 50;
     const rise = 40 + Math.random() * 20;
     const drift = (Math.random() * 2 - 1) * 8;
     const life = 1500 + Math.random() * 500;
