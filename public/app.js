@@ -1286,250 +1286,151 @@
   /* ---------- Drop zone pixel trails ---------- */
 
   // While the pointer is over the drop zone (or a file is dragged over the page), two gaps leave
-  // the opening in the frame's top edge, run along the blue frame line itself, meet at the bottom
-  // center and run back. Each gap glides smoothly with a soft blurred streak behind it; just behind
-  // it the frame fills back in pixel by pixel, and blue chips fly off outward and fade.
-  // Two canvases: a crisp one for the gaps and chips, and one under it blurred by CSS for the streak.
-  const runnerCanvas = $('#runners');
-  const streakCanvas = $('#runners-streak');
+  // the opening in the frame's top edge, run along the blue frame line, meet at the bottom center
+  // and run back. A blurred streak follows each gap, and blue chips flake off outward and fade.
+  // Everything moves with Web Animations on transform and opacity, which the browser runs on its
+  // compositor, like the ticker: smooth even while the page is busy, and not thrown off by
+  // Firefox's fingerprinting protection rounding timestamps. JS only starts the gaps and drops
+  // chips where they are.
+  const runnersBox = $('#runners');
   const RUN = {
     cell: 5, // gap size, px: the frame line's width
-    sub: 2.5, // size of the shaved pixels and chips, px
-    margin: 40, // how far the canvases reach past the frame, px
+    chip: 2.5, // chip size, px
     speed: 215, // px per second
-    trail: 7, // pixel-shaved cells behind the gap
-    streak: 70, // length of the blurred streak behind the gap, px
-    chipSpeed: [12, 27], // chips' outward speed, px per second: base and random extra
-    chipDrift: 16, // chips' sideways spread, px per second
+    ghosts: 14, // copies of the gap that make up the blurred streak
+    ghostLag: 23, // ms between copies (14 × 23 ms at 215 px/s is about a 70 px streak)
+    chipsPerFrame: 0.8, // per gap
+    chipReach: [3, 8], // how far out a chip flies, px: base and random extra
+    chipDrift: 3, // sideways spread, px either way
+    chipLife: [350, 400], // ms: base and random extra
   };
-  let runner = null;
-
-  // Average time between animation frames, built up from consecutive frames only (so pauses
-  // between hovers don't count). Firefox's fingerprinting protection rounds timestamps (to 16.7 ms
-  // or even 100 ms), so positions computed straight from timestamps move in visible jerks;
-  // advancing by this average each frame stays smooth. A short warm-up at load gives it a start.
-  const frameClock = { time: 0, frames: 0, prev: null };
-  function clockFrame(now) {
-    if (frameClock.prev !== null) {
-      frameClock.time += (now - frameClock.prev) / 1000;
-      frameClock.frames++;
-    }
-    frameClock.prev = now;
-  }
-  const frameInterval = () => (frameClock.time > 0.3
-    ? Math.min(1 / 30, Math.max(1 / 240, frameClock.time / frameClock.frames))
-    : 1 / 60);
-  if (!reduceMotion.matches) {
-    let warm = 0;
-    const warmUp = (now) => {
-      if (runner) return; // the trails took over the clock
-      clockFrame(now);
-      if (++warm < 90) requestAnimationFrame(warmUp);
-      else frameClock.prev = null;
-    };
-    requestAnimationFrame(warmUp);
-  }
-
-  // A fixed pseudo-random number in [0, 1) for each pixel, so a cell always loses the same pixels in the same order.
-  const hash = (a, b) => {
-    const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
-    return x - Math.floor(x);
-  };
+  let runs = null;
 
   function runnersActive() {
     return !emptyView.hidden && !reduceMotion.matches
       && (dropzone.matches(':hover') || document.body.classList.contains('dragging'));
   }
 
+  // The right-hand gap's path (top-left corners, in drop zone pixels) as corner points; the
+  // left-hand gap mirrors it.
+  function runnerPath() {
+    const w = dropzone.offsetWidth;
+    const h = dropzone.offsetHeight;
+    const { cell } = RUN;
+    const gap = parseFloat(getComputedStyle(dropzone).getPropertyValue('--gap')) || 76;
+    const right = w - cell;
+    const bottom = h - cell;
+    const pts = [[w / 2 + gap / 2, 0], [right, 0], [right, bottom], [w / 2 - cell / 2, bottom]];
+    const lens = [right - pts[0][0], bottom, right - pts[3][0]];
+    const normals = [[0, -1], [1, 0], [0, 1]];
+    return { w, pts, lens, normals, length: lens[0] + lens[1] + lens[2] };
+  }
+
+  const mirrorX = (path, x, side) => (side ? path.w - x - RUN.cell : x);
+
+  function runnerKeyframes(path, side) {
+    let done = 0;
+    return path.pts.map(([x, y], i) => {
+      if (i) done += path.lens[i - 1];
+      return { transform: `translate(${mirrorX(path, x, side)}px, ${y}px)`, offset: done / path.length };
+    });
+  }
+
+  // Position, outward normal and direction of travel at distance d along the path.
+  function runnerPoint(path, d, side) {
+    let rest = Math.max(0, Math.min(d, path.length));
+    let i = 0;
+    while (i < 2 && rest > path.lens[i]) rest -= path.lens[i++];
+    const [ax, ay] = path.pts[i];
+    const [bx, by] = path.pts[i + 1];
+    const f = path.lens[i] ? rest / path.lens[i] : 0;
+    const flip = side ? -1 : 1;
+    return {
+      x: mirrorX(path, ax + (bx - ax) * f, side),
+      y: ay + (by - ay) * f,
+      nx: path.normals[i][0] * flip,
+      ny: path.normals[i][1],
+      tx: Math.sign(bx - ax) * flip,
+      ty: Math.sign(by - ay),
+    };
+  }
+
   function startRunners() {
-    if (!runnerCanvas || !streakCanvas || reduceMotion.matches) return;
-    if (runner) return; // already running; the loop picks the gaps back up itself
-    frameClock.prev = null;
+    if (!runnersBox || runs || !runnersActive()) return;
 
-    const ctx = runnerCanvas.getContext('2d');
-    const sctx = streakCanvas.getContext('2d');
-    const { cell, sub, margin } = RUN;
-    // Live style objects, read each frame for the colors (the fill fades in on hover).
-    const rootStyle = getComputedStyle(document.documentElement);
-    const zoneStyle = getComputedStyle(dropzone);
-    const particles = [];
-    let frames = 0;
-    let t = 0; // seconds since the gaps started, on the averaged frame clock
-    let fill = '';
-    let accent = '';
-    let heads = true;
-    let geo = null;
-    const lastIndex = [null, null];
-
-    // The path of the right-hand gap as three straight runs (cell top-left corners); the
-    // left-hand gap is its mirror image. Only redone when the drop zone changes size.
-    function measure() {
-      const w = dropzone.offsetWidth;
-      const h = dropzone.offsetHeight;
-      const dpr = window.devicePixelRatio || 1;
-      if (geo && geo.w === w && geo.h === h && geo.dpr === dpr) return;
-      const cw = w + margin * 2;
-      const ch = h + margin * 2;
-      for (const [canvas, c] of [[runnerCanvas, ctx], [streakCanvas, sctx]]) {
-        canvas.width = Math.round(cw * dpr);
-        canvas.height = Math.round(ch * dpr);
-        c.setTransform(dpr, 0, 0, dpr, 0, 0);
-      }
-      const gap = parseFloat(zoneStyle.getPropertyValue('--gap')) || 76;
-      const cx = margin + w / 2;
-      const top = margin;
-      const right = margin + w - cell;
-      const bottom = margin + h - cell;
-      const startX = cx + gap / 2;
-      const endX = cx - cell / 2;
-      const runs = [
-        { x: startX, y: top, dx: 1, dy: 0, len: right - startX, nx: 0, ny: -1 },
-        { x: right, y: top, dx: 0, dy: 1, len: bottom - top, nx: 1, ny: 0 },
-        { x: right, y: bottom, dx: -1, dy: 0, len: right - endX, nx: 0, ny: 1 },
-      ];
-      geo = { w, h, dpr, cw, ch, cx, runs, length: runs.reduce((n, r) => n + r.len, 0) };
-    }
-
-    // Position and outward direction at distance d along the path, for side 0 (right) or 1 (left).
-    function at(d, side) {
-      let rest = Math.max(0, Math.min(d, geo.length));
-      let run = geo.runs[0];
-      for (run of geo.runs) {
-        if (rest <= run.len) break;
-        rest -= run.len;
-      }
-      rest = Math.min(rest, run.len);
-      let x = run.x + run.dx * rest;
-      const y = run.y + run.dy * rest;
-      let nx = run.nx;
-      if (side) { x = 2 * geo.cx - x - cell; nx = -nx; }
-      return { x, y, nx, ny: run.ny, tx: side ? -run.dx : run.dx, ty: run.dy };
-    }
-
-    // Snap to whole device pixels so the gap's edges stay sharp while it glides.
-    const snap = (v) => Math.round(v * geo.dpr) / geo.dpr;
-
-    // How much of the cell k steps behind the gap is left (1 = whole, 0 = gone).
-    const keep = (k) => 1 - k / RUN.trail;
-    const per = cell / sub; // shaved pixels per row of a cell
-
-    function shed(index, k, side) {
-      // Pixels whose threshold falls between this cell's old and new "keep" just got shaved off.
-      const hi = keep(k - 1);
-      const lo = keep(k);
-      const p = at(index * cell, side);
-      for (let i = 0; i < per * per; i++) {
-        const r = hash(index + side * 1000, i);
-        if (r < lo || r >= hi || Math.random() < 0.35) continue;
-        const speed = RUN.chipSpeed[0] + Math.random() * RUN.chipSpeed[1];
-        const drift = (Math.random() - 0.5) * RUN.chipDrift;
-        particles.push({
-          x: p.x + (i % per) * sub,
-          y: p.y + Math.floor(i / per) * sub,
-          vx: p.nx * speed + p.tx * drift,
-          vy: p.ny * speed + p.ty * drift,
-          age: 0,
-          life: 0.35 + Math.random() * 0.42,
-        });
-      }
-    }
-
-    function frame(now) {
-      clockFrame(now);
-      frames++;
-      const dt = frameInterval();
-      t += dt;
-      if (!heads && runnersActive()) { heads = true; t = 0; lastIndex.fill(null); }
-      if (heads && !runnersActive()) heads = false;
-      // Size and colors are read every 12th frame, not every frame, to keep each frame cheap.
-      if (frames % 12 === 1) {
-        measure();
-        fill = zoneStyle.getPropertyValue('--fill');
-        accent = rootStyle.getPropertyValue('--accent');
-      }
-      ctx.clearRect(0, 0, geo.cw, geo.ch);
-      sctx.clearRect(0, 0, geo.cw, geo.ch);
-      ctx.fillStyle = fill;
-      sctx.fillStyle = fill;
-
-      if (heads) {
-        // Back and forth: out to the bottom center, then back to the opening. The gap moves
-        // continuously; only the shaved cells behind it sit on the 5 px grid.
-        const oneWay = geo.length / RUN.speed;
-        const phase = t % (oneWay * 2);
-        const forward = phase < oneWay;
-        const d = (forward ? phase : oneWay * 2 - phase) * RUN.speed;
-        const index = Math.floor(d / cell);
-        const dir = forward ? 1 : -1;
-        const maxIndex = Math.floor(geo.length / cell);
-
-        for (let side = 0; side < 2; side++) {
-          // Each step onto a new cell shaves the cells behind the gap a little further.
-          if (lastIndex[side] !== null && lastIndex[side] !== index) {
-            for (let k = 1; k <= RUN.trail; k++) {
-              const behind = index - k * dir;
-              if (behind >= 0 && behind <= maxIndex) shed(behind, k, side);
-            }
-          }
-          lastIndex[side] = index;
-
-          // The blurred streak: the gap's color fading out behind it.
-          for (let u = 0; u < RUN.streak; u += 1) {
-            const dd = d - u * dir;
-            if (dd < 0 || dd > geo.length) break;
-            const p = at(dd, side);
-            sctx.globalAlpha = (1 - u / RUN.streak) ** 2 * 0.5;
-            sctx.fillRect(p.x, p.y, cell, cell);
-          }
-
-          for (let k = RUN.trail - 1; k >= 1; k--) {
-            const cellIndex = index - k * dir;
-            if (cellIndex < 0 || cellIndex > maxIndex) continue;
-            const p = at(cellIndex * cell, side);
-            ctx.globalAlpha = 1 - k / (RUN.trail * 1.6);
-            for (let i = 0; i < per * per; i++) {
-              if (hash(cellIndex + side * 1000, i) >= keep(k)) continue;
-              ctx.fillRect(p.x + (i % per) * sub, p.y + Math.floor(i / per) * sub, sub, sub);
-            }
-          }
-
-          const head = at(d, side);
-          ctx.globalAlpha = 1;
-          ctx.fillRect(snap(head.x), snap(head.y), cell, cell);
+    // Built once: per side, a blurred layer of gap copies for the streak, then the crisp gap.
+    if (!runnersBox.childElementCount) {
+      for (let side = 0; side < 2; side++) {
+        const streak = el('span', { class: 'runner-streak' });
+        for (let i = 0; i < RUN.ghosts; i++) {
+          const ghost = el('i', { vars: { '--o': ((1 - i / RUN.ghosts) ** 2 * 0.55).toFixed(3) } });
+          streak.append(ghost);
         }
-      }
-
-      // Chips drift away, slow down and fade in steps. Damping is per second, so it looks the
-      // same at any frame rate.
-      ctx.fillStyle = accent;
-      const damp = Math.pow(0.08, dt);
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const q = particles[i];
-        q.age += dt;
-        if (q.age >= q.life) { particles.splice(i, 1); continue; }
-        q.x += q.vx * dt;
-        q.y += q.vy * dt;
-        q.vx *= damp;
-        q.vy *= damp;
-        ctx.globalAlpha = Math.ceil((1 - q.age / q.life) * 4) / 4 * 0.8;
-        ctx.fillRect(snap(q.x), snap(q.y), sub, sub);
-      }
-      ctx.globalAlpha = 1;
-      sctx.globalAlpha = 1;
-
-      if (heads || particles.length) {
-        runner.raf = requestAnimationFrame(frame);
-      } else {
-        ctx.clearRect(0, 0, geo.cw, geo.ch);
-        sctx.clearRect(0, 0, geo.cw, geo.ch);
-        frameClock.prev = null;
-        runner = null;
+        runnersBox.append(streak, el('i', { class: 'runner-head' }));
       }
     }
 
-    runner = { raf: 0 };
-    measure();
-    runner.raf = requestAnimationFrame(frame);
+    const path = runnerPath();
+    const timing = {
+      duration: (path.length / RUN.speed) * 1000,
+      iterations: Infinity,
+      direction: 'alternate',
+      easing: 'linear',
+      fill: 'backwards',
+    };
+    const anims = [];
+    const parts = [...runnersBox.children];
+    for (let side = 0; side < 2; side++) {
+      const frames = runnerKeyframes(path, side);
+      const [streak, head] = parts.slice(side * 2, side * 2 + 2);
+      anims.push(head.animate(frames, timing));
+      [...streak.children].forEach((ghost, i) => {
+        anims.push(ghost.animate(frames, { ...timing, delay: (i + 1) * RUN.ghostLag }));
+      });
+    }
+    runnersBox.classList.add('is-running');
+    runs = { path, anims, lead: anims[0], carry: 0, raf: requestAnimationFrame(runnerTick) };
+  }
+
+  function stopRunners() {
+    runs.anims.forEach((a) => a.cancel());
+    runnersBox.classList.remove('is-running');
+    runs = null;
+  }
+
+  // Once per frame while running: drop a few chips just behind each gap. The chips then fly
+  // and fade on their own.
+  function runnerTick() {
+    if (!runs) return;
+    if (!runnersActive()) { stopRunners(); return; }
+    const timing = runs.lead.effect.getComputedTiming();
+    if (timing.progress !== null) {
+      const d = timing.progress * runs.path.length;
+      const dir = timing.currentIteration % 2 ? -1 : 1;
+      runs.carry += RUN.chipsPerFrame;
+      while (runs.carry >= 1) {
+        runs.carry -= 1;
+        for (let side = 0; side < 2; side++) dropChip(d - dir * (2 + Math.random() * 12), side);
+      }
+    }
+    runs.raf = requestAnimationFrame(runnerTick);
+  }
+
+  function dropChip(d, side) {
+    const p = runnerPoint(runs.path, d, side);
+    const x = p.x + Math.floor(Math.random() * 2) * RUN.chip;
+    const y = p.y + Math.floor(Math.random() * 2) * RUN.chip;
+    const reach = RUN.chipReach[0] + Math.random() * RUN.chipReach[1];
+    const drift = (Math.random() * 2 - 1) * RUN.chipDrift;
+    const life = RUN.chipLife[0] + Math.random() * RUN.chipLife[1];
+    const chip = el('b');
+    runnersBox.append(chip);
+    chip.animate([
+      { transform: `translate(${x}px, ${y}px)` },
+      { transform: `translate(${x + p.nx * reach + p.tx * drift}px, ${y + p.ny * reach + p.ty * drift}px)` },
+    ], { duration: life, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' });
+    chip.animate([{ opacity: 0.8 }, { opacity: 0 }], { duration: life, easing: 'steps(4)' })
+      .finished.then(() => chip.remove(), () => chip.remove());
   }
 
   dropzone.addEventListener('pointerenter', startRunners);

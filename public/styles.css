@@ -400,18 +400,48 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 
 .dropzone:active { transform: scale(0.99); }
 
-/* Canvases for the hover pixel trails (drawn by app.js). It reaches 40 px past the frame on every
-   side so shed pixels have room to drift away. */
+/* Hover pixel trails (built and animated by app.js): gaps the color of the drop zone's fill
+   running along the frame line, a blurred streak of gap copies behind each, and blue chips. */
 .runners {
   position: absolute;
-  inset: -40px;
-  width: calc(100% + 80px);
-  height: calc(100% + 80px);
+  inset: 0;
   pointer-events: none;
 }
 
-/* The soft streak behind each gap, blurred here so the browser does it on the GPU. */
-.runners-streak { filter: blur(2.5px); }
+.runners i,
+.runners b {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.runners i {
+  width: 5px;
+  height: 5px;
+  background: var(--bg);
+  transition: background-color 0.25s;
+}
+
+.dropzone:hover .runners i,
+body.dragging .runners i { background: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
+
+.runners:not(.is-running) i { visibility: hidden; }
+
+.runner-streak {
+  position: absolute;
+  inset: 0;
+  filter: blur(2.5px);
+}
+
+.runner-streak i { opacity: var(--o); }
+
+.runners b {
+  width: 2.5px;
+  height: 2.5px;
+  background: var(--accent);
+  opacity: 0;
+}
 
 .dropzone-icon {
   width: 66px;
