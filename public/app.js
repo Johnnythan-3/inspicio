@@ -1285,15 +1285,14 @@
 
   /* ---------- Drop zone pixel trails ---------- */
 
-  // While the pointer is over the drop zone (or a file is dragged over the page), two trails of
-  // pixels leave the gap in the frame's top edge, run around the outside of the frame 6 px clear
-  // of it, meet at the bottom center and run back. The heads step from cell to cell; behind them
-  // each cell is shaved away pixel by pixel, and the shaved pixels drift off and fade.
+  // While the pointer is over the drop zone (or a file is dragged over the page), two gaps leave
+  // the opening in the frame's top edge, run along the blue frame line itself, meet at the bottom
+  // center and run back. The gaps step from cell to cell; behind them the frame fills back in
+  // pixel by pixel, and blue chips fly off outward and fade.
   const runnerCanvas = $('#runners');
   const RUN = {
-    cell: 6, // head size and step, px
-    sub: 2, // size of the shaved pixels, px
-    clear: 6, // space between the trail and the frame, px
+    cell: 5, // head size and step, px: the frame line's width
+    sub: 2.5, // size of the shaved pixels, px
     margin: 40, // how far the canvas reaches past the frame, px
     speed: 286, // px per second
     trail: 7, // cells in each trail behind the head
@@ -1316,7 +1315,7 @@
     if (runner) return; // already running; the loop picks the heads back up itself
 
     const ctx = runnerCanvas.getContext('2d');
-    const { cell, sub, clear, margin } = RUN;
+    const { cell, sub, margin } = RUN;
     const particles = [];
     let t0 = performance.now();
     let last = t0;
@@ -1339,9 +1338,9 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const gap = parseFloat(getComputedStyle(dropzone).getPropertyValue('--gap')) || 76;
       const cx = margin + w / 2;
-      const top = margin - clear - cell;
-      const right = margin + w + clear;
-      const bottom = margin + h + clear;
+      const top = margin;
+      const right = margin + w - cell;
+      const bottom = margin + h - cell;
       const startX = cx + gap / 2;
       const endX = cx - cell / 2;
       const runs = [
@@ -1349,8 +1348,10 @@
         { x: right, y: top, dx: 0, dy: 1, len: bottom - top, nx: 1, ny: 0 },
         { x: right, y: bottom, dx: -1, dy: 0, len: right - endX, nx: 0, ny: 1 },
       ];
+      // The gaps take the drop zone's fill, like the opening in the top edge; the chips are blue.
       const color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-      geo = { cw, ch, cx, runs, color, length: runs.reduce((n, r) => n + r.len, 0) };
+      const fill = getComputedStyle(dropzone).getPropertyValue('--fill').trim();
+      geo = { cw, ch, cx, runs, color, fill, length: runs.reduce((n, r) => n + r.len, 0) };
     }
 
     // Position and outward direction at distance d along the path, for side 0 (right) or 1 (left).
@@ -1401,7 +1402,7 @@
       if (heads && !runnersActive()) heads = false;
       measure();
       ctx.clearRect(0, 0, geo.cw, geo.ch);
-      ctx.fillStyle = geo.color;
+      ctx.fillStyle = geo.fill;
 
       if (heads) {
         // Back and forth: out to the bottom center, then back to the gap.
@@ -1437,7 +1438,8 @@
         }
       }
 
-      // Shaved pixels drift away, slow down and fade in steps, snapped to the 2 px grid.
+      // Chips drift away, slow down and fade in steps, snapped to the pixel grid.
+      ctx.fillStyle = geo.color;
       for (let i = particles.length - 1; i >= 0; i--) {
         const q = particles[i];
         q.age += dt;
