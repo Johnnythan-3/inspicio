@@ -139,18 +139,18 @@ svg { display: block; }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 11.5px;
   color: var(--text);
   text-decoration: none;
   font-family: var(--pixel);
   font-weight: 400;
-  font-size: 16.5px;
+  font-size: 19px;
   letter-spacing: 0;
 }
 
 .brand-mark {
-  width: 22px;
-  height: 22px;
+  width: 25.3px;
+  height: 25.3px;
   color: var(--accent);
   overflow: visible;
 }
