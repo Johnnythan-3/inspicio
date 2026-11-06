@@ -337,6 +337,12 @@
   // rows: [label, value, note?, copyText?]; rows with no value are dropped. Returns null if nothing
   // is left. A row with copyText becomes a button that copies that text to the clipboard.
   // Clicking the header collapses or expands the section, and the choice is remembered.
+  // Values that are measurements (1/250 s, f/2.8, ISO 400, 4032 × 3024, coordinates, 2.4 MB) get
+  // the mono face; words like "Auto" or "Apple" stay in the text face.
+  function isNumeric(value) {
+    return typeof value === 'string' && /^(?:[-−+]?\d|f\/|ISO\s)/.test(value.trim());
+  }
+
   function group(title, iconName, rows, index, extra) {
     const kept = rows.filter((r) => r && r[1] !== null && r[1] !== undefined && r[1] !== '');
     if (!kept.length && !extra) return null;
@@ -348,7 +354,7 @@
         kept.length ? el('dl', { class: 'rows' },
           kept.map(([label, value, note, copyText]) => el('div', { class: 'row' },
             el('dt', null, label),
-            el('dd', null, copyText
+            el('dd', { class: isNumeric(value) ? 'num' : null }, copyText
               ? copyButton(copyText, [value, note ? el('small', null, note) : null])
               : [value, note ? el('small', null, note) : null]),
           )),

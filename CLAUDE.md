@@ -20,19 +20,18 @@
 - **HEIC:** Chrome and Firefox cannot display HEIC. Still read and show its metadata, and show a placeholder in place of the preview.
 - **RAW (DNG, ARW, CR2, CR3, NEF, …):** browsers can't decode RAW data, so `loadRawPreview` in `app.js` shows the largest JPEG preview the camera embedded (found by JPEG start marker + frame header, rotated by the RAW's EXIF orientation if the preview has none). Metadata still comes from exifr. iPhone ProRAW and Sony ARW embed full-size previews; DJI only 960 × 540.
 - **Photos app drags:** dragging straight out of macOS Photos gives the browser a small preview (e.g. 360 × 480 named by UUID). The panel shows a "Small copy" notice for camera photos under 1200 px. Full size: picker's Photos sidebar, drag to Desktop first, or Safari (~3 s wait, loading overlay).
-- **Out of scope for v1:** tag search, copy as JSON, and a "download clean copy" that strips metadata. These are possible later additions. Do not build them unless asked.
 
 ## Hard rules
 
 - **Everything runs in the browser.** The photo never leaves the user's machine: no uploads, no analytics on file contents, no backend. This privacy promise is the product's main selling point, so never break it.
-- **One exception, opt-in only:** the "Show map" button requests a Mapbox static image, which sends only the photo's coordinates to Mapbox. Never request it before the user clicks, never auto-load it, and keep the note under the button that says what it sends. The public `pk.` token is `MAPBOX_TOKEN` in `app.js` (empty hides the button). It is the Default public token of Mapbox account `johnnythan`, which has no card on file: no URL restrictions (those need a card), 5,000 Static Images requests a month, and no possible charges. Over the limit, the map fails and the OpenStreetMap link remains. The map `<img>` uses `referrerPolicy = 'strict-origin'` so a URL-restricted token also works if one is added later.
+- **One exception, opt-in only:** the "Show map" button requests a Mapbox static image, which sends the coordinates (and, like any request, the IP) to Mapbox. Mapbox's terms require the text credit under the map. Never request it before the user clicks, never auto-load it, and keep the note under the button that says what it sends. The public `pk.` token is `MAPBOX_TOKEN` in `app.js` (empty hides the button). It is the Default public token of Mapbox account `johnnythan`, which has no card on file: no URL restrictions (those need a card), 5,000 Static Images requests a month, and no possible charges. Over the limit, the map fails and the OpenStreetMap link remains. The map `<img>` uses `referrerPolicy = 'strict-origin'` so a URL-restricted token also works if one is added later.
 - **No build step.** Plain HTML, CSS and JavaScript. Opening `index.html` (or serving the folder statically) must work.
 - **Metadata parsing:** use [`exifr`](https://github.com/MikeKovarik/exifr) (EXIF, GPS, IPTC, XMP, ICC, HEIC). Load it from a pinned CDN version, or vendor it into the repo. Do not hand-roll a parser.
 - **Revoke object URLs** (`URL.revokeObjectURL`) when the user loads a new photo.
 
 ## Design
 
-- Simple and sleek: a lot of whitespace, one accent color, system font stack or one clean web font.
+- Simple and sleek: a lot of whitespace, one accent color. Logo: pixel "i" breaking out of a frame. Fonts, self-hosted in `vendor/`: Geist (text), Geist Mono (numbers), Departure Mono (wordmark, labels; 11 px grid).
 - Colors chosen by the user: accent `#19448A` (dark mode `#89ADE6`), light page background `#E9F0EE`. Check text contrast (4.5:1) when changing them.
 - Support light and dark mode with `prefers-color-scheme` and CSS custom properties.
 - Responsive layout: at narrow widths the metadata panel stacks below the preview.
@@ -56,7 +55,7 @@
   - Collapse animation and saved state; "Show map" with the real token; copy coordinates.
 - Open question: keep the panel at 340 px or go back to 400 px (the user didn't answer).
 - Not tested yet: Safari, real touch pinch on a phone.
-- Possible later work, only if asked: tag search, copy as JSON, "download clean copy" that strips metadata, a custom domain, an OpenStreetMap-tile fallback when Mapbox fails.
+- Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile fallback for the map.
 
 ## File layout
 
@@ -68,11 +67,11 @@ public/                  everything Cloudflare serves
   _headers               security headers for Cloudflare
   privacy.html, terms.html  legal pages (BC law; contact inspicio.app@proton.me)
   404.html, favicon.svg
-  vendor/                exifr 7.1.3 full UMD build and its MIT license
+  vendor/                exifr 7.1.3, font files, their licenses
 wrangler.jsonc           Cloudflare static assets config (serves ./public)
 ```
 
-- The CSP (`default-src 'none'`) blocks every network request from the page except `img-src https://api.mapbox.com` for the opt-in map. Keep it that way, in both `index.html` and `_headers`. It is the proof behind the privacy promise.
+- The CSP (`default-src 'none'`) blocks every network request except same-origin files and `img-src https://api.mapbox.com` for the opt-in map. Keep it so in `index.html`, `privacy.html`, `terms.html` and `_headers`; it is the proof behind the privacy promise.
 - Metadata is untrusted input. Render it with `textContent` (the `el()` helper in `app.js`), never `innerHTML`.
 - Run locally: `python3 -m http.server 8788 --directory public`.
 
