@@ -400,49 +400,6 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 
 .dropzone:active { transform: scale(0.99); }
 
-/* Hover pixel trails (built and animated by app.js): gaps the color of the drop zone's fill
-   running along the frame line, a blurred streak of gap copies behind each, and blue chips. */
-.runners {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.runners i,
-.runners b {
-  position: absolute;
-  top: 0;
-  left: 0;
-  will-change: transform;
-}
-
-.runners i {
-  width: 5px;
-  height: 5px;
-  background: var(--bg);
-  transition: background-color 0.25s;
-}
-
-.dropzone:hover .runners i,
-body.dragging .runners i { background: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
-
-.runners:not(.is-running) i { visibility: hidden; }
-
-.runner-streak {
-  position: absolute;
-  inset: 0;
-  filter: blur(2.5px);
-}
-
-.runner-streak i { opacity: var(--o); }
-
-.runners b {
-  width: 2.5px;
-  height: 2.5px;
-  background: var(--accent);
-  opacity: 0;
-}
-
 .dropzone-icon {
   width: 66px;
   height: 54px;
@@ -1220,10 +1177,8 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
     transition-duration: 0.001ms !important;
   }
 
-  /* An endless loop at near-zero duration would flicker, so the ticker rows stand still. The drop
-     zone's pixel trails stay hidden (app.js also skips them). */
+  /* An endless loop at near-zero duration would flicker, so the ticker rows stand still. */
   .ticker-row { animation: none !important; }
-  .runners { display: none; }
 }
 
 /* ---------- Narrow screens ---------- */
