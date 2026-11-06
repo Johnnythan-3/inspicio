@@ -497,6 +497,29 @@ body.loading .overlay-loading { display: inline-flex; }
   animation: photo-in 0.7s var(--ease) backwards;
 }
 
+/* Scan: one pass of light down the photo as it opens, in step with the metadata values decoding
+   (decodeValues in app.js). A soft tint trails a thin bright line. It ends hidden, so nothing stays
+   layered over the photo afterwards. */
+.zoom-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom,
+    transparent calc(100% - 160px),
+    rgb(137 173 230 / 0.2) calc(100% - 3px),
+    rgb(25 68 138 / 0.45) calc(100% - 3px),
+    rgb(25 68 138 / 0.45) calc(100% - 2px),
+    rgb(226 236 252 / 0.95) calc(100% - 2px));
+  animation: scan 1.1s 0.2s cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); opacity: 1; visibility: visible; }
+  86% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 0; visibility: hidden; }
+}
+
 .zoom-frame.is-zoomed { cursor: grab; touch-action: none; }
 .zoom-frame.is-dragging { cursor: grabbing; }
 .zoom-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -774,6 +797,15 @@ body.loading .overlay-loading { display: inline-flex; }
 
 /* Numbers (1/250 s, f/2.8, coordinates, sizes) read best in the mono face. */
 .row dd.num { font-family: var(--mono); font-size: 13px; }
+
+/* Decode reveal: the not-yet-resolved end of a value, in the pixel face (decodeValues in app.js). */
+.scramble {
+  font-family: var(--pixel);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--accent);
+}
 
 .row dd small {
   display: block;

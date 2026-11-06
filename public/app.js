@@ -1007,6 +1007,119 @@
     render(null);
   }
 
+  /* ---------- Decode reveal ---------- */
+
+  // When a photo opens, the summary chips and each metadata value in view "decode": each starts as
+  // pixel-font glyphs and resolves left to right into its real text, one after another, while a
+  // scan line passes over the photo (CSS, .zoom-frame::after). The scrambled glyphs come from a fixed set, never from the
+  // photo. Rows out of view or in collapsed sections are left as they are. Any click or key press in
+  // the panel ends it at once, so it never gets in the way. Skipped entirely with reduced motion.
+  const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*+<>=';
+  const DECODE_START = 140;  // ms before the first row starts, while the panel slides in
+  const DECODE_SPREAD = 650; // the last row in view starts at most this long after the first
+  const DECODE_MS = 320;     // one value, first glyph to last
+  const SHUFFLE_MS = 60;     // how often the unresolved glyphs change
+  let stopDecode = null;
+
+  const scramble = (s) => s.replace(/\S/g, () => GLYPHS[(Math.random() * GLYPHS.length) | 0]);
+
+  function decodeValues(root) {
+    stopDecode?.();
+    if (reduceMotion.matches) return;
+
+    const view = root.getBoundingClientRect();
+    const top = Math.max(view.top, 0);
+    const bottom = Math.min(view.bottom, window.innerHeight);
+    const items = [];
+    for (const dd of root.querySelectorAll('.chips li, .group:not(.is-collapsed) .row dd')) {
+      const box = dd.getBoundingClientRect();
+      if (!box.height || box.bottom < top || box.top > bottom) continue;
+      const parts = [];
+      const walker = document.createTreeWalker(dd, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        if (n.data.trim()) parts.push({ node: n, text: n.data, shown: -1, tail: null });
+      }
+      if (parts.length) items.push({ dd, parts, width: box.width, height: box.height, total: parts.reduce((a, p) => a + p.text.length, 0) });
+    }
+    if (!items.length) return;
+
+    const gap = items.length > 1 ? Math.min(34, DECODE_SPREAD / (items.length - 1)) : 0;
+    items.forEach((it, i) => {
+      it.start = DECODE_START + i * gap;
+      // Scrambled text is narrower than the real text, so hold the box's size to stop it jumping.
+      it.dd.style.minWidth = `${it.width}px`;
+      it.dd.style.minHeight = `${it.height}px`;
+      for (const p of it.parts) {
+        p.tail = el('span', { class: 'scramble', 'aria-hidden': 'true' }, scramble(p.text));
+        p.node.data = '';
+        p.node.after(p.tail);
+      }
+    });
+
+    const settle = (it) => {
+      if (it.done) return;
+      it.done = true;
+      for (const p of it.parts) {
+        p.node.data = p.text;
+        p.tail.remove();
+      }
+      it.dd.style.minWidth = '';
+      it.dd.style.minHeight = '';
+    };
+
+    let frame = 0;
+    let lastShuffle = -1;
+    const t0 = performance.now();
+    const tick = (now) => {
+      const t = now - t0;
+      const shuffle = Math.floor(t / SHUFFLE_MS);
+      const reshuffle = shuffle !== lastShuffle;
+      lastShuffle = shuffle;
+      let busy = false;
+      for (const it of items) {
+        if (it.done) continue;
+        const p = Math.max(0, (t - it.start) / DECODE_MS);
+        if (p >= 1) {
+          settle(it);
+          continue;
+        }
+        busy = true;
+        // Ease out: most characters resolve early, the last few settle in.
+        let left = Math.floor((1 - (1 - p) ** 3) * it.total);
+        for (const part of it.parts) {
+          const k = Math.min(part.text.length, left);
+          left -= k;
+          if (k !== part.shown) {
+            part.node.data = part.text.slice(0, k);
+            part.shown = k;
+            part.tail.textContent = scramble(part.text.slice(k));
+          } else if (reshuffle && k < part.text.length) {
+            part.tail.textContent = scramble(part.text.slice(k));
+          }
+        }
+      }
+      if (busy) frame = requestAnimationFrame(tick);
+      else stop();
+    };
+
+    // A background tab pauses requestAnimationFrame; this makes sure no value stays scrambled.
+    const safety = setTimeout(() => stop(), DECODE_START + DECODE_SPREAD + DECODE_MS + 600);
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(safety);
+      items.forEach(settle);
+      root.removeAttribute('aria-busy');
+      root.removeEventListener('pointerdown', stop);
+      root.removeEventListener('keydown', stop);
+      if (stopDecode === stop) stopDecode = null;
+    };
+    stopDecode = stop;
+    root.setAttribute('aria-busy', 'true');
+    root.addEventListener('pointerdown', stop);
+    root.addEventListener('keydown', stop);
+    frame = requestAnimationFrame(tick);
+  }
+
   /* ---------- State ---------- */
 
   function withTransition(update) {
@@ -1088,6 +1201,7 @@
       document.body.dataset.state = 'viewer';
       panel.scrollTop = 0;
       document.title = `${file.name} · Inspicio`;
+      decodeValues(panel);
     });
 
     if (previousUrl) URL.revokeObjectURL(previousUrl);
