@@ -401,8 +401,8 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 .dropzone:active { transform: scale(0.99); }
 
 /* Three photos stacked diagonally, each one pixel (6 px) up and to the right of the one in front.
-   On hover, or while a file is dragged over the page, they spread out along the same diagonal on
-   the 6 px pixel grid and data scrambles rise from them (app.js). */
+   On hover, or while a file is dragged over the page, they spread out 20 px apart along the same
+   diagonal (whole pixels, so the edges stay sharp) and data scrambles rise from them (app.js). */
 .dropzone-icon {
   position: relative;
   display: block;
@@ -430,11 +430,11 @@ body.dragging .stack-fill { fill: color-mix(in srgb, var(--accent) 5%, var(--bg)
 .stack-mid { color: color-mix(in srgb, var(--accent) 65%, var(--bg)); transform: translate(6px, -6px); }
 
 .dropzone:hover .stack-back,
-body.dragging .stack-back { transform: translate(24px, -24px); }
+body.dragging .stack-back { transform: translate(20px, -20px); }
 .dropzone:hover .stack-mid,
-body.dragging .stack-mid { transform: translate(0, -12px); transition-delay: 0.03s; }
+body.dragging .stack-mid { transform: translate(0, -10px); transition-delay: 0.03s; }
 .dropzone:hover .stack-front,
-body.dragging .stack-front { transform: translate(-24px, 0); transition-delay: 0.06s; }
+body.dragging .stack-front { transform: translate(-20px, 0); transition-delay: 0.06s; }
 
 /* Data scrambles rising from the photos (spawned by app.js). */
 .data-bit {
