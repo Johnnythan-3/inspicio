@@ -400,15 +400,57 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 
 .dropzone:active { transform: scale(0.99); }
 
+/* Three photos stacked, the two behind peeking out one pixel (6 px) up and to each side. On hover,
+   or while a file is dragged over the page, they fan out sideways on the 6 px pixel grid and data
+   scrambles rise from them (app.js). */
 .dropzone-icon {
+  position: relative;
+  display: block;
   width: 66px;
   height: 54px;
   margin-bottom: 10px;
   color: var(--accent);
-  transition: transform 0.45s var(--ease);
 }
 
-.dropzone:hover .dropzone-icon { transform: translateY(-3px); }
+.stack-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition: transform 0.5s var(--ease);
+}
+
+/* The inside of each photo is filled so the ones behind are hidden where they overlap. */
+.stack-fill { fill: var(--bg); transition: fill 0.25s; }
+.dropzone:hover .stack-fill,
+body.dragging .stack-fill { fill: color-mix(in srgb, var(--accent) 5%, var(--bg)); }
+
+.stack-left { color: color-mix(in srgb, var(--accent) 45%, var(--bg)); transform: translate(-6px, -6px); }
+.stack-right { color: color-mix(in srgb, var(--accent) 65%, var(--bg)); transform: translate(6px, -6px); }
+
+.dropzone:hover .stack-left,
+body.dragging .stack-left { transform: translate(-54px, 0); }
+.dropzone:hover .stack-right,
+body.dragging .stack-right { transform: translate(54px, 0); }
+.dropzone:hover .stack-front,
+body.dragging .stack-front { transform: translateY(-6px); transition-delay: 0.04s; }
+
+/* Data scrambles rising from the photos (spawned by app.js). */
+.data-bit {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  font-family: var(--pixel);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  white-space: pre;
+  color: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
 
 .dropzone-title {
   font-family: var(--pixel);

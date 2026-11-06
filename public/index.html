@@ -45,7 +45,19 @@
       </div>
 
       <button class="dropzone" id="dropzone" type="button">
-        <svg class="dropzone-icon" viewBox="0 0 11 9" aria-hidden="true" shape-rendering="crispEdges"><path d="M0 0h11v1H0zM0 8h11v1H0zM0 1h1v7H0zM10 1h1v7H10zM3 2h2v2H3zM1 7h9v1H1zM2 6h2v1H2zM5 5h3v2H5zM6 4h1v1H6zM8 6h1v1H8z" fill="currentColor"/></svg>
+        <span class="dropzone-icon" id="photo-stack" aria-hidden="true">
+          <svg class="stack-photo stack-left" viewBox="0 0 11 9" shape-rendering="crispEdges"><use href="#photo-glyph"/></svg>
+          <svg class="stack-photo stack-right" viewBox="0 0 11 9" shape-rendering="crispEdges"><use href="#photo-glyph"/></svg>
+          <svg class="stack-photo stack-front" viewBox="0 0 11 9" shape-rendering="crispEdges">
+            <defs>
+              <g id="photo-glyph">
+                <rect class="stack-fill" x="1" y="1" width="9" height="7"/>
+                <path d="M0 0h11v1H0zM0 8h11v1H0zM0 1h1v7H0zM10 1h1v7H10zM3 2h2v2H3zM1 7h9v1H1zM2 6h2v1H2zM5 5h3v2H5zM6 4h1v1H6zM8 6h1v1H8z" fill="currentColor"/>
+              </g>
+            </defs>
+            <use href="#photo-glyph"/>
+          </svg>
+        </span>
         <span class="dropzone-title">Drop a photo</span>
         <span class="dropzone-sub">or click to choose one</span>
       </button>

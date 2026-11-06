@@ -1257,6 +1257,7 @@
     e.preventDefault();
     dragDepth++;
     document.body.classList.add('dragging');
+    startBits();
     dragActivity();
   });
 
@@ -1281,6 +1282,60 @@
     endDrag();
     handleFile(e.dataTransfer.files[0]);
   });
+
+  /* ---------- Drop zone data scrambles ---------- */
+
+  // While the photos are fanned out (pointer over the drop zone, or a file dragged over the page),
+  // short scrambled bits of made-up metadata rise from them and fade. They move with Web
+  // Animations (run by the browser's compositor); only the glyph shuffling runs on a timer.
+  const photoStack = $('#photo-stack');
+  const DATA_BITS = ['ISO 400', 'F/2.8', '1/250', '24 MM', 'GPS', 'EXIF', 'XMP', 'ICC', '0X9003', 'SRGB',
+    'N 49°', 'W 123°', '8064', 'P3', 'RAW', 'IFD0', '-07:00', 'AUTO'];
+  let bitTimer = null;
+  const bits = new Set();
+
+  const stackActive = () => !emptyView.hidden && !reduceMotion.matches
+    && (dropzone.matches(':hover') || document.body.classList.contains('dragging'));
+
+  function startBits() {
+    if (!photoStack || bitTimer || !stackActive()) return;
+    let tick = 0;
+    bitTimer = setInterval(() => {
+      tick++;
+      const active = stackActive();
+      // A new bit every 6th tick (about 3 a second), once the photos have had time to fan out.
+      if (active && tick > 6 && tick % 6 === 0 && bits.size < 7) addBit();
+      // Each bit's glyphs reshuffle, then settle into its text left to right.
+      for (const b of bits) {
+        b.age++;
+        const settled = Math.max(0, Math.floor((b.age - 6) / 2));
+        b.node.textContent = b.text.slice(0, settled) + scramble(b.text.slice(settled));
+      }
+      if (!active && !bits.size) { clearInterval(bitTimer); bitTimer = null; }
+    }, 55);
+  }
+
+  function addBit() {
+    const text = DATA_BITS[(Math.random() * DATA_BITS.length) | 0];
+    const node = el('span', { class: 'data-bit' }, scramble(text));
+    photoStack.append(node);
+    const bit = { node, text, age: 0 };
+    bits.add(bit);
+    // Start somewhere across the fanned-out photos, rise 40 to 60 px with a little drift.
+    const x = (Math.random() * 2 - 1) * 70;
+    const rise = 40 + Math.random() * 20;
+    const drift = (Math.random() * 2 - 1) * 8;
+    const life = 1500 + Math.random() * 500;
+    node.animate([
+      { transform: `translate(calc(-50% + ${x}px), 0)`, opacity: 0 },
+      { opacity: 0.85, offset: 0.15 },
+      { opacity: 0.85, offset: 0.6 },
+      { transform: `translate(calc(-50% + ${x + drift}px), ${-rise}px)`, opacity: 0 },
+    ], { duration: life, easing: 'cubic-bezier(0.2, 0.6, 0.4, 1)' })
+      .finished.then(() => { node.remove(); bits.delete(bit); }, () => { node.remove(); bits.delete(bit); });
+  }
+
+  dropzone.addEventListener('pointerenter', startBits);
 
   /* ---------- Empty page ticker ---------- */
 
