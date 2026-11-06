@@ -773,8 +773,9 @@
   function decodeImage(url) {
     const probe = new Image();
     probe.src = url;
+    // The decoded probe is kept so the pixel reveal can draw from it straight away.
     return probe.decode().then(
-      () => ({ ok: true, width: probe.naturalWidth, height: probe.naturalHeight }),
+      () => ({ ok: true, width: probe.naturalWidth, height: probe.naturalHeight, probe }),
       () => ({ ok: false }),
     );
   }
@@ -804,6 +805,7 @@
       const level = el('button', { class: 'zoom-level', type: 'button', title: 'Fit to view' }, 'Fit');
       const zin = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom in' }, '+');
       attachZoom(frame, photo, { out, level, zin });
+      pixelReveal(frame, img);
       return el('figure', { class: 'photo' },
         frame,
         el('figcaption', null,
@@ -824,6 +826,79 @@
             : 'This browser can’t display this file format. The metadata is still complete.'),
       ),
     );
+  }
+
+  /* ---------- Pixel reveal ---------- */
+
+  // When a photo opens it starts as big square pixels in the photo's own colors and sharpens in
+  // steps, the pixels getting smaller until the real photo shows. A canvas over the photo holds
+  // each step at a tiny size; CSS scales it up without smoothing (image-rendering: pixelated).
+  // Each step's colors are averages of that part of the photo, taken from a stack of
+  // half-size copies made once at the start. Any zoom or pan input ends it at once.
+  const REVEAL_BLOCKS = [44, 32, 24, 17, 12, 8.5, 6, 4, 2.5]; // pixel size per step, CSS px
+  const REVEAL_HOLD = 260; // ms on the first step, while the photo settles in
+  const REVEAL_STEP = 85; // ms per later step
+
+  function pixelReveal(frame, img) {
+    if (reduceMotion.matches || !img.probe) return;
+    const source = img.probe;
+    const canvas = el('canvas', { class: 'pixel-reveal', 'aria-hidden': 'true' });
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Half-size copies down to a few pixels wide, starting at most 1024 px wide.
+    const levels = [];
+    let w = Math.min(img.width, 1024);
+    let h = Math.max(1, Math.round((w * img.height) / img.width));
+    let prev = source;
+    while (w >= 4) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const cx = c.getContext('2d');
+      cx.imageSmoothingQuality = 'high';
+      cx.drawImage(prev, 0, 0, w, h);
+      levels.push(c);
+      prev = c;
+      w = Math.round(w / 2);
+      h = Math.max(1, Math.round(h / 2));
+    }
+    if (!levels.length) return;
+
+    const timers = [];
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      timers.forEach(clearTimeout);
+      frame.classList.remove('is-revealing');
+      canvas.classList.add('is-done');
+      setTimeout(() => canvas.remove(), 250);
+      for (const type of ['wheel', 'pointerdown', 'dblclick', 'keydown']) frame.removeEventListener(type, finish);
+    };
+
+    // Draw one step: the photo at "cols" pixels across, averaged from the nearest larger copy.
+    const step = (block) => {
+      const shown = frame.clientWidth || img.width;
+      const cols = Math.max(1, Math.round(shown / block));
+      const rows = Math.max(1, Math.round((cols * img.height) / img.width));
+      const from = levels.slice().reverse().find((c) => c.width >= cols) || levels[0];
+      canvas.width = cols;
+      canvas.height = rows;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(from, 0, 0, cols, rows);
+    };
+
+    // The first step waits for the frame to be on the page so its width is known; that still
+    // happens before the browser paints it.
+    Promise.resolve().then(() => step(REVEAL_BLOCKS[0]));
+    frame.append(canvas);
+    frame.classList.add('is-revealing');
+    REVEAL_BLOCKS.slice(1).forEach((block, i) => {
+      timers.push(setTimeout(() => step(block), REVEAL_HOLD + i * REVEAL_STEP));
+    });
+    timers.push(setTimeout(finish, REVEAL_HOLD + (REVEAL_BLOCKS.length - 1) * REVEAL_STEP));
+    for (const type of ['wheel', 'pointerdown', 'dblclick', 'keydown']) frame.addEventListener(type, finish);
   }
 
   /* ---------- Zoom ---------- */
@@ -1007,8 +1082,8 @@
   /* ---------- Decode reveal ---------- */
 
   // When a photo opens, the summary chips and each metadata value in view "decode": each starts as
-  // pixel-font glyphs and resolves left to right into its real text, one after another, while a
-  // scan line passes over the photo (CSS, .zoom-frame::after). The scrambled glyphs come from a fixed set, never from the
+  // pixel-font glyphs and resolves left to right into its real text, one after another, while the
+  // photo sharpens from big pixels (pixelReveal). The scrambled glyphs come from a fixed set, never from the
   // photo. Rows out of view or in collapsed sections are left as they are. Any click or key press in
   // the panel ends it at once, so it never gets in the way. Skipped entirely with reduced motion.
   const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*+<>=';

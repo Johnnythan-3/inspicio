@@ -713,31 +713,24 @@ body.loading .overlay-loading { display: inline-flex; }
   cursor: zoom-in;
   touch-action: pan-y;
   overscroll-behavior: contain;
-  animation: photo-in 0.7s var(--ease) backwards;
+  animation: frame-in 0.6s var(--ease) backwards;
 }
 
-/* Scan: one pass of light down the photo as it opens, in step with the metadata values decoding
-   (decodeValues in app.js). A soft tint trails a thin bright line. It ends hidden, so nothing stays
-   layered over the photo afterwards. */
-.zoom-frame::after {
-  content: "";
+/* Pixel reveal: while the photo opens, a canvas over it shows the photo as big square pixels that
+   get smaller in steps (pixelReveal in app.js). The real photo is hidden under it until the last
+   step, then the canvas fades out and is removed. */
+.pixel-reveal {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  background: linear-gradient(to bottom,
-    transparent calc(100% - 160px),
-    rgb(137 173 230 / 0.2) calc(100% - 3px),
-    rgb(25 68 138 / 0.45) calc(100% - 3px),
-    rgb(25 68 138 / 0.45) calc(100% - 2px),
-    rgb(226 236 252 / 0.95) calc(100% - 2px));
-  animation: scan 1.1s 0.2s cubic-bezier(0.45, 0, 0.25, 1) both;
+  image-rendering: pixelated;
+  transition: opacity 0.2s ease;
 }
 
-@keyframes scan {
-  0% { transform: translateY(-100%); opacity: 1; visibility: visible; }
-  86% { opacity: 1; }
-  100% { transform: translateY(0); opacity: 0; visibility: hidden; }
-}
+.pixel-reveal.is-done { opacity: 0; }
+.zoom-frame.is-revealing .zoom-img { visibility: hidden; }
 
 .zoom-frame.is-zoomed { cursor: grab; touch-action: none; }
 .zoom-frame.is-dragging { cursor: grabbing; }
@@ -1184,6 +1177,12 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The photo frame fades and grows in without blur, so the pixel reveal stays sharp. */
+@keyframes frame-in {
+  from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: none; }
 }
 
