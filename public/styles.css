@@ -400,7 +400,7 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
 
 .dropzone:active { transform: scale(0.99); }
 
-/* Canvas for the hover pixel trails (drawn by app.js). It reaches 40 px past the frame on every
+/* Canvases for the hover pixel trails (drawn by app.js). It reaches 40 px past the frame on every
    side so shed pixels have room to drift away. */
 .runners {
   position: absolute;
@@ -409,6 +409,9 @@ body.dragging .dropzone::after { transform: translateY(-16px); }
   height: calc(100% + 80px);
   pointer-events: none;
 }
+
+/* The soft streak behind each gap, blurred here so the browser does it on the GPU. */
+.runners-streak { filter: blur(2.5px); }
 
 .dropzone-icon {
   width: 66px;
