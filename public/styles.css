@@ -306,12 +306,10 @@ main { min-height: 0; }
 
 @keyframes fade-in { from { opacity: 0; } }
 
-/* An 85% wash of the page color behind the headline separates it from the ticker and grid. */
 .hero-copy h1 {
+  position: relative;
   width: fit-content;
   margin: 0 auto;
-  padding: 5.5px 11px;
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
   font-family: var(--pixel);
   font-size: 44px;
   font-weight: 400;
@@ -321,8 +319,23 @@ main { min-height: 0; }
   animation: rise 0.8s var(--ease) both;
 }
 
+/* A soft blur behind the headline separates it from the ticker and grid. The mask feathers the
+   blur out so it has no visible edge. */
+.hero-copy h1::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -22px -44px;
+  backdrop-filter: blur(4px);
+  mask-image:
+    linear-gradient(90deg, transparent, #000 44px, #000 calc(100% - 44px), transparent),
+    linear-gradient(transparent, #000 22px, #000 calc(100% - 22px), transparent);
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
 .hero-copy p {
-  margin: 8.5px auto 0;
+  margin: 14px auto 0;
   max-width: 460px;
   color: var(--muted);
   font-size: 15.5px;
