@@ -45,15 +45,21 @@
 - **URL privacy rule:** workers.dev subdomain `johnnythan`, renamed from one exposing owner's email name. Never put owner's email or anything derived from it in URLs, files, commits. Commits use GitHub noreply address from repo git config.
 - Fully static, no server code.
 
-## Status (2026-11-05, session 5)
+## Status (2026-11-06, end of session 5)
 
 - All live. Sessions 2–3: layout, colors, map, copy coordinates, zoom, collapsible sections, RAW previews, Photos-drag fixes, legal pages (BC PIPA, Mapbox terms), logo, fonts.
 - User tests in **Firefox** on Mac (Safari for Photos drags). Originals often iPhone 15 Pro ProRAW DNGs (48 MP), Sony A7C II ARWs.
-- Session 4: Raw rows stack name above value. Decode on photo open (`decodeValues` in `app.js` scrambles visible values + chips in Departure Mono, then resolves). Whole site restyled "pixel frame": grid background on empty page, Departure Mono headlines, logo-style frames (gap in top edge, dot breaking out) for drop zone, badge, drag overlay; `--radius: 0`; outlined pixel buttons invert on hover. Logo 15% bigger. Empty-page footer line 60 px below format chips (user's choice).
-- Session 5: empty-page ambient ticker (`#ticker` in `.hero-copy`, `buildTicker` in `app.js`): 7 faint rows of made-up tags slide behind headline, snapped between 22 px grid lines, stand still under reduced motion. Headline: feathered `backdrop-filter` blur. Drop zone icon = 3 diagonally stacked photos (`.stack-*`), spread on hover; `startBits` (`app.js`) floats scrambled data bits up. Photo open: `pixelReveal` canvas, big pixels shrink until sharp (replaced scan line). More ideas: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN); plain CSS otherwise.
-- Not checked in Firefox or with real ARW/DNG/HEIC since session 4 restyle + decode. Ticker not checked in Firefox.
-- Unreported from session 2 (ask briefly): RAW previews from Finder, trackpad pinch/pan in Firefox (`attachZoom` heuristic), collapse state, map, copy coordinates. Panel stays 340 px.
+- Session 4: Raw rows stack name above value. `decodeValues` (`app.js`) scrambles visible values + chips in Departure Mono on photo open, then resolves. "Pixel frame" restyle: grid background, Departure Mono headlines, logo-style frames (gap in top edge, dot breaking out), `--radius: 0`, outlined pixel buttons.
+- Session 5 (user likes all of it):
+  - Empty page: ticker (`buildTicker`), 7 faint rows of made-up tags behind headline, snapped to 22 px grid. Feathered `backdrop-filter` blur behind headline. Subtitle "Every hidden tag, read here in your browser."
+  - Drop zone icon: 3 diagonally stacked photos (`.stack-*`), spread 20 px apart on hover; `startBits` floats scrambled data bits up.
+  - Photo open: `pixelReveal` canvas, big pixels in photo's colors shrink in 9 steps until sharp (replaced scan line).
+  - Shorter "Small copy" notice.
+  - Tried and removed (user: clutter): pixel trails running around drop zone frame. Don't bring back.
+- Not checked with real ARW/DNG/HEIC since session 4 (pixel reveal on 48 MP DNG untested).
+- Unreported from session 2 (ask briefly): RAW previews from Finder, Firefox trackpad pinch/pan, collapse state, map, copy coordinates.
 - Not tested: real touch pinch on phone.
+- Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
 - Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile map fallback.
 
 ## File layout
