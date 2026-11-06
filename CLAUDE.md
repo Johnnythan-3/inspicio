@@ -57,7 +57,7 @@
   - Shorter "Small copy" notice.
   - Tried and removed (user: clutter): pixel trails running around drop zone frame. Don't bring back.
 - Session 6: user confirmed in Firefox: iPhone ProRAW DNG from Finder shows full-size preview (pixel reveal smooth on 48 MP), trackpad pinch/pan, collapse state, map, copy coordinates. Photos drag gives 360 × 480 JPEG copy (expected); test RAW via Photos File › Export › Export Unmodified Original.
-- Sony ARW from Finder confirmed. Not checked since session 4: HEIC.
+- Sony ARW from Finder, HEIC placeholder (Firefox) confirmed.
 - Not tested: real touch pinch on phone.
 - Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
 - Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile map fallback.
