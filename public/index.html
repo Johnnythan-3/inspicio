@@ -39,31 +39,30 @@
   <main id="app" data-state="empty">
     <section class="empty" id="empty-view">
       <div class="hero-copy">
-        <h1>See what your photos say.</h1>
-        <p>Camera, settings, date, location and every hidden tag, read right here in your browser.</p>
+        <h1>See what your<br>photos say.</h1>
+        <p>Every hidden tag, read right here in your browser.</p>
       </div>
 
       <button class="dropzone" id="dropzone" type="button">
-        <span class="dropzone-icon" aria-hidden="true">
-          <svg viewBox="0 0 48 48">
-            <rect x="6" y="10" width="36" height="28" rx="6" fill="none" stroke="currentColor" stroke-width="2.5"/>
-            <circle cx="17" cy="20" r="3.5" fill="currentColor"/>
-            <path d="M8 34l10-9 7 6 6-5 9 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span class="dropzone-title">Drop a photo here</span>
-        <span class="dropzone-sub">or click to choose one from your computer</span>
-        <span class="dropzone-formats">JPEG · HEIC · PNG · TIFF · AVIF</span>
+        <svg class="dropzone-icon" viewBox="0 0 11 9" aria-hidden="true" shape-rendering="crispEdges"><path d="M0 0h11v1H0zM0 8h11v1H0zM0 1h1v7H0zM10 1h1v7H10zM3 2h2v2H3zM1 7h9v1H1zM2 6h2v1H2zM5 5h3v2H5zM6 4h1v1H6zM8 6h1v1H8z" fill="currentColor"/></svg>
+        <span class="dropzone-title">Drop a photo</span>
+        <span class="dropzone-sub">or click to choose one</span>
       </button>
 
-      <p class="error" id="error" role="alert" hidden></p>
-      <p class="empty-note">Nothing is uploaded. Your photo never leaves this browser.</p>
+      <ul class="formats" aria-label="Supported formats">
+        <li>JPEG</li><li>HEIC</li><li>PNG</li><li>TIFF</li><li>AVIF</li><li>RAW</li>
+      </ul>
 
-      <nav class="legal-links" aria-label="Legal">
-        <a href="privacy.html">Privacy</a>
-        <a href="terms.html">Terms</a>
-        <a href="mailto:inspicio.app@proton.me">Contact</a>
-      </nav>
+      <p class="error" id="error" role="alert" hidden></p>
+
+      <div class="empty-foot">
+        <p class="empty-note">Nothing is uploaded</p>
+        <nav class="legal-links" aria-label="Legal">
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms</a>
+          <a href="mailto:inspicio.app@proton.me">Contact</a>
+        </nav>
+      </div>
     </section>
 
     <section class="viewer" id="viewer-view" hidden>

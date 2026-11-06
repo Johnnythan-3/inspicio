@@ -31,7 +31,7 @@
 
 ## Design
 
-- Simple and sleek: a lot of whitespace, one accent color. Logo: pixel "i" breaking out of a frame. Fonts, self-hosted in `vendor/`: Geist (text), Geist Mono (numbers), Departure Mono (wordmark, labels; 11 px grid).
+- Simple, sleek, one accent color, square corners on the empty page. Logo: pixel "i" breaking out of a frame. Fonts, self-hosted in `vendor/`: Geist (text), Geist Mono (numbers), Departure Mono (wordmark, labels; 11 px grid).
 - Colors chosen by the user: accent `#19448A` (dark mode `#89ADE6`), light page background `#E9F0EE`. Check text contrast (4.5:1) when changing them.
 - Support light and dark mode with `prefers-color-scheme` and CSS custom properties.
 - Responsive layout: at narrow widths the metadata panel stacks below the preview.
@@ -47,9 +47,9 @@
 
 ## Status (2026-11-05, session 4)
 
-- All live. Session 2: photo left / panel right, colors, opt-in map, copy coordinates, zoom and pan, collapsible sections, RAW previews. Session 3: Photos-drag fixes (notice button opens the picker, loading overlay for Safari's ~3 s wait), privacy and terms pages checked against BC PIPA and Mapbox terms (contact inspicio.app@proton.me), map credit line, new logo, fonts.
+- All live. Sessions 2–3: layout, colors, map, copy coordinates, zoom, collapsible sections, RAW previews, Photos-drag fixes, legal pages (BC PIPA, Mapbox terms), logo, fonts.
 - The user tests in **Firefox** on a Mac (Safari works for Photos drags). Originals are often iPhone 15 Pro ProRAW DNGs (48 MP) and Sony A7C II ARWs.
-- Session 4: Raw rows stack name above value. Motion: "scan + decode" on photo open (`.zoom-frame::after` scan line; `decodeValues` in `app.js` scrambles visible values and chips in Departure Mono, then resolves them). Other motion ideas offered: drop morph, logo-dot hop, count-up numbers.
+- Session 4: Raw rows stack name above value. Motion: "scan + decode" on photo open (`.zoom-frame::after` scan line; `decodeValues` in `app.js` scrambles visible values and chips in Departure Mono, then resolves them). Empty page and badge restyled as "pixel frame": grid background, Departure Mono headline, square logo-style frames (gap in top edge, dot breaking out), square corners. Viewer not restyled yet. Next: ambient motion (metadata ticker and/or scan sweep).
 - Still unreported from session 2 (ask briefly): RAW previews from Finder, trackpad pinch/pan in Firefox (`attachZoom` heuristic), collapse state, map, copy coordinates. Panel stays 340 px.
 - Not tested yet: real touch pinch on a phone.
 - Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile fallback for the map.
