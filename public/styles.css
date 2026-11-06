@@ -350,13 +350,6 @@ body.busy .dropzone-icon { animation: pulse 1.1s var(--ease) infinite; }
   animation: rise 0.8s 0.24s var(--ease) both;
 }
 
-.empty .legal-links {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 20px;
-}
-
 .legal-links a {
   color: var(--muted);
   text-decoration: none;
