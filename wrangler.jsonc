@@ -5,6 +5,8 @@
   // Serve the site on <name>.<account>.workers.dev, and give branch builds their own preview URLs.
   "workers_dev": true,
   "preview_urls": true,
+  // The main address. Cloudflare creates the DNS record and HTTPS certificate on deploy.
+  "routes": [{ "pattern": "inspicio.app", "custom_domain": true }],
   "assets": {
     "directory": "./public",
     "not_found_handling": "404-page"
