@@ -45,20 +45,15 @@
 - **URL privacy rule:** workers.dev subdomain `johnnythan`, renamed from one exposing owner's email name. Never put owner's email or anything derived from it in URLs, files, commits. Commits use GitHub noreply address from repo git config.
 - Fully static, no server code.
 
-## Status (2026-11-06, end of session 5)
+## Status (2026-11-07, end of session 6)
 
-- All live. Sessions 2–3: layout, colors, map, copy coordinates, zoom, collapsible sections, RAW previews, Photos-drag fixes, legal pages (BC PIPA, Mapbox terms), logo, fonts.
-- User tests in **Firefox** on Mac (Safari for Photos drags). Originals often iPhone 15 Pro ProRAW DNGs (48 MP), Sony A7C II ARWs.
-- Session 4: Raw rows stack name above value. `decodeValues` (`app.js`) scrambles visible values + chips in Departure Mono on photo open, then resolves. "Pixel frame" restyle: grid background, Departure Mono headlines, logo-style frames (gap in top edge, dot breaking out), `--radius: 0`, outlined pixel buttons.
-- Session 5 (user likes all of it):
-  - Empty page: ticker (`buildTicker`), 7 faint rows of made-up tags behind headline, snapped to 22 px grid. Feathered `backdrop-filter` blur behind headline. Subtitle "Every hidden tag, read here in your browser."
-  - Drop zone icon: 3 diagonally stacked photos (`.stack-*`), spread 20 px apart on hover; `startBits` floats scrambled data bits up.
-  - Photo open: `pixelReveal` canvas, big pixels in photo's colors shrink in 10 steps until sharp (last: 1.5 px) (replaced scan line).
-  - Tried and removed (user: clutter): pixel trails running around drop zone frame. Don't bring back.
-- Session 6: confirmed in Firefox: ProRAW DNG from Finder (full-size, reveal smooth on 48 MP), trackpad pinch/pan, collapse, map, copy coordinates. Photos drag gives small JPEG; test RAW via Photos File › Export › Export Unmodified Original.
-- Sony ARW from Finder, HEIC placeholder (Firefox) confirmed.
-- Not tested: real touch pinch on phone.
+- All live, user likes all of it. User tests in **Firefox** on Mac (Safari for Photos drags); originals often iPhone 15 Pro ProRAW DNGs (48 MP), Sony A7C II ARWs.
+- Motion and look: "pixel frame" style (grid background, Departure Mono headlines, logo-style frames with gap + breakout dot, `--radius: 0`, outlined buttons). Empty page: `buildTicker` rows of made-up tags behind headline (22 px grid, feathered blur). Drop zone: 3 diagonal photos (`.stack-*`) spread on hover, `startBits` floats bits. Photo open: `pixelReveal` (10 steps, last 1.5 px), `decodeValues` scrambles then resolves values. Raw rows: name above value.
+- Removed (user: clutter): pixel trails around drop zone frame. Don't bring back.
+- Confirmed by user: JPEG, ProRAW DNG and Sony ARW from Finder (full-size previews, reveal smooth on 48 MP), HEIC placeholder, Photos drag notice, trackpad pinch/pan, collapse state, map, copy coordinates, workers.dev redirect. Test RAW from Photos via File › Export › Export Unmodified Original.
+- Not tested: phone (touch pinch, layout).
 - Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
+- Optional: `www.inspicio.app` redirect, `hello@inspicio.app` via Cloudflare Email Routing.
 - Later, only if asked: tag search, copy as JSON, "download clean copy", OSM-tile map fallback.
 
 ## File layout
@@ -71,6 +66,7 @@ public/                  everything Cloudflare serves
   _headers               security headers for Cloudflare
   privacy.html, terms.html  legal pages (BC law; contact inspicio.app@proton.me)
   404.html, favicon.svg
+  redirect.js            sends old workers.dev host to inspicio.app
   vendor/                exifr 7.1.3, font files, their licenses
 wrangler.jsonc           Cloudflare static assets config (serves ./public)
 ```
@@ -85,4 +81,4 @@ wrangler.jsonc           Cloudflare static assets config (serves ./public)
 - Test with real camera/phone JPEG with GPS, no-metadata screenshot, HEIC, RAW.
 - User's console warnings about "SF Pro" fonts and CSP-blocked inline script: Firefox fingerprinting protection + browser extension, not site. It rounds timestamps: animate with CSS/Web Animations, never rAF timestamps.
 - GitHub push protection flags Mapbox `pk.` token as secret. Allowed as false positive; new token needs same.
-- In-app browser pane: start server with Bash in background (preview_start can't run python in Desktop folder), then attach via `.claude/launch.json` url. Hidden pane: `img.decode()`, view transitions, CSS animations never finish; stub `decode`, unset `document.startViewTransition`, call `finish()` on `document.getAnimations()`. Pane caches `styles.css`; swap link href with `?t=` to refresh. CSP blocks `fetch`, so build test files in page (canvas, base64) and load via `DataTransfer` on `#file-input`.
+- In-app browser pane: start server with Bash in background (preview_start can't run python in Desktop folder), then attach via `.claude/launch.json` url. Hidden pane: `img.decode()`, view transitions, CSS animations never finish; stub `decode` to resolve on `load` (reveal needs `naturalWidth`), unset `document.startViewTransition`, call `finish()` on `document.getAnimations()`. Pane caches `styles.css`; swap link href with `?t=` to refresh. CSP blocks `fetch`, so build test files in page (canvas, base64) and load via `DataTransfer` on `#file-input`.
