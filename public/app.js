@@ -1501,14 +1501,19 @@
     const iso = toNum(get('ISO', 'ISOSpeedRatings', 'PhotographicSensitivity'));
     const lens = toText(get('LensModel', 'Lens'));
     const taken = get('DateTimeOriginal', 'CreateDate');
+    const date = taken instanceof Date && !Number.isNaN(taken.getTime()) ? taken : null;
+    const two = (n) => String(n).padStart(2, '0');
+    const small = [lens && !/\b(back|front|camera)\b/i.test(lens) ? lens : null,
+      date ? longDate.format(date) : null].filter(Boolean).join('  ·  ');
     return {
       title: toText(get('Model')) || toText(get('Make')) || '', // the model alone: "iPhone 15 Pro"
       // The 35 mm equivalent is the number people know (a phone's 6.86 mm lens is "24 mm").
       details: [f35 ? `${f35} mm` : fmtFocal(get('FocalLength')), fmtAperture(get('FNumber', 'ApertureValue')),
         fmtShutter(get('ExposureTime')), iso ? `ISO ${iso}` : null].filter(Boolean).join('   '),
       // Phones name their lenses like "iPhone 15 Pro back triple camera 6.86mm f/1.78"; those are left out.
-      small: [lens && !/\b(back|front|camera)\b/i.test(lens) ? lens : null,
-        taken instanceof Date && !Number.isNaN(taken.getTime()) ? longDate.format(taken) : null].filter(Boolean).join('  ·  '),
+      plainSmall: small,
+      // A compact camera's date stamp: '26 11 01.
+      stampSmall: date ? `'${two(date.getFullYear() % 100)} ${two(date.getMonth() + 1)} ${two(date.getDate())}` : small,
     };
   }
 
@@ -1716,7 +1721,14 @@
   }
 
   function buildCardPanel(file, meta, img) {
-    if (card?.file !== file) card = { file, ...cardDefaults(meta) };
+    // The small line follows the font (a date stamp for Digicam) until the viewer edits it.
+    const stampy = () => cardPrefs.style !== 'pixel' && Boolean(CARD_FONTS[cardPrefs.font].glow);
+    const autoSmall = () => {
+      if (!card.smallEdited) card.small = stampy() ? card.stampSmall : card.plainSmall;
+    };
+    if (card?.file !== file) card = { file, smallEdited: false, ...cardDefaults(meta) };
+    autoSmall();
+    const inputs = {};
     const nodes = [el('div', { class: 'summary' },
       el('p', { class: 'summary-eyebrow', title: file.name }, file.name),
       el('h1', { class: 'summary-title' }, 'Shot on card'),
@@ -1739,10 +1751,14 @@
         if (!b) return;
         cardPrefs[key] = b.dataset.value;
         for (const other of box.children) other.setAttribute('aria-pressed', String(other === b));
+        placeFill(box);
         saveCardPrefs();
         if (key === 'style') fontRow.hidden = cardPrefs.style === 'pixel';
+        autoSmall();
+        inputs.small.value = card.small;
         drawPreview();
       });
+      trackFill(box);
       return el('div', { class: 'card-row' }, el('span', { class: 'card-label' }, label), box);
     };
 
@@ -1753,8 +1769,10 @@
     const field = (label, key, placeholder) => {
       const input = el('input', { type: 'text', maxlength: '80', placeholder, spellcheck: 'false', autocomplete: 'off' });
       input.value = card[key];
+      inputs[key] = input;
       input.addEventListener('input', () => {
         card[key] = input.value;
+        if (key === 'small') card.smallEdited = true;
         drawPreview();
       });
       return el('label', { class: 'card-row' }, el('span', { class: 'card-label' }, label), input);
@@ -1778,6 +1796,29 @@
     );
     return nodes;
   }
+
+  /* ---------- Sliding fill for tabs and option rows ---------- */
+
+  // Moves a group's blue fill (its ::before, see styles.css) under the pressed button. The first
+  // placement happens without animation; after that the fill slides.
+  function placeFill(group) {
+    const on = group.querySelector('[aria-pressed="true"]');
+    if (!on || !on.offsetWidth) return;
+    group.style.setProperty('--fill-x', `${on.offsetLeft}px`);
+    group.style.setProperty('--fill-w', `${on.offsetWidth}px`);
+    if (!group.classList.contains('has-fill')) {
+      getComputedStyle(group, '::before').transform; // apply the position before transitions start
+      group.classList.add('has-fill');
+    }
+  }
+
+  // Widths change when fonts load, the window resizes, or the tabs move into the panel.
+  const fillObserver = new ResizeObserver((entries) => entries.forEach((e) => placeFill(e.target)));
+  const trackFill = (group) => {
+    fillObserver.observe(group);
+    placeFill(group);
+    return group;
+  };
 
   /* ---------- Modes ---------- */
 
@@ -1833,6 +1874,7 @@
     mode = next;
     const m = MODES[mode];
     for (const b of modesNav.querySelectorAll('.mode')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    placeFill(modesNav);
     if (fromUser) history.replaceState(null, '', mode === 'inspect' ? location.pathname + location.search : `#${mode}`);
     $('#overlay-drop').textContent = m.overlay;
 
@@ -1849,14 +1891,25 @@
     document.title = m.doc;
     const title = $('#hero-title');
     title.replaceChildren(m.title[0], el('br'), m.title[1]);
-    $('#hero-sub').textContent = m.sub;
-    $('#dropzone-sub').textContent = m.dropSub;
+    let shown = null;
+    for (const span of document.querySelectorAll('.line-stack > span')) {
+      span.classList.toggle('is-on', span.dataset.line === mode);
+      if (span.dataset.line === mode && span.parentElement.id === 'hero-sub') shown = span;
+    }
     if (changed && !reduceMotion.matches) {
-      for (const node of [title, $('#hero-sub')]) {
+      for (const node of [title, shown]) {
         node.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
           { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
       }
     }
+  }
+
+  // Every tool's line sits in the same grid cell and only the current one is visible, so the block
+  // is always as tall as its longest line and the page doesn't shift when the tab changes.
+  for (const [id, key] of [['#hero-sub', 'sub'], ['#dropzone-sub', 'dropSub']]) {
+    const node = $(id);
+    node.classList.add('line-stack');
+    node.replaceChildren(...Object.entries(MODES).map(([name, m]) => el('span', { 'data-line': name }, m[key])));
   }
 
   modesNav.addEventListener('click', (e) => {
@@ -2150,5 +2203,6 @@
   buildTicker();
 
   setMode(location.hash.slice(1));
+  trackFill(modesNav);
   document.body.dataset.state = 'empty';
 })();
