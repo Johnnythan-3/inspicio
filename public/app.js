@@ -1454,7 +1454,7 @@
     light: { bg: '#ffffff', text: '#17171a', muted: '#6b6b73', font: 'Geist', mono: 'Geist Mono' },
     dark: { bg: '#0f0f11', text: '#f3f3f5', muted: '#9d9da6', font: 'Geist', mono: 'Geist Mono' },
     // Pixel sets everything in the logo's pixel font, so the title font choice doesn't apply.
-    pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', title: '{px} "Departure Mono"', font: 'Departure Mono', mono: 'Departure Mono', sizes: { title: 1.87, details: 1.36, small: 1.15 }, upper: true },
+    pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', title: '{px} "Departure Mono"', font: 'Departure Mono', mono: 'Departure Mono', sizes: { title: 1.68, details: 1.22, small: 1.04 }, upper: true },
   };
   // Title fonts for Light and Dark. k evens out their sizes: Michroma is very wide, Caveat small.
   const CARD_FONTS = {
@@ -1464,7 +1464,7 @@
   };
   const CARD_SHAPES = { original: 0, square: 1, portrait: 1.25 }; // card height ÷ width; 0 = fit the photo
   const CARD_LINES = ['title', 'details', 'small'];
-  const CARD_SIZE = { title: 3.06, details: 1.49, small: 1.28 };
+  const CARD_SIZE = { title: 2.75, details: 1.34, small: 1.15 };
   const PREVIEW_LONG = 1600;
   const SAVE_LONG = 3240; // long side of a saved card; under Safari's canvas limit at every shape
 
@@ -1510,8 +1510,12 @@
     };
   }
 
-  const cardFont = (st, line, px, font) => (line === 'title' ? (st.title || CARD_FONTS[font].css).replace('{px}', `${px}px`)
-    : `${px}px "${line === 'details' ? st.mono : st.font}"`);
+  // Light and Dark set the title and the settings in the chosen font; Pixel uses its own throughout.
+  function cardFont(st, line, px, font) {
+    if (line === 'small') return `${px}px "${st.font}"`;
+    if (!st.title) return CARD_FONTS[font].css.replace('{px}', `${px}px`);
+    return line === 'title' ? st.title.replace('{px}', `${px}px`) : `${px}px "${st.mono}"`;
+  }
 
   function cardLayout(ctx, o, ar) {
     const st = CARD_STYLES[o.style];
@@ -1528,7 +1532,7 @@
     for (const k of CARD_LINES) {
       text[k] = String(o[k] || '').trim();
       if (st.upper) text[k] = text[k].toUpperCase();
-      size[k] = (st.sizes || CARD_SIZE)[k] * (k === 'title' && !st.title ? CARD_FONTS[o.font].k : 1);
+      size[k] = (st.sizes || CARD_SIZE)[k] * (k !== 'small' && !st.title ? CARD_FONTS[o.font].k : 1);
       rowH[k] = size[k] * (k === 'title' ? 1.15 : 1.35);
       ctx.font = cardFont(st, k, 100, o.font);
       width[k] = text[k] ? (ctx.measureText(text[k]).width / 100) * size[k] : 0;
