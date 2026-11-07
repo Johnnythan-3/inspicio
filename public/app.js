@@ -1797,6 +1797,242 @@
     return nodes;
   }
 
+  /* ---------- Film: develop the photo like Kodak Portra 400 ---------- */
+
+  // The rolls film engine (film.js) runs in a worker (film-worker.js), loaded the first time
+  // this tab is used. A preview is developed at about 1.4 megapixels and re-developed as the
+  // sliders move; saving develops the full photo. All of it on this device.
+  const FILM_PREVIEW_PIXELS = 1.4e6;
+  const FILM_SAVE_PIXELS = window.matchMedia('(pointer: coarse)').matches ? 8e6 : 16e6;
+  const FILM_STAGES = {
+    exposing: 'Exposing the film',
+    halation: 'Halation',
+    sharpness: 'Scattering in the emulsion',
+    curves: 'Developing',
+    couplers: 'Couplers',
+    grain: 'Grain',
+    printing: 'Printing',
+  };
+
+  let filmWorker = null;
+  let filmSeq = 0;
+  const filmJobs = new Map();
+
+  function filmRun(message, transfer, onStage) {
+    if (!filmWorker) {
+      filmWorker = new Worker('film-worker.js');
+      filmWorker.onmessage = (e) => {
+        const job = filmJobs.get(e.data.id);
+        if (!job) return;
+        if (!e.data.done && !e.data.error) {
+          job.onStage?.(e.data.stage);
+          return;
+        }
+        filmJobs.delete(e.data.id);
+        if (e.data.error) job.reject(new Error(e.data.error));
+        else job.resolve(e.data);
+      };
+      filmWorker.onerror = (e) => {
+        e.preventDefault?.();
+        for (const job of filmJobs.values()) job.reject(new Error('The film engine couldn’t start.'));
+        filmJobs.clear();
+        filmWorker?.terminate();
+        filmWorker = null;
+      };
+    }
+    const id = ++filmSeq;
+    return new Promise((resolve, reject) => {
+      filmJobs.set(id, { resolve, reject, onStage });
+      filmWorker.postMessage({ id, ...message }, transfer);
+    });
+  }
+
+  // The photo's pixels at up to `maxPixels`, upright, in Display P3 where the browser can
+  // read it (iPhone photos are P3), otherwise sRGB.
+  function filmPixels(img, maxPixels) {
+    const scale = Math.min(1, Math.sqrt(maxPixels / (img.width * img.height)));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    let ctx = null;
+    try { ctx = canvas.getContext('2d', { colorSpace: 'display-p3', willReadFrequently: true }); } catch { ctx = null; }
+    ctx ||= canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img.probe, 0, 0, width, height);
+    let data;
+    try { data = ctx.getImageData(0, 0, width, height, { colorSpace: 'display-p3' }); } catch { data = ctx.getImageData(0, 0, width, height); }
+    canvas.width = 0;
+    return { pixels: data.data.buffer, width, height, primaries: data.colorSpace === 'display-p3' ? 'displayP3' : 'sRGB' };
+  }
+
+  let film = null; // the open photo's film settings and preview state
+  let filmKeySeq = 0;
+
+  function filmFor(file, img) {
+    if (film?.file !== file) {
+      film = { file, img, key: ++filmKeySeq, exposure: 0, brightness: 0, source: null,
+        canvas: null, caption: null, original: null, busy: false, again: false, saving: false };
+    }
+    return film;
+  }
+
+  const fmtStops = (v) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`);
+
+  async function filmPreview() {
+    const f = film;
+    if (!f || !f.canvas || !f.img.ok) return;
+    if (f.busy) { f.again = true; return; }
+    f.busy = true;
+    f.again = false;
+    f.stage?.classList.add('is-developing');
+    try {
+      f.source ||= filmPixels(f.img, FILM_PREVIEW_PIXELS);
+      const src = f.source;
+      const pixels = src.pixels.slice(0);
+      const res = await filmRun({
+        key: f.key, pixels, width: src.width, height: src.height, primaries: src.primaries,
+        exposureStops: f.exposure, printStops: -f.brightness, placement: 'photo', keep: true,
+      }, [pixels], (stage) => { if (f.caption) f.caption.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
+      if (film !== f || !f.canvas) return;
+      f.canvas.width = res.width;
+      f.canvas.height = res.height;
+      f.canvas.getContext('2d').putImageData(new ImageData(res.rgba, res.width, res.height), 0, 0);
+      f.canvas.classList.add('is-ready');
+      const full = Math.min(1, Math.sqrt(FILM_SAVE_PIXELS / (f.img.width * f.img.height)));
+      f.caption.textContent = `Portra 400  ·  saves at ${Math.round(f.img.width * full)} × ${Math.round(f.img.height * full)}`;
+    } catch (err) {
+      if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
+      if (f.note) f.note.textContent = String(err.message || err);
+    } finally {
+      f.busy = false;
+      f.stage?.classList.remove('is-developing');
+      if (f.again && film === f) filmPreview();
+    }
+  }
+
+  function buildFilmStage() {
+    const f = film;
+    f.canvas = el('canvas', { class: 'film-canvas', role: 'img', 'aria-label': 'The photo developed on Portra 400' });
+    // Sized like the preview from the start, so the frame doesn't jump when the film arrives.
+    const scale = Math.min(1, Math.sqrt(FILM_PREVIEW_PIXELS / (f.img.width * f.img.height)));
+    f.canvas.width = Math.max(1, Math.round(f.img.width * scale));
+    f.canvas.height = Math.max(1, Math.round(f.img.height * scale));
+    f.original = el('img', { class: 'film-original', src: currentUrl, alt: '', 'aria-hidden': 'true', draggable: 'false' });
+    f.caption = el('span', null, 'Loading the film…');
+    f.stage = el('div', { class: 'film-frame' }, f.canvas, f.original);
+    filmPreview();
+    return el('figure', { class: 'photo film-stage' }, f.stage, el('figcaption', null, f.caption));
+  }
+
+  function filmSourceNote(file, meta) {
+    const { get } = indexMetadata(meta.segments);
+    const apple = /apple/i.test(String(toText(get('Make')) || ''));
+    const model = toText(get('Model'));
+    if (RAW_EXT.test(file.name)) {
+      return [`${model || 'RAW file'} · built-in preview`, apple
+        ? 'ProRAW will get the full film physics in a later update. For now this uses the JPEG preview inside the file.'
+        : 'Browsers can’t read camera RAW, so this uses the JPEG preview inside the file.'];
+    }
+    return [`${model || 'Photo'} · finished photo`, apple
+      ? 'Your iPhone already processed this photo, so the film goes on top of Apple’s look. Close, not exact.'
+      : 'The camera already processed this photo, so the film goes on top of its look. Close, not exact.'];
+  }
+
+  async function saveFilm(button, note) {
+    const f = film;
+    if (!f?.img.ok || f.saving) return;
+    f.saving = true;
+    button.disabled = true;
+    try {
+      const src = filmPixels(f.img, FILM_SAVE_PIXELS);
+      note.textContent = 'Developing at full size…';
+      const res = await filmRun({
+        key: f.key, pixels: src.pixels, width: src.width, height: src.height, primaries: src.primaries,
+        exposureStops: f.exposure, printStops: -f.brightness, placement: 'photo', keep: false,
+      }, [src.pixels], (stage) => { note.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
+      const canvas = document.createElement('canvas');
+      canvas.width = res.width;
+      canvas.height = res.height;
+      canvas.getContext('2d').putImageData(new ImageData(res.rgba, res.width, res.height), 0, 0);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      canvas.width = 0;
+      if (!blob) throw new Error('This browser couldn’t save the photo.');
+      if (f.url) URL.revokeObjectURL(f.url);
+      f.url = URL.createObjectURL(blob);
+      const name = `${baseName(f.file.name)}-portra400.jpg`;
+      const a = el('a', { href: f.url, download: name, hidden: true });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      note.textContent = `Saved ${name}, ${res.width} × ${res.height}, ${fmtBytes(blob.size)}. Developed on this device.`;
+    } catch (err) {
+      note.textContent = `Couldn’t save: ${String(err.message || err)}`;
+    }
+    f.saving = false;
+    button.disabled = false;
+  }
+
+  function buildFilmPanel(file, meta, img) {
+    const f = filmFor(file, img);
+    const nodes = [el('div', { class: 'summary' },
+      el('p', { class: 'summary-eyebrow', title: file.name }, file.name),
+      el('h1', { class: 'summary-title' }, 'Portra 400'),
+      el('p', { class: 'summary-sub' }, 'Kodak’s film from its own datasheet, printed like a Noritsu lab print.'),
+    )];
+    if (!img.ok) {
+      nodes.push(notice('Can’t develop this photo', /\.(heic|heif)$/i.test(file.name)
+        ? 'This browser can’t open HEIC photos. Safari can, or save the photo as a JPEG first.'
+        : 'This browser can’t show this photo, so it can’t develop it.'));
+      return nodes;
+    }
+
+    const [sourceTitle, sourceText] = filmSourceNote(file, meta);
+    nodes.push(el('div', { class: 'film-source' }, el('strong', null, sourceTitle), el('p', null, sourceText)));
+
+    const slider = (label, key, min, max, step, help) => {
+      const value = el('span', { class: 'film-value' }, fmtStops(f[key]));
+      const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
+      input.value = String(f[key]);
+      input.addEventListener('input', () => {
+        f[key] = Number(input.value);
+        value.textContent = fmtStops(f[key]);
+        filmPreview();
+      });
+      input.addEventListener('dblclick', () => {
+        input.value = '0';
+        input.dispatchEvent(new Event('input'));
+      });
+      return el('label', { class: 'card-row film-slider' },
+        el('span', { class: 'card-label' }, label, value), input, el('small', null, help));
+    };
+
+    const compare = el('button', { class: 'map-link film-compare', type: 'button' }, 'Hold to see the original');
+    const show = (on) => f.stage?.classList.toggle('show-original', on);
+    compare.addEventListener('pointerdown', () => show(true));
+    for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) compare.addEventListener(type, () => show(false));
+    compare.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') show(true); });
+    compare.addEventListener('keyup', () => show(false));
+
+    const save = el('button', { class: 'map-link wipe-save', type: 'button' }, icon('file'), 'Save photo');
+    const note = el('p', { class: 'map-note' }, 'Developed on this device at up to '
+      + `${Math.round(FILM_SAVE_PIXELS / 1e6)} megapixels. Takes a few seconds.`);
+    f.note = note;
+    save.addEventListener('click', () => saveFilm(save, note));
+
+    nodes.push(
+      el('div', { class: 'card-controls' },
+        slider('Exposure', 'exposure', -2, 3, 0.5, 'Stops on the film. Portra loves extra light: + gives softer, airier colour.'),
+        slider('Brightness', 'brightness', -1.5, 1.5, 0.25, 'Stops at the print, like a lab’s density button.'),
+        compare,
+      ),
+      save,
+      note,
+    );
+    return nodes;
+  }
+
   /* ---------- Sliding fill for tabs and option rows ---------- */
 
   // Moves a group's blue fill (its ::before, see styles.css) under the pressed button. The first
@@ -1847,6 +2083,13 @@
       overlay: 'Drop to make a card',
       doc: 'Inspicio · Shot on card',
     },
+    film: {
+      title: ['Develop it', 'like film.'],
+      sub: 'Kodak Portra 400 from its datasheet: halation, grain and a real print. Made in your browser.',
+      dropSub: 'to develop it',
+      overlay: 'Drop to develop',
+      doc: 'Inspicio · Film',
+    },
   };
 
   const modesNav = $('#modes');
@@ -1856,15 +2099,23 @@
 
   function panelNodes() {
     const { file, meta, img } = current;
-    const build = { wipe: buildWipePanel, 'shot-on': buildCardPanel }[mode] || buildPanel;
+    const build = { wipe: buildWipePanel, 'shot-on': buildCardPanel, film: buildFilmPanel }[mode] || buildPanel;
     return [modesNav, ...build(file, meta, img)];
   }
 
-  const showsCard = () => Boolean(mode === 'shot-on' && current?.img.ok);
+  // What the stage shows: the zoomable photo, the Shot on card, or the developed film.
+  const stageKind = () => (current?.img.ok && (mode === 'shot-on' || mode === 'film') ? mode : 'photo');
 
   function stageNode() {
-    if (showsCard()) return buildCardStage();
-    cardCanvas = null;
+    const kind = stageKind();
+    stage.dataset.kind = kind;
+    if (kind !== 'shot-on') cardCanvas = null;
+    if (kind !== 'film' && film) film.canvas = null;
+    if (kind === 'shot-on') return buildCardStage();
+    if (kind === 'film') {
+      filmFor(current.file, current.img);
+      return buildFilmStage();
+    }
     return photoFigure;
   }
 
@@ -1881,7 +2132,7 @@
     if (current) {
       document.title = `${current.file.name} · Inspicio`;
       if (changed) {
-        if (showsCard() !== stage.contains(cardCanvas)) stage.replaceChildren(stageNode());
+        if (stageKind() !== stage.dataset.kind) stage.replaceChildren(stageNode());
         panel.replaceChildren(...panelNodes());
         panel.scrollTop = 0;
         decodeValues(panel);
@@ -1993,6 +2244,7 @@
     current = { file, meta, img };
     if (cleanUrl) URL.revokeObjectURL(cleanUrl);
     if (cardUrl) URL.revokeObjectURL(cardUrl);
+    if (film?.url) URL.revokeObjectURL(film.url);
     cleanUrl = null;
     cardUrl = null;
     cleanFor = null;

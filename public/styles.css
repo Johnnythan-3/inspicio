@@ -1247,6 +1247,56 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
   color: var(--text);
 }
 
+/* Film: the developed preview over the original, which shows until the film arrives and while
+   "Hold to see the original" is held. */
+.film-frame {
+  position: relative;
+  line-height: 0;
+  box-shadow: var(--shadow-photo);
+  animation: frame-in 0.5s var(--ease) both;
+}
+
+.film-canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--fit-h);
+}
+
+.film-original {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  transition: opacity 0.3s;
+  user-select: none;
+  pointer-events: none;
+}
+
+.film-canvas.is-ready + .film-original { opacity: 0; }
+.film-frame.show-original .film-original { opacity: 1; transition: none; }
+.film-frame.is-developing .film-canvas.is-ready { filter: saturate(0.85); transition: filter 0.3s; }
+
+.film-source {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--accent);
+  background: var(--card);
+  animation: rise 0.6s 0.05s var(--ease) both;
+}
+
+.film-source strong { display: block; font-size: 13px; font-weight: 600; }
+.film-source p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+
+.film-slider .card-label { display: flex; justify-content: space-between; }
+.film-value { font-family: var(--mono); font-size: 12px; letter-spacing: 0; color: var(--text); }
+.film-slider input[type="range"] { width: 100%; margin: 2px 0; accent-color: var(--accent); }
+.film-slider small { font-size: 12px; line-height: 1.4; color: var(--muted); }
+.film-compare { margin: 2px 0 0; user-select: none; touch-action: none; }
+
 .card-row input::placeholder { color: var(--faint); }
 .card-row input:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 

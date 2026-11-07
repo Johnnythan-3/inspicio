@@ -4,10 +4,11 @@
 
 ## Product
 
-- **Tabs** (`#modes`, copy in `MODES`): Inspect, Wipe, Shot on; next Film. Above drop zone on empty page; same nav moves to panel top when photo open. Mode in hash (`#wipe`, `#shot-on`). Blue fill slides between choices (`placeFill`/`trackFill`, `.has-fill`; also Style/Font/Shape rows). Subtitles stacked per mode (`.line-stack`) so page never shifts.
+- **Tabs** (`#modes`, copy in `MODES`): Inspect, Wipe, Shot on, Film. Above drop zone on empty page; same nav moves to panel top when photo open. Mode in hash (`#wipe`, `#shot-on`). Blue fill slides between choices (`placeFill`/`trackFill`, `.has-fill`; also Style/Font/Shape rows). Subtitles stacked per mode (`.line-stack`) so page never shifts.
 - **Inspect:** left full-res preview, zoom/pan (wheel, pinch, double-click, drag, +/−/Fit, keys + − 0). Right panel ≤ 340 px, collapsible sections (`inspicio.collapsed`): Camera, Exposure, Date & time, Location (click lat/lon copies; opt-in Mapbox "Show map"; OSM link), Description, Image, File, All tags. No metadata = friendly message.
 - **Wipe** (user confirmed): lists what photo gives away, saves clean copy. JPEG/PNG lossless (copy segments; drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed by exifr; tag left = no download. exifr can't read WebP/GIF.
 - **Shot on:** canvas card (`renderCard`/`cardLayout`), preview replaces photo in stage. Lines editable: title (model only, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces italic, default)/Wide (Michroma)/Digicam (DSEG14), row hidden for Pixel; Shape Original/Square/4:5. Prefs in `inspicio.card`, never text. Sizes % of card width × `tall` (up to 1.5 on tall cards); per-font `k`/`dk`. Digicam: all lines caps, orange `#ff5a1f` with canvas-shadow halation + bloom, spaces → `!`, small line auto `'26 11 01` until edited. Saves JPEG ≤ 3240 px.
+- **Film** (phase 1 of 4): rolls engine ported to `film.js` (Portra 400 → Endura, Noritsu), run in `film-worker.js`, data baked into `film-data.js` (937 KB, loads only on Film tab). Port matches Swift (densities ~1e-6, K exact, output ~0.3 code values; `tools/film/`). Finished photos (`placement: 'photo'`): `photoTransfer` undoes the camera's tone curve so greys print at their own brightness, K anchored to film mid-grey at rated exposure, `photoBalance` makes mid-grey neutral. Preview 1.4 MP (coarser halation grid), Exposure re-develops, Brightness only reprints (cached negative). Save ≤ 16 MP (8 MP touch), ~6 s at 12 MP. Source note says "finished photo · close, not exact".
 - **HEIC:** Chrome/Firefox can't display; metadata + placeholder.
 - **RAW:** `loadRawPreview` shows largest embedded JPEG (rotated by RAW orientation if needed). ProRAW, Sony ARW full size; DJI 960 × 540.
 - **Photos app drags:** small preview; "Small copy" notice under 1200 px.
@@ -39,13 +40,13 @@
 
 - User tests in **Firefox** on Mac; photos often iPhone 15 Pro ProRAW (48 MP), Sony A7C II ARW.
 - Session 7 built tabs, Wipe, Shot on. User shaped Shot on through many rounds: slimmer bar, smaller text, bigger text on tall cards, fonts picked from an 8-font preview page, Digicam glow. Rejected: Instrument Serif, Caveat, "Shot on" prefix.
-- **Next: Film.** Port physics engine from `../Archived/rolls` (Swift iOS app, user's big project: Portra 400 curves from Kodak data, halation before curve, MTF, DIR couplers, grain, Noritsu print stage). Per-pixel stages as 3D LUT (`PreviewLUT.swift`), spatial ones in WebGL. JPEG input is already tone-mapped (approximation); true RAW needs JS port of `DNGReader.swift`/`LosslessJPEG.swift`. Plan with user first.
+- **Film plan** (agreed 2026-11-07): 1 finished photos (built, user not yet tested); 2 iPhone HDR gain map → recover highlights; 3 ProRAW via JS port of `DNGReader.swift`/`LosslessJPEG.swift`, scene placement like rolls; 4 optional HEIC decoder (libheif WASM) for Chrome/Firefox, camera RAW via DNG. Detect source from metadata; ask iPhone/camera only if metadata is missing. Rolls is headed for App Store: web ProRAW may compete or funnel, user's call. Speed-up ideas: MTF is half of a 12 MP develop.
 - Confirmed by user earlier: JPEG, ProRAW, ARW previews (smooth at 48 MP), HEIC placeholder, Photos notice, pinch/pan, collapse, map, copy coords, redirect. RAW from Photos: File › Export › Export Unmodified Original.
 - Not tested: phone. Motion ideas: logo-dot hop, count-up numbers (Anime.js OK, vendored). Optional: `www.` redirect, `hello@inspicio.app`. Only if asked: tag search, copy as JSON, OSM-tile map fallback.
 
 ## Files
 
-`public/`: `index.html` (markup, CSP meta), `styles.css`, `app.js` (all logic), `_headers`, `privacy.html`/`terms.html` (BC law; inspicio.app@proton.me), `404.html`, `favicon.svg`, `redirect.js`, `vendor/`. `wrangler.jsonc` serves `./public`.
+`public/`: `index.html` (markup, CSP meta), `styles.css`, `app.js` (UI logic), `film.js`/`film-worker.js`/`film-data.js` (Film engine), `_headers`, `privacy.html`/`terms.html` (BC law; inspicio.app@proton.me), `404.html`, `favicon.svg`, `redirect.js`, `vendor/`. `wrangler.jsonc` serves `./public`. `tools/film/` rebuilds film data from rolls (not served).
 
 - CSP `default-src 'none'` (same-origin + Mapbox img). Keep in `index.html`, `privacy.html`, `terms.html`, `_headers`. No inline styles: set vars via `style.setProperty`.
 - Metadata untrusted: `textContent` via `el()`, never `innerHTML`.
