@@ -1,0 +1,10 @@
+vendor/libheif-1.19.8.js is the pure-JavaScript (Emscripten) build of libheif, unmodified,
+from the npm package libheif-js 1.19.8:
+  https://cdn.jsdelivr.net/npm/libheif-js@1.19.8/libheif/libheif.js
+It includes libheif (https://github.com/strukturag/libheif) and the libde265 HEVC decoder
+(https://github.com/strukturag/libde265), both licensed under the GNU Lesser General Public
+License v3 (see libheif-LICENSE.txt). Build scripts and sources:
+https://github.com/catdad-experiments/libheif-js
+
+Inspicio uses it, in a Web Worker, only to decode HEIC/HEIF photos in browsers that can't
+(Chrome, Firefox). It is a separate file and can be replaced with any compatible build.

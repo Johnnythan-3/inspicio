@@ -778,6 +778,70 @@
     return null;
   }
 
+  /* ---------- HEIC in browsers that can't show it ---------- */
+
+  // Chrome and Firefox can't decode HEIC, the iPhone's default format. heif-worker.js decodes
+  // it with libheif on this device; the result becomes a high-quality JPEG the page can use like
+  // any other photo (preview, Wipe, Shot on, Film). Loaded only when a HEIC needs it.
+  const isHeif = (file) => /\.(heic|heif|hif)$/i.test(file.name) || /hei[cf]/i.test(file.type);
+  let heifWorker = null;
+  let heifSeq = 0;
+  const heifJobs = new Map();
+
+  function decodeHeif(buffer) {
+    if (!heifWorker) {
+      heifWorker = new Worker('heif-worker.js');
+      heifWorker.onmessage = (e) => {
+        const job = heifJobs.get(e.data.id);
+        if (!job) return;
+        heifJobs.delete(e.data.id);
+        if (e.data.error) job.reject(new Error(e.data.error));
+        else job.resolve(e.data);
+      };
+      heifWorker.onerror = (e) => {
+        e.preventDefault?.();
+        for (const job of heifJobs.values()) job.reject(new Error('The HEIC decoder couldn’t start.'));
+        heifJobs.clear();
+        heifWorker?.terminate();
+        heifWorker = null;
+      };
+    }
+    const id = ++heifSeq;
+    return new Promise((resolve, reject) => {
+      heifJobs.set(id, { resolve, reject });
+      heifWorker.postMessage({ id, buffer }, [buffer]);
+    });
+  }
+
+  async function loadHeifPreview(file, meta) {
+    try {
+      const { rgba, width, height } = await decodeHeif(await file.arrayBuffer());
+      // iPhone HEICs are Display P3; keep that where the browser can (Chrome), so colours
+      // aren't squeezed into sRGB.
+      const profile = String(toText(indexMetadata(meta.segments).get('ProfileDescription')) || '');
+      const p3 = /p3/i.test(profile);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      let ctx = null;
+      try { ctx = p3 ? canvas.getContext('2d', { colorSpace: 'display-p3' }) : null; } catch { ctx = null; }
+      ctx ||= canvas.getContext('2d');
+      let data;
+      try { data = new ImageData(rgba, width, height, p3 ? { colorSpace: 'display-p3' } : undefined); } catch { data = new ImageData(rgba, width, height); }
+      ctx.putImageData(data, 0, 0);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+      canvas.width = 0;
+      if (!blob) return null;
+      const url = URL.createObjectURL(blob);
+      const img = await decodeImage(url);
+      if (img.ok) return { url, img: { ...img, heicDecoded: true } };
+      URL.revokeObjectURL(url);
+    } catch {
+      // Not decodable; the placeholder explains.
+    }
+    return null;
+  }
+
   function decodeImage(url) {
     const probe = new Image();
     probe.src = url;
@@ -790,7 +854,7 @@
 
   function buildStage(file, img, url) {
     if (img.ok) {
-      const caption = [img.rawPreview ? 'RAW preview' : null, `${img.width} × ${img.height}`, fmtBytes(file.size)]
+      const caption = [img.rawPreview ? 'RAW preview' : img.heicDecoded ? 'HEIC' : null, `${img.width} × ${img.height}`, fmtBytes(file.size)]
         .filter(Boolean).join('  ·  ');
       // The <img> points at the original file (or a RAW file's embedded preview), so zooming in
       // shows its full resolution.
@@ -828,7 +892,7 @@
         icon('image'),
         el('strong', null, 'Preview not available'),
         el('span', null, heic
-          ? 'This browser can’t display HEIC photos. Safari can. The metadata is still complete.'
+          ? 'This HEIC photo couldn’t be decoded here. The metadata is still complete.'
           : RAW_EXT.test(file.name)
             ? 'This RAW file has no preview the browser can show. The metadata is still complete.'
             : 'This browser can’t display this file format. The metadata is still complete.'),
@@ -1338,7 +1402,7 @@
     if (!img.ok || !img.probe) {
       const heic = /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type);
       throw new Error(heic
-        ? 'This browser can’t open HEIC photos, so it can’t make a clean copy. Safari can, or save the photo as a JPEG first.'
+        ? 'This HEIC photo couldn’t be decoded here, so no clean copy was made. Save it as a JPEG and try again.'
         : 'This browser can’t open this file, so it can’t make a clean copy. Save it as a JPEG first.');
     }
     const png = /\.(gif|bmp)$/i.test(file.name);
@@ -1736,7 +1800,7 @@
     )];
     if (!img.ok) {
       nodes.push(notice('Can’t make a card', /\.(heic|heif)$/i.test(file.name)
-        ? 'This browser can’t show HEIC photos. Safari can, or save the photo as a JPEG first.'
+        ? 'This HEIC photo couldn’t be decoded here. Save it as a JPEG and try again.'
         : 'This browser can’t show this photo, so it can’t draw a card with it.'));
       return nodes;
     }
@@ -2033,7 +2097,7 @@
     )];
     if (!img.ok) {
       nodes.push(notice('Can’t develop this photo', /\.(heic|heif)$/i.test(file.name)
-        ? 'This browser can’t open HEIC photos. Safari can, or save the photo as a JPEG first.'
+        ? 'This HEIC photo couldn’t be decoded here. Save it as a JPEG and try again.'
         : 'This browser can’t show this photo, so it can’t develop it.'));
       return nodes;
     }
@@ -2279,6 +2343,16 @@
         URL.revokeObjectURL(url);
         url = raw.url;
         img = raw.img;
+      }
+    }
+
+    // A HEIC this browser can't show: decode it here.
+    if (!img.ok && isHeif(file) && token === loadToken) {
+      const heic = await loadHeifPreview(file, meta);
+      if (heic) {
+        URL.revokeObjectURL(url);
+        url = heic.url;
+        img = heic.img;
       }
     }
 
