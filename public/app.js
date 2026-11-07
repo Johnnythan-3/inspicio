@@ -859,32 +859,17 @@
       // The <img> points at the original file (or a RAW file's embedded preview), so zooming in
       // shows its full resolution.
       const photo = el('img', {
-        class: 'zoom-img',
         src: url,
         alt: `Preview of ${file.name}`,
         width: img.width,
         height: img.height,
         draggable: 'false',
       });
-      const frame = el('div', {
-        class: 'zoom-frame',
-        vars: { '--ar': String(img.width / img.height), '--nat-w': `${img.width}px` },
-        tabindex: '0',
-        role: 'img',
-        'aria-label': `${file.name}. Scroll, pinch or double-click to zoom; drag to move.`,
-      }, photo);
-      const out = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom out' }, '−');
-      const level = el('button', { class: 'zoom-level', type: 'button', title: 'Fit to view' }, 'Fit');
-      const zin = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom in' }, '+');
-      attachZoom(frame, photo, { out, level, zin });
-      pixelReveal(frame, img);
-      return el('figure', { class: 'photo' },
-        frame,
-        el('figcaption', null,
-          el('span', null, caption),
-          el('div', { class: 'zoom-controls' }, out, level, zin),
-        ),
-      );
+      photoZoom?.stop();
+      const z = zoomable(photo, { ar: img.width / img.height, natW: img.width, label: `${file.name}.` });
+      photoZoom = z.zoom;
+      pixelReveal(z.frame, img);
+      return el('figure', { class: 'photo' }, z.frame, el('figcaption', null, el('span', null, caption), z.controls));
     }
     const heic = /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type);
     return el('figure', { class: 'photo' },
@@ -975,7 +960,8 @@
 
   /* ---------- Zoom ---------- */
 
-  let zoomObserver = null;
+  let photoZoom = null; // the open photo's zoom (Inspect and Wipe)
+  let stageZoom = null; // the Shot on card's or the film's zoom
   const narrowLayout = window.matchMedia('(max-width: 860px)');
 
   // Zoom and pan inside the photo's frame: a mouse wheel or trackpad pinch zooms at the cursor,
@@ -986,7 +972,13 @@
   // instead of scaling it with a CSS transform. The browser then decodes and draws the photo at the
   // size it is shown, so it stays as sharp as the original at every zoom level; a scale transform
   // can stretch a smaller, already-decoded copy and look soft.
-  function attachZoom(frame, img, ui) {
+  //
+  // `img` can also be a canvas, or a box holding one. `opts.pixels` is how many pixels wide its
+  // content really is (how far it can usefully zoom); `opts.full` is the width that counts as
+  // 100%: the photo's own width, or the size a card or film saves at.
+  function attachZoom(frame, img, ui, opts = {}) {
+    const pixels = opts.pixels || (() => img.naturalWidth || img.width || 1);
+    const full = opts.full || pixels;
     let s = 1;
     let tx = 0;
     let ty = 0;
@@ -996,7 +988,7 @@
 
     const maxScale = () => {
       const shown = frame.clientWidth || 1;
-      const toNative = img.naturalWidth / (shown * (window.devicePixelRatio || 1));
+      const toNative = pixels() / (shown * (window.devicePixelRatio || 1));
       return Math.max(3, toNative * 2); // up to 2× past one image pixel per screen pixel
     };
 
@@ -1015,8 +1007,10 @@
       img.style.height = size;
       img.style.transform = s === 1 ? '' : `translate(${tx}px, ${ty}px)`;
       frame.classList.toggle('is-zoomed', s > 1);
-      const pct = Math.round((frame.clientWidth * s / img.naturalWidth) * 100);
-      ui.level.textContent = s === 1 ? 'Fit' : `${pct}%`;
+      // Always a percentage, in a box wide enough for any of them, so it never changes size.
+      const pct = Math.max(1, Math.round(((frame.clientWidth * s) / (full() || 1)) * 100));
+      ui.level.textContent = `${pct}%`;
+      ui.level.setAttribute('aria-label', `${pct}%. Fit to view`);
       ui.out.disabled = s === 1;
       ui.zin.disabled = s >= maxScale() - 0.001;
     };
@@ -1139,16 +1133,49 @@
     ui.level.addEventListener('click', () => zoomTo(1, 0, 0, 'smooth'));
 
     // A new window size changes the fitted size, so go back to fit.
-    zoomObserver?.disconnect();
     let lastWidth = 0;
-    zoomObserver = new ResizeObserver(() => {
+    const observer = new ResizeObserver(() => {
       const w = frame.clientWidth;
       if (lastWidth && w !== lastWidth && s !== 1) zoomTo(1, 0, 0, null);
+      else render(null);
       lastWidth = w;
     });
-    zoomObserver.observe(frame);
-    img.addEventListener('load', () => render(null), { once: true });
+    observer.observe(frame);
+    if (img.tagName === 'IMG') img.addEventListener('load', () => render(null), { once: true });
     render(null);
+    return {
+      reset: () => zoomTo(1, 0, 0, null),
+      refresh: () => render(null),
+      stop: () => observer.disconnect(),
+    };
+  }
+
+  // A zoomable frame around `content` (the photo, the Shot on card or the film), with its
+  // − / % / + controls for the caption. `ar` is its aspect ratio and `natW` the widest it is shown
+  // at fit, in CSS pixels.
+  function zoomable(content, { ar, natW, label, pixels, full }) {
+    content.classList.add('zoom-img');
+    const frame = el('div', {
+      class: 'zoom-frame',
+      vars: { '--ar': String(ar), '--nat-w': `${natW}px` },
+      tabindex: '0',
+      role: 'img',
+      'aria-label': `${label} Scroll, pinch or double-click to zoom; drag to move.`,
+    }, content);
+    const out = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom out' }, '−');
+    const level = el('button', { class: 'zoom-level', type: 'button', title: 'Fit to view' }, '');
+    const zin = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom in' }, '+');
+    const zoom = attachZoom(frame, content, { out, level, zin }, { pixels, full });
+    return { frame, zoom, controls: el('div', { class: 'zoom-controls' }, out, level, zin) };
+  }
+
+  // A new aspect ratio or size for a zoomable frame (the card changes shape); back to fit if so.
+  function reshape(frame, zoom, ar, natW) {
+    const before = frame.style.getPropertyValue('--ar');
+    frame.style.setProperty('--ar', String(ar));
+    frame.style.setProperty('--nat-w', `${natW}px`);
+    if (before !== String(ar)) zoom.reset();
+    else zoom.refresh();
   }
 
   /* ---------- Decode reveal ---------- */
@@ -1734,6 +1761,8 @@
   let card = null; // the open photo's card text, kept while switching tools
   let cardCanvas = null;
   let cardCaption = null;
+  let cardFrame = null;
+  let cardSaveW = 0; // width of the saved card, which counts as 100% zoom
   let cardUrl = null;
   let previewQueued = false;
 
@@ -1748,15 +1777,24 @@
       const { img } = current;
       const { L } = renderCard(cardCanvas, img, cardOpts(), false);
       const u = cardScale(L, img.width, true);
-      cardCaption.textContent = `Saves at ${Math.round(100 * u)} × ${Math.round(L.H * u)}`;
+      cardSaveW = Math.round(100 * u);
+      cardCaption.textContent = `Saves at ${cardSaveW} × ${Math.round(L.H * u)}`;
+      if (cardFrame && stageZoom) reshape(cardFrame, stageZoom, cardCanvas.width / cardCanvas.height, cardSaveW);
     });
   }
 
   function buildCardStage() {
-    cardCanvas = el('canvas', { class: 'card-canvas', role: 'img', 'aria-label': 'Preview of the card' });
+    cardCanvas = el('canvas', { class: 'card-canvas' });
     cardCaption = el('span', null, 'Preview');
+    // Until the fonts load and the card is drawn, the frame has the photo's shape.
+    const { img } = current;
+    stageZoom?.stop();
+    const z = zoomable(cardCanvas, { ar: img.width / img.height, natW: PREVIEW_LONG, label: 'Preview of the card.',
+      full: () => cardSaveW || cardCanvas.width });
+    cardFrame = z.frame;
+    stageZoom = z.zoom;
     drawPreview();
-    return el('figure', { class: 'photo card-stage' }, cardCanvas, el('figcaption', null, cardCaption));
+    return el('figure', { class: 'photo card-stage' }, z.frame, el('figcaption', null, cardCaption, z.controls));
   }
 
   async function saveCard(button, note) {
@@ -1999,14 +2037,19 @@
       f.canvas.height = res.height;
       f.canvas.getContext('2d').putImageData(new ImageData(res.rgba, res.width, res.height), 0, 0);
       f.canvas.classList.add('is-ready');
-      let size;
+      let saveW;
+      let saveH;
       if (res.raw) {
         const ds = Math.max(1, Math.ceil(Math.sqrt((res.fullWidth * res.fullHeight) / FILM_SAVE_PIXELS)));
-        size = `${Math.floor(res.fullWidth / ds)} × ${Math.floor(res.fullHeight / ds)}`;
+        [saveW, saveH] = [Math.floor(res.fullWidth / ds), Math.floor(res.fullHeight / ds)];
       } else {
         const full = Math.min(1, Math.sqrt(FILM_SAVE_PIXELS / (f.img.width * f.img.height)));
-        size = `${Math.round(f.img.width * full)} × ${Math.round(f.img.height * full)}`;
+        [saveW, saveH] = [Math.round(f.img.width * full), Math.round(f.img.height * full)];
       }
+      f.saveW = saveW;
+      // A DNG developed from its sensor data can have a different shape than its preview.
+      if (f.frame && stageZoom) reshape(f.frame, stageZoom, res.width / res.height, saveW);
+      const size = `${saveW} × ${saveH}`;
       f.caption.textContent = `Portra 400${res.raw ? ' from RAW' : ''}  ·  saves at ${size}`;
     } catch (err) {
       if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
@@ -2020,7 +2063,7 @@
 
   function buildFilmStage() {
     const f = film;
-    f.canvas = el('canvas', { class: 'film-canvas', role: 'img', 'aria-label': 'The photo developed on Portra 400' });
+    f.canvas = el('canvas', { class: 'film-canvas' });
     // Sized like the preview from the start, so the frame doesn't jump when the film arrives.
     const scale = Math.min(1, Math.sqrt(FILM_PREVIEW_PIXELS / (f.img.width * f.img.height)));
     f.canvas.width = Math.max(1, Math.round(f.img.width * scale));
@@ -2028,8 +2071,13 @@
     f.original = el('img', { class: 'film-original', src: currentUrl, alt: '', 'aria-hidden': 'true', draggable: 'false' });
     f.caption = el('span', null, 'Loading the film…');
     f.stage = el('div', { class: 'film-frame' }, f.canvas, f.original);
+    stageZoom?.stop();
+    const z = zoomable(f.stage, { ar: f.canvas.width / f.canvas.height, natW: f.img.width,
+      label: 'The photo developed on Portra 400.', pixels: () => f.canvas?.width || 1, full: () => f.saveW || f.img.width });
+    f.frame = z.frame;
+    stageZoom = z.zoom;
     filmPreview();
-    return el('figure', { class: 'photo film-stage' }, f.stage, el('figcaption', null, f.caption));
+    return el('figure', { class: 'photo film-stage' }, z.frame, el('figcaption', null, f.caption, z.controls));
   }
 
   function filmSourceNote(f, meta) {
@@ -2225,7 +2273,9 @@
   function stageNode() {
     const kind = stageKind();
     stage.dataset.kind = kind;
-    if (kind !== 'shot-on') cardCanvas = null;
+    stageZoom?.stop();
+    stageZoom = null;
+    if (kind !== 'shot-on') { cardCanvas = null; cardFrame = null; }
     if (kind !== 'film' && film) film.canvas = null;
     if (kind === 'shot-on') return buildCardStage();
     if (kind === 'film') {

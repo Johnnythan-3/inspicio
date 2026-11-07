@@ -869,7 +869,7 @@ body.loading .overlay-loading { display: inline-flex; }
 }
 
 .zoom-btn { width: 26px; font-size: 16.5px; line-height: 1; }
-.zoom-level { min-width: 52px; padding: 0 8px; color: var(--muted); }
+.zoom-level { width: calc(5ch + 16px); padding: 0; text-align: center; color: var(--muted); } /* fits "1000%", so it never resizes */
 .zoom-btn:hover:not(:disabled),
 .zoom-level:hover { background: var(--accent-soft); color: var(--accent); }
 .zoom-btn:disabled { color: var(--faint); cursor: default; }
@@ -1152,16 +1152,7 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 .wipe-result dd { overflow-wrap: anywhere; }
 .map-link:disabled { opacity: 0.6; cursor: progress; }
 
-/* Shot on: the card preview in the stage and its controls in the panel. */
-.card-canvas {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: var(--fit-h);
-  box-shadow: var(--shadow-photo);
-  animation: frame-in 0.5s var(--ease) both;
-}
+/* Shot on: the card's controls in the panel. Its preview is zoomable like the photo (.zoom-frame). */
 
 .card-controls {
   display: grid;
@@ -1249,19 +1240,12 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 
 /* Film: the developed preview over the original, which shows until the film arrives and while
    "Hold to see the original" is held. */
-.film-frame {
-  position: relative;
-  line-height: 0;
-  box-shadow: var(--shadow-photo);
-  animation: frame-in 0.5s var(--ease) both;
-}
+.film-frame { line-height: 0; } /* also .zoom-img: zoomed and moved in its .zoom-frame */
 
 .film-canvas {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: var(--fit-h);
+  width: 100%;
+  height: 100%;
 }
 
 .film-original {

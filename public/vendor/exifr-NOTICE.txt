@@ -1,0 +1,9 @@
+vendor/exifr-7.1.3.full.umd.js is the full UMD build of exifr 7.1.3 (MIT, see exifr-LICENSE.txt),
+https://github.com/MikeKovarik/exifr, with one change:
+
+  HEIC/AVIF detection accepted an ftyp box of at most 50 bytes. iPhone photos from iOS 18 on
+  (HDR photos with a gain map) list more brands, for example "tmap", and have a 52-byte ftyp box,
+  so exifr didn't recognise them and read no metadata. The limit is now 256 bytes:
+
+    before: let i=e.getUint16(2);if(i>50)return!1
+    after:  let i=e.getUint16(2);if(i>256)return!1
