@@ -1451,23 +1451,31 @@
   // card is drawn and saved on this device. Layout is worked out in units of 1/100 of the card's
   // width, so the preview and the saved file match exactly at different sizes.
   const CARD_STYLES = {
-    light: { bg: '#ffffff', text: '#17171a', muted: '#6b6b73', title: 'italic 400 {px} "Instrument Serif"', font: 'Geist', mono: 'Geist Mono' },
-    dark: { bg: '#0f0f11', text: '#f3f3f5', muted: '#9d9da6', title: 'italic 400 {px} "Instrument Serif"', font: 'Geist', mono: 'Geist Mono' },
-    pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', title: '{px} "Departure Mono"', font: 'Departure Mono', mono: 'Departure Mono', sizes: { title: 2.2, details: 1.6, small: 1.35 }, upper: true },
+    light: { bg: '#ffffff', text: '#17171a', muted: '#6b6b73', font: 'Geist', mono: 'Geist Mono' },
+    dark: { bg: '#0f0f11', text: '#f3f3f5', muted: '#9d9da6', font: 'Geist', mono: 'Geist Mono' },
+    // Pixel sets everything in the logo's pixel font, so the title font choice doesn't apply.
+    pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', title: '{px} "Departure Mono"', font: 'Departure Mono', mono: 'Departure Mono', sizes: { title: 1.87, details: 1.36, small: 1.15 }, upper: true },
+  };
+  // Title fonts for Light and Dark. k evens out their sizes: Michroma is very wide, Caveat small.
+  const CARD_FONTS = {
+    fraunces: { label: 'Serif', css: 'italic 500 {px} "Fraunces"', k: 1 },
+    michroma: { label: 'Wide', css: '400 {px} "Michroma"', k: 0.62 },
+    caveat: { label: 'Hand', css: '600 {px} "Caveat"', k: 1.3 },
   };
   const CARD_SHAPES = { original: 0, square: 1, portrait: 1.25 }; // card height ÷ width; 0 = fit the photo
   const CARD_LINES = ['title', 'details', 'small'];
-  const CARD_SIZE = { title: 3.6, details: 1.75, small: 1.5 };
+  const CARD_SIZE = { title: 3.06, details: 1.49, small: 1.28 };
   const PREVIEW_LONG = 1600;
   const SAVE_LONG = 3240; // long side of a saved card; under Safari's canvas limit at every shape
 
   // Style and shape are display preferences, so they are remembered. The text is not.
   const CARD_KEY = 'inspicio.card';
   const cardPrefs = (() => {
-    const prefs = { style: 'light', shape: 'original' };
+    const prefs = { style: 'light', font: 'fraunces', shape: 'original' };
     try {
       const saved = JSON.parse(localStorage.getItem(CARD_KEY) || '{}');
       if (Object.hasOwn(CARD_STYLES, saved.style)) prefs.style = saved.style;
+      if (Object.hasOwn(CARD_FONTS, saved.font)) prefs.font = saved.font;
       if (Object.hasOwn(CARD_SHAPES, saved.shape)) prefs.shape = saved.shape;
     } catch {
       // Defaults.
@@ -1480,7 +1488,7 @@
   }
 
   let cardFonts = null;
-  const loadCardFonts = () => (cardFonts ||= Promise.all(['italic 20px "Instrument Serif"', '20px Geist', '20px "Geist Mono"', '20px "Departure Mono"']
+  const loadCardFonts = () => (cardFonts ||= Promise.all(['italic 500 20px Fraunces', '20px Michroma', '600 20px Caveat', '20px Geist', '20px "Geist Mono"', '20px "Departure Mono"']
     .map((f) => document.fonts.load(f).catch(() => null))));
 
   const longDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
@@ -1503,7 +1511,7 @@
     };
   }
 
-  const cardFont = (st, line, px) => (line === 'title' ? st.title.replace('{px}', `${px}px`)
+  const cardFont = (st, line, px, font) => (line === 'title' ? (st.title || CARD_FONTS[font].css).replace('{px}', `${px}px`)
     : `${px}px "${line === 'details' ? st.mono : st.font}"`);
 
   function cardLayout(ctx, o, ar) {
@@ -1521,9 +1529,9 @@
     for (const k of CARD_LINES) {
       text[k] = String(o[k] || '').trim();
       if (st.upper) text[k] = text[k].toUpperCase();
-      size[k] = (st.sizes || CARD_SIZE)[k];
+      size[k] = (st.sizes || CARD_SIZE)[k] * (k === 'title' && !st.title ? CARD_FONTS[o.font].k : 1);
       rowH[k] = size[k] * (k === 'title' ? 1.15 : 1.35);
-      ctx.font = cardFont(st, k, 100);
+      ctx.font = cardFont(st, k, 100, o.font);
       width[k] = text[k] ? (ctx.measureText(text[k]).width / 100) * size[k] : 0;
     }
     const rows = CARD_LINES.filter((k) => text[k]);
@@ -1557,7 +1565,7 @@
       y = top + (H - top - lay.barH - pw / ar) / 2;
     }
     const photo = { x: (100 - pw) / 2, y, w: pw, h: pw / ar };
-    return { st, pixel, text, size, width, rowH, gap, pad, below, left, leftH, rows, H, photo, ...lay };
+    return { st, pixel, font: o.font, text, size, width, rowH, gap, pad, below, left, leftH, rows, H, photo, ...lay };
   }
 
   // Pixels per layout unit. A saved card is as sharp as the photo allows, up to SAVE_LONG, and
@@ -1602,7 +1610,7 @@
 
     const line = (k, x, yMid, align, avail) => {
       const fit = Math.min(1, avail / L.width[k]);
-      ctx.font = cardFont(st, k, L.size[k] * fit * u);
+      ctx.font = cardFont(st, k, L.size[k] * fit * u, L.font);
       ctx.fillStyle = k === 'small' ? st.muted : st.text;
       ctx.textAlign = align;
       ctx.fillText(L.text[k], x * u, yMid * u);
@@ -1694,8 +1702,8 @@
       return nodes;
     }
 
-    const seg = (key, label, options) => {
-      const box = el('div', { class: 'seg', role: 'group', 'aria-label': label },
+    const seg = (key, label, options, cls) => {
+      const box = el('div', { class: `seg${cls ? ` ${cls}` : ''}`, role: 'group', 'aria-label': label },
         options.map(([value, text]) => el('button', {
           type: 'button', 'data-value': value, 'aria-pressed': String(cardPrefs[key] === value),
         }, text)));
@@ -1705,10 +1713,15 @@
         cardPrefs[key] = b.dataset.value;
         for (const other of box.children) other.setAttribute('aria-pressed', String(other === b));
         saveCardPrefs();
+        if (key === 'style') fontRow.hidden = cardPrefs.style === 'pixel';
         drawPreview();
       });
       return el('div', { class: 'card-row' }, el('span', { class: 'card-label' }, label), box);
     };
+
+    // Each font button is set in its own font. Hidden for Pixel, which has its own font.
+    const fontRow = seg('font', 'Font', Object.entries(CARD_FONTS).map(([value, f]) => [value, f.label]), 'seg-fonts');
+    fontRow.hidden = cardPrefs.style === 'pixel';
 
     const field = (label, key, placeholder) => {
       const input = el('input', { type: 'text', maxlength: '80', placeholder, spellcheck: 'false', autocomplete: 'off' });
@@ -1727,6 +1740,7 @@
     nodes.push(
       el('div', { class: 'card-controls' },
         seg('style', 'Style', [['light', 'Light'], ['dark', 'Dark'], ['pixel', 'Pixel']]),
+        fontRow,
         seg('shape', 'Shape', [['original', 'Original'], ['square', 'Square'], ['portrait', '4:5']]),
         field('Title', 'title', 'Shot on …'),
         field('Settings', 'details', '35 mm   f/1.8   1/250 s   ISO 100'),

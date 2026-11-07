@@ -23,12 +23,26 @@
   font-display: swap;
 }
 
-/* Display serif for the title on Shot on cards (drawn on a canvas; loaded only when a card is). */
+/* Title fonts for Shot on cards (drawn on a canvas; each loads only when a card uses it). */
 @font-face {
-  font-family: "Instrument Serif";
-  src: url("vendor/InstrumentSerif-Italic.woff2") format("woff2");
+  font-family: "Fraunces";
+  src: url("vendor/Fraunces-Italic.woff2") format("woff2");
   font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Michroma";
+  src: url("vendor/Michroma-Regular.woff2") format("woff2");
   font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Caveat";
+  src: url("vendor/Caveat-SemiBold.woff2") format("woff2");
+  font-weight: 600;
   font-display: swap;
 }
 
@@ -1186,6 +1200,11 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 .seg button:hover { background: var(--accent-soft); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
 .seg button:focus-visible { position: relative; outline-offset: 2px; }
+
+.seg-fonts button { letter-spacing: 0; text-transform: none; }
+.seg-fonts [data-value="fraunces"] { font: italic 500 15px "Fraunces", serif; }
+.seg-fonts [data-value="michroma"] { font: 400 10px "Michroma", sans-serif; }
+.seg-fonts [data-value="caveat"] { font: 600 18px "Caveat", cursive; }
 
 .card-row input {
   box-sizing: border-box;
