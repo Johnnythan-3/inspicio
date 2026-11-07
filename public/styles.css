@@ -40,9 +40,9 @@
 }
 
 @font-face {
-  font-family: "Caveat";
-  src: url("vendor/Caveat-SemiBold.woff2") format("woff2");
-  font-weight: 600;
+  font-family: "DSEG14 Classic";
+  src: url("vendor/DSEG14Classic-Regular.woff2") format("woff2");
+  font-weight: 400;
   font-display: swap;
 }
 
@@ -1204,7 +1204,7 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 .seg-fonts button { letter-spacing: 0; text-transform: none; }
 .seg-fonts [data-value="fraunces"] { font: italic 500 15px "Fraunces", serif; }
 .seg-fonts [data-value="michroma"] { font: 400 10px "Michroma", sans-serif; }
-.seg-fonts [data-value="caveat"] { font: 600 18px "Caveat", cursive; }
+.seg-fonts [data-value="digicam"] { font: 400 10px "DSEG14 Classic", monospace; letter-spacing: 0.04em; text-transform: uppercase; }
 
 .card-row input {
   box-sizing: border-box;

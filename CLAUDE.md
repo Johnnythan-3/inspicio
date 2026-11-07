@@ -18,7 +18,7 @@
   - **Raw:** every parsed tag, flat list at bottom.
 - **No-metadata state:** screenshots, social images often have none. Friendly message, never empty panel.
 - **Wipe:** JPEG/PNG lossless (copy segments; drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed by exifr; tag left = no download. exifr can't read WebP/GIF.
-- **Shot on:** canvas card (`renderCard`), 3 editable lines from metadata. Style Light/Dark/Pixel, Font Serif/Wide/Hand (`CARD_FONTS`, not Pixel), Shape Original/Square/4:5 (`inspicio.card`, prefs only). Slim bar (user: more photo). Saves JPEG ≤ 3240 px.
+- **Shot on:** canvas card (`renderCard`), 3 editable lines from metadata. Style Light/Dark/Pixel, Font Serif/Wide/Digicam (`CARD_FONTS`, not Pixel), Shape Original/Square/4:5 (`inspicio.card`, prefs only). Slim bar (user: more photo). Saves JPEG ≤ 3240 px.
 - **HEIC:** Chrome/Firefox can't display; show metadata, placeholder preview.
 - **RAW (DNG, ARW, CR2, CR3, NEF, …):** browsers can't decode, so `loadRawPreview` in `app.js` shows largest embedded JPEG preview (JPEG start marker + frame header; rotated by RAW's EXIF orientation if preview has none). Metadata still from exifr. iPhone ProRAW, Sony ARW embed full size; DJI only 960 × 540.
 - **Photos app drags:** give small preview; "Small copy" notice under 1200 px. Full size: picker's Photos sidebar, Desktop first, or Safari (~3 s, overlay).
@@ -33,7 +33,7 @@
 
 ## Design
 
-- Simple, sleek, one accent color, square corners everywhere. Logo: pixel "i" breaking out of frame. Fonts self-hosted in `vendor/`: Geist (text), Geist Mono (numbers), Departure Mono (wordmark, labels; 11 px grid, multiples of 5.5 px). Card titles: Fraunces italic, Michroma, Caveat.
+- Simple, sleek, one accent color, square corners everywhere. Logo: pixel "i" breaking out of frame. Fonts self-hosted in `vendor/`: Geist (text), Geist Mono (numbers), Departure Mono (wordmark, labels; 11 px grid, multiples of 5.5 px). Card fonts: Fraunces italic, Michroma, DSEG14 (Digicam: orange glow).
 - User's colors: accent `#19448A` (dark `#89ADE6`), light bg `#E9F0EE`. Check text contrast 4.5:1 on change.
 - Light + dark via `prefers-color-scheme` and CSS custom properties.
 - Narrow widths: panel stacks below preview.

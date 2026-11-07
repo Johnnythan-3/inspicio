@@ -1457,11 +1457,12 @@
     pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', title: '{px} "Departure Mono"', font: 'Departure Mono', mono: 'Departure Mono', sizes: { title: 1.68, details: 1.22, small: 1.04 }, upper: true },
   };
   // Title and settings fonts for Light and Dark. k (title) and dk (settings) even out their sizes:
-  // Michroma is very wide, Caveat small, and an italic serif reads smaller than mono did.
+  // Michroma is very wide and an italic serif reads smaller than mono did. Digicam is the orange
+  // segment-display date stamp of 2000s compact cameras: every line, always orange, with a soft glow.
   const CARD_FONTS = {
     fraunces: { label: 'Serif', css: 'italic 500 {px} "Fraunces"', k: 1, dk: 1.15 },
     michroma: { label: 'Wide', css: '400 {px} "Michroma"', k: 0.72, dk: 1 },
-    caveat: { label: 'Hand', css: '600 {px} "Caveat"', k: 1.3, dk: 1.4 },
+    digicam: { label: 'Digicam', css: '400 {px} "DSEG14 Classic"', k: 0.62, dk: 0.85, sk: 0.8, all: true, glow: '#ff5a1f' },
   };
   const CARD_SHAPES = { original: 0, square: 1, portrait: 1.25 }; // card height ÷ width; 0 = fit the photo
   const CARD_LINES = ['title', 'details', 'small'];
@@ -1489,7 +1490,7 @@
   }
 
   let cardFonts = null;
-  const loadCardFonts = () => (cardFonts ||= Promise.all(['italic 500 20px Fraunces', '20px Michroma', '600 20px Caveat', '20px Geist', '20px "Geist Mono"', '20px "Departure Mono"']
+  const loadCardFonts = () => (cardFonts ||= Promise.all(['italic 500 20px Fraunces', '20px Michroma', '20px "DSEG14 Classic"', '20px Geist', '20px "Geist Mono"', '20px "Departure Mono"']
     .map((f) => document.fonts.load(f).catch(() => null))));
 
   const longDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
@@ -1513,8 +1514,9 @@
 
   // Light and Dark set the title and the settings in the chosen font; Pixel uses its own throughout.
   function cardFont(st, line, px, font) {
-    if (line === 'small') return `${px}px "${st.font}"`;
-    if (!st.title) return CARD_FONTS[font].css.replace('{px}', `${px}px`);
+    const f = st.title ? null : CARD_FONTS[font];
+    if (line === 'small' && !f?.all) return `${px}px "${st.font}"`;
+    if (f) return f.css.replace('{px}', `${px}px`);
     return line === 'title' ? st.title.replace('{px}', `${px}px`) : `${px}px "${st.mono}"`;
   }
 
@@ -1535,9 +1537,11 @@
     const rowH = {};
     for (const k of CARD_LINES) {
       text[k] = String(o[k] || '').trim();
-      if (st.upper) text[k] = text[k].toUpperCase();
       const f = st.title ? null : CARD_FONTS[o.font];
-      size[k] = (st.sizes || CARD_SIZE)[k] * tall * (!f || k === 'small' ? 1 : k === 'title' ? f.k : f.dk);
+      if (st.upper || f?.all) text[k] = text[k].toUpperCase();
+      // A space in the segment font is a sliver; "!" is its full-width blank.
+      if (f?.all) text[k] = text[k].replace(/ +/g, (run) => (run.length > 1 ? '!!' : '!'));
+      size[k] = (st.sizes || CARD_SIZE)[k] * tall * (!f ? 1 : k === 'title' ? f.k : k === 'details' ? f.dk : f.sk || 1);
       rowH[k] = size[k] * (k === 'title' ? 1.15 : 1.35);
       ctx.font = cardFont(st, k, 100, o.font);
       width[k] = text[k] ? (ctx.measureText(text[k]).width / 100) * size[k] : 0;
@@ -1616,11 +1620,26 @@
       }
     }
 
+    const glow = !st.title && CARD_FONTS[L.font].glow;
     const line = (k, x, yMid, align, avail) => {
       const fit = Math.min(1, avail / L.width[k]);
-      ctx.font = cardFont(st, k, L.size[k] * fit * u, L.font);
-      ctx.fillStyle = k === 'small' ? st.muted : st.text;
+      const px = L.size[k] * fit * u;
+      ctx.font = cardFont(st, k, px, L.font);
       ctx.textAlign = align;
+      if (glow) {
+        // A little halation (a wide red haze) and bloom (a tight bright glow) around the segments.
+        ctx.fillStyle = glow;
+        ctx.shadowColor = 'rgba(255, 40, 0, 0.45)';
+        ctx.shadowBlur = px * 0.7;
+        ctx.fillText(L.text[k], x * u, yMid * u);
+        ctx.shadowColor = 'rgba(255, 150, 70, 0.7)';
+        ctx.shadowBlur = px * 0.18;
+        ctx.fillText(L.text[k], x * u, yMid * u);
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        return;
+      }
+      ctx.fillStyle = k === 'small' ? st.muted : st.text;
       ctx.fillText(L.text[k], x * u, yMid * u);
     };
     ctx.textBaseline = 'middle';
