@@ -1,0 +1,30 @@
+const fs = require('fs');
+const [,, site, out, dngPath] = process.argv;
+globalThis.self = globalThis;
+require(site + '/film-data.js');
+const E = require(site + '/film.js');
+const F = E.prepare(self.FILM_DATA);
+const ref = JSON.parse(fs.readFileSync(`${out}/ref-dng.json`));
+const bytes = new Uint8Array(fs.readFileSync(dngPath));
+let t = Date.now();
+const dng = E.parseDNG(bytes);
+console.log('supported', E.dngSupported(dng), dng.meta.model, dng.meta.width + 'x' + dng.meta.height, 'baseline', dng.meta.baselineExposure, 'orientation', dng.meta.orientation);
+const lin = E.decodeDNG(dng, 4);
+console.log('decode ds4', Date.now() - t, 'ms', lin.width + 'x' + lin.height);
+const refLin = new Float32Array(fs.readFileSync(`${out}/ref-dng-linear.f32`).buffer.slice(0));
+let e = 0, em = 0;
+for (let i = 0; i < refLin.length; i++) { const d = Math.abs(lin.rgb[i] - refLin[i]); e += d; em = Math.max(em, d); }
+console.log('linear: mean err', (e / refLin.length).toExponential(2), 'max', em.toExponential(2));
+const { toXYZ, layers } = E.cameraToLayers(F, dng.meta);
+console.log('cameraToXYZ max diff', Math.max(...toXYZ.map((v, i) => Math.abs(v - ref.cameraToXYZ[i]))).toExponential(2));
+t = Date.now();
+E.developNegative(F, lin.rgb, lin.width, lin.height, { matrix: layers, baselineExposure: dng.meta.baselineExposure });
+const rgba = new Uint8ClampedArray(lin.width * lin.height * 4);
+const { K } = E.printNegative(F, lin.rgb, lin.width, lin.height, 0, rgba, { placement: 'scene' });
+const o = E.orientRGBA(rgba, lin.width, lin.height, dng.meta.orientation);
+console.log('develop+print', Date.now() - t, 'ms', 'K', K.map(v => v.toFixed(5)), 'swift', ref.K.map(v => v.toFixed(5)), 'size', o.width + 'x' + o.height, 'swift', ref.width + 'x' + ref.height);
+const refOut = fs.readFileSync(`${out}/ref-dng-out.u8`);
+let d8 = 0, dm = 0;
+for (let i = 0, n = o.width * o.height; i < n; i++) for (let c = 0; c < 3; c++) { const d = Math.abs(o.rgba[i * 4 + c] - refOut[i * 3 + c]); d8 += d; dm = Math.max(dm, d); }
+console.log('output: mean err', (d8 / (o.width * o.height * 3)).toFixed(3), 'max', dm);
+t = Date.now(); E.decodeDNG(dng, 1); console.log('full decode', Date.now() - t, 'ms');

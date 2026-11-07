@@ -1805,6 +1805,7 @@
   const FILM_PREVIEW_PIXELS = 1.4e6;
   const FILM_SAVE_PIXELS = window.matchMedia('(pointer: coarse)').matches ? 8e6 : 16e6;
   const FILM_STAGES = {
+    reading: 'Reading the negative',
     exposing: 'Exposing the film',
     halation: 'Halation',
     sharpness: 'Scattering in the emulsion',
@@ -1818,8 +1819,11 @@
   let filmSeq = 0;
   const filmJobs = new Map();
 
-  function filmRun(message, transfer, onStage) {
+  let filmWorkerGen = 0; // which worker; a new one has to be sent a DNG's bytes again
+
+  function filmWorkerReady() {
     if (!filmWorker) {
+      filmWorkerGen++;
       filmWorker = new Worker('film-worker.js');
       filmWorker.onmessage = (e) => {
         const job = filmJobs.get(e.data.id);
@@ -1840,10 +1844,15 @@
         filmWorker = null;
       };
     }
+    return filmWorker;
+  }
+
+  function filmRun(message, transfer, onStage) {
+    const worker = filmWorkerReady();
     const id = ++filmSeq;
     return new Promise((resolve, reject) => {
       filmJobs.set(id, { resolve, reject, onStage });
-      filmWorker.postMessage({ id, ...message }, transfer);
+      worker.postMessage({ id, ...message }, transfer);
     });
   }
 
@@ -1873,12 +1882,43 @@
   function filmFor(file, img) {
     if (film?.file !== file) {
       film = { file, img, key: ++filmKeySeq, exposure: 0, brightness: 0, source: null,
-        canvas: null, caption: null, original: null, busy: false, again: false, saving: false };
+        canvas: null, caption: null, original: null, busy: false, again: false, saving: false,
+        // A DNG is developed from its sensor data when the worker can read it ('maybe' until
+        // it has tried); everything else, and a DNG it can't read, from the finished picture.
+        raw: /\.dng$/i.test(file.name) ? 'maybe' : 'no', rawGen: -1 };
     }
     return film;
   }
 
   const fmtStops = (v) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`);
+
+  // One develop, from the DNG's sensor data or from the finished picture.
+  async function filmJob(f, maxPixels, keep, onStage) {
+    const settings = { key: f.key, exposureStops: f.exposure, printStops: -f.brightness, keep };
+    for (let attempt = 0; f.raw !== 'no' && attempt < 2; attempt++) {
+      try {
+        filmWorkerReady();
+        const msg = { kind: 'raw', maxPixels, ...settings };
+        const transfer = [];
+        if (f.rawGen !== filmWorkerGen) {
+          msg.file = await f.file.arrayBuffer();
+          transfer.push(msg.file);
+          f.rawGen = filmWorkerGen;
+        }
+        const res = await filmRun(msg, transfer, onStage);
+        f.raw = 'yes';
+        return res;
+      } catch (err) {
+        if (err.message === 'need-file') { f.rawGen = -1; continue; }
+        f.raw = 'no';
+        filmShowSource(f);
+      }
+    }
+    const src = keep ? (f.source ||= filmPixels(f.img, FILM_PREVIEW_PIXELS)) : filmPixels(f.img, maxPixels);
+    const pixels = keep ? src.pixels.slice(0) : src.pixels;
+    return filmRun({ ...settings, pixels, width: src.width, height: src.height, primaries: src.primaries,
+      placement: 'photo' }, [pixels], onStage);
+  }
 
   async function filmPreview() {
     const f = film;
@@ -1888,20 +1928,22 @@
     f.again = false;
     f.stage?.classList.add('is-developing');
     try {
-      f.source ||= filmPixels(f.img, FILM_PREVIEW_PIXELS);
-      const src = f.source;
-      const pixels = src.pixels.slice(0);
-      const res = await filmRun({
-        key: f.key, pixels, width: src.width, height: src.height, primaries: src.primaries,
-        exposureStops: f.exposure, printStops: -f.brightness, placement: 'photo', keep: true,
-      }, [pixels], (stage) => { if (f.caption) f.caption.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
+      const res = await filmJob(f, FILM_PREVIEW_PIXELS, true,
+        (stage) => { if (f.caption) f.caption.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
       if (film !== f || !f.canvas) return;
       f.canvas.width = res.width;
       f.canvas.height = res.height;
       f.canvas.getContext('2d').putImageData(new ImageData(res.rgba, res.width, res.height), 0, 0);
       f.canvas.classList.add('is-ready');
-      const full = Math.min(1, Math.sqrt(FILM_SAVE_PIXELS / (f.img.width * f.img.height)));
-      f.caption.textContent = `Portra 400  ·  saves at ${Math.round(f.img.width * full)} × ${Math.round(f.img.height * full)}`;
+      let size;
+      if (res.raw) {
+        const ds = Math.max(1, Math.ceil(Math.sqrt((res.fullWidth * res.fullHeight) / FILM_SAVE_PIXELS)));
+        size = `${Math.floor(res.fullWidth / ds)} × ${Math.floor(res.fullHeight / ds)}`;
+      } else {
+        const full = Math.min(1, Math.sqrt(FILM_SAVE_PIXELS / (f.img.width * f.img.height)));
+        size = `${Math.round(f.img.width * full)} × ${Math.round(f.img.height * full)}`;
+      }
+      f.caption.textContent = `Portra 400${res.raw ? ' from RAW' : ''}  ·  saves at ${size}`;
     } catch (err) {
       if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
       if (f.note) f.note.textContent = String(err.message || err);
@@ -1926,18 +1968,29 @@
     return el('figure', { class: 'photo film-stage' }, f.stage, el('figcaption', null, f.caption));
   }
 
-  function filmSourceNote(file, meta) {
+  function filmSourceNote(f, meta) {
+    const { file } = f;
     const { get } = indexMetadata(meta.segments);
     const apple = /apple/i.test(String(toText(get('Make')) || ''));
     const model = toText(get('Model'));
+    if (f.raw !== 'no') {
+      return [`${model || 'DNG'} · ${apple ? 'ProRAW' : 'RAW'}`,
+        'Developed from the sensor’s own light, before any of the camera’s processing, the way the rolls camera does it.'];
+    }
     if (RAW_EXT.test(file.name)) {
-      return [`${model || 'RAW file'} · built-in preview`, apple
-        ? 'ProRAW will get the full film physics in a later update. For now this uses the JPEG preview inside the file.'
-        : 'Browsers can’t read camera RAW, so this uses the JPEG preview inside the file.'];
+      return [`${model || 'RAW file'} · built-in preview`, /\.dng$/i.test(file.name)
+        ? 'This DNG’s sensor data is in a format the film can’t read yet, so this uses the JPEG preview inside the file.'
+        : 'Browsers can’t read this camera’s RAW format, so this uses the JPEG preview inside the file.'];
     }
     return [`${model || 'Photo'} · finished photo`, apple
       ? 'Your iPhone already processed this photo, so the film goes on top of Apple’s look. Close, not exact.'
       : 'The camera already processed this photo, so the film goes on top of its look. Close, not exact.'];
+  }
+
+  function filmShowSource(f) {
+    if (!f.sourceNode) return;
+    const [title, text] = filmSourceNote(f, f.meta);
+    f.sourceNode.replaceChildren(el('strong', null, title), el('p', null, text));
   }
 
   async function saveFilm(button, note) {
@@ -1946,12 +1999,9 @@
     f.saving = true;
     button.disabled = true;
     try {
-      const src = filmPixels(f.img, FILM_SAVE_PIXELS);
       note.textContent = 'Developing at full size…';
-      const res = await filmRun({
-        key: f.key, pixels: src.pixels, width: src.width, height: src.height, primaries: src.primaries,
-        exposureStops: f.exposure, printStops: -f.brightness, placement: 'photo', keep: false,
-      }, [src.pixels], (stage) => { note.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
+      const res = await filmJob(f, FILM_SAVE_PIXELS, false,
+        (stage) => { note.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
       const canvas = document.createElement('canvas');
       canvas.width = res.width;
       canvas.height = res.height;
@@ -1988,8 +2038,10 @@
       return nodes;
     }
 
-    const [sourceTitle, sourceText] = filmSourceNote(file, meta);
-    nodes.push(el('div', { class: 'film-source' }, el('strong', null, sourceTitle), el('p', null, sourceText)));
+    f.meta = meta;
+    f.sourceNode = el('div', { class: 'film-source' });
+    filmShowSource(f);
+    nodes.push(f.sourceNode);
 
     const slider = (label, key, min, max, step, help) => {
       const value = el('span', { class: 'film-value' }, fmtStops(f[key]));

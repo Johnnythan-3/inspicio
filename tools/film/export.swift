@@ -87,6 +87,7 @@ let json: [String: Any] = [
     "logHReference": FilmPipeline.logHReference, "middleGrey": 0.18, "ratingStops": 1.0,
     "frameWidthMm": profile.frameWidthMillimetres,
     "layers": ["sRGB": layers(.sRGB), "displayP3": layers(.displayP3)],
+    "filmMatrix": fm.matrix.m,
     "characteristic": ["xMin": ch.xMin, "xMax": ch.xMax,
                        "R": row(ch, "R"), "G": row(ch, "G"), "B": row(ch, "B")],
     "reference": [ref.r, ref.g, ref.b],
@@ -174,4 +175,22 @@ do {
     try writeFloats(printer.print(neg, exposures: k, encodeForDisplay: true), "ref-wide-out.f32")
     try JSONSerialization.data(withJSONObject: ["K": k]).write(to: out.appendingPathComponent("ref-wide-k.json"))
     print("wide ok")
+}
+
+// A real ProRAW frame, developed by the Darkroom at 1/4 size, plus its decoded linear light.
+if CommandLine.arguments.count > 2 {
+    let url = URL(fileURLWithPath: CommandLine.arguments[2])
+    let dng = try DNGReader(contentsOf: url)
+    let img = try dng.decodeLinear(downsample: 4)
+    try writeFloats(img.pixels, "ref-dng-linear.f32")
+    let photo = try Darkroom.develop(dngAt: url, recipe: .init(downsample: 4))
+    try Data(photo.pixels).write(to: out.appendingPathComponent("ref-dng-out.u8"))
+    let m = dng.metadata
+    try JSONSerialization.data(withJSONObject: [
+        "K": photo.exposures, "width": photo.width, "height": photo.height,
+        "linearWidth": img.width, "linearHeight": img.height,
+        "cameraToXYZ": ColorTransform.cameraToXYZ(m).m, "baselineExposure": m.baselineExposure,
+        "orientation": m.orientation, "model": m.cameraModel,
+    ]).write(to: out.appendingPathComponent("ref-dng.json"))
+    print("dng ok", photo.width, photo.height)
 }

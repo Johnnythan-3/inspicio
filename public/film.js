@@ -648,6 +648,429 @@
     }
   }
 
+  /* ---------- DNG: Apple ProRAW and other linear DNGs (DNGReader.swift, LosslessJPEG.swift) ---------- */
+
+  const TYPE_SIZE = { 1: 1, 2: 1, 6: 1, 7: 1, 3: 2, 8: 2, 4: 4, 9: 4, 11: 4, 5: 8, 10: 8, 12: 8 };
+
+  function parseDNG(bytes) {
+    const n = bytes.length;
+    if (n <= 8) throw new Error('not a DNG file');
+    let le;
+    if (bytes[0] === 0x49 && bytes[1] === 0x49) le = true;
+    else if (bytes[0] === 0x4d && bytes[1] === 0x4d) le = false;
+    else throw new Error('not a DNG file');
+    const u16 = (o) => (le ? bytes[o] | (bytes[o + 1] << 8) : (bytes[o] << 8) | bytes[o + 1]);
+    const u32 = (o) => (le
+      ? (bytes[o] | (bytes[o + 1] << 8) | (bytes[o + 2] << 16) | (bytes[o + 3] << 24)) >>> 0
+      : ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0);
+    const i32 = (o) => u32(o) | 0;
+    if (u16(2) !== 42) throw new Error('not a DNG file');
+
+    const ifds = [];
+    const queue = [u32(4)];
+    const seen = new Set();
+    while (queue.length) {
+      const offset = queue.pop();
+      if (!(offset > 0) || offset + 2 > n || seen.has(offset)) continue;
+      seen.add(offset);
+      const count = u16(offset);
+      const entries = new Map();
+      for (let i = 0; i < count; i++) {
+        const e = offset + 2 + i * 12;
+        if (e + 12 > n) break;
+        entries.set(u16(e), { type: u16(e + 2), count: u32(e + 4), offset: e + 8 });
+      }
+      ifds.push(entries);
+      const sub = entries.get(330);
+      if (sub) {
+        if ((TYPE_SIZE[sub.type] || 1) * sub.count > 4) {
+          const base = u32(sub.offset);
+          for (let k = 0; k < sub.count; k++) queue.push(u32(base + k * 4));
+        } else {
+          queue.push(u32(sub.offset));
+        }
+      }
+      if (offset + 2 + count * 12 + 4 <= n) queue.push(u32(offset + 2 + count * 12));
+    }
+
+    const where = (e) => ((TYPE_SIZE[e.type] || 1) * e.count <= 4 ? e.offset : u32(e.offset));
+    const readInts = (e) => {
+      const base = where(e);
+      const size = TYPE_SIZE[e.type] || 1;
+      if (base < 0 || base + size * e.count > n) return [];
+      const out = [];
+      for (let i = 0; i < e.count; i++) {
+        const o = base + i * size;
+        out.push(size === 1 ? bytes[o] : size === 2 ? u16(o) : u32(o));
+      }
+      return out;
+    };
+    const readReals = (e) => {
+      const base = where(e);
+      const size = TYPE_SIZE[e.type] || 1;
+      if (base < 0 || base + size * e.count > n) return [];
+      const out = [];
+      for (let i = 0; i < e.count; i++) {
+        const o = base + i * size;
+        if (e.type === 5) { const d = u32(o + 4); out.push(d === 0 ? 0 : u32(o) / d); }
+        else if (e.type === 10) { const d = i32(o + 4); out.push(d === 0 ? 0 : i32(o) / d); }
+        else if (e.type === 11) { const v = new DataView(bytes.buffer, bytes.byteOffset + o, 4); out.push(v.getFloat32(0, le)); }
+        else out.push(size === 1 ? bytes[o] : size === 2 ? u16(o) : u32(o));
+      }
+      return out;
+    };
+    const readASCII = (e) => {
+      const base = where(e);
+      if (base < 0 || base + e.count > n) return '';
+      let s = '';
+      for (let i = 0; i < e.count && bytes[base + i]; i++) s += String.fromCharCode(bytes[base + i]);
+      return s;
+    };
+
+    const raw = ifds.find((ifd) => {
+      const pi = ifd.get(262);
+      const v = pi ? readInts(pi)[0] : 0;
+      return v === 34892 || v === 32803;
+    });
+    if (!raw) throw new Error('no raw image in this DNG');
+    const lookupTag = (tag, read) => {
+      for (const ifd of [raw, ...ifds]) { const e = ifd.get(tag); if (e) return read(e); }
+      return [];
+    };
+    const ints = (tag) => lookupTag(tag, readInts);
+    const reals = (tag) => lookupTag(tag, readReals);
+    const text = (tag) => { for (const ifd of ifds) { const e = ifd.get(tag); if (e) return readASCII(e); } return ''; };
+
+    const width = ints(256)[0];
+    const height = ints(257)[0];
+    if (!width || !height) throw new Error('DNG has no image size');
+    const bits = ints(258)[0] || 16;
+    const white = reals(50717);
+    const meta = {
+      width, height,
+      components: ints(277)[0] || 3,
+      bitsPerSample: bits,
+      photometric: readInts(raw.get(262))[0],
+      compression: raw.get(259) ? readInts(raw.get(259))[0] : -1,
+      model: text(50708) || text(272),
+      make: text(271),
+      linearizationTable: ints(50712),
+      blackLevel: reals(50714).length ? reals(50714) : [0],
+      whiteLevel: white.length ? white : [(1 << bits) - 1],
+      analogBalance: reals(50727),
+      colorMatrix1: reals(50721),
+      colorMatrix2: reals(50722),
+      baselineExposure: reals(50730)[0] || 0,
+      orientation: ints(274)[0] || 1,
+    };
+    const tiles = {
+      tw: raw.get(322) ? readInts(raw.get(322))[0] : 0,
+      th: raw.get(323) ? readInts(raw.get(323))[0] : 0,
+      offsets: raw.get(324) ? readInts(raw.get(324)) : [],
+      counts: raw.get(325) ? readInts(raw.get(325)) : [],
+    };
+    return { bytes, meta, tiles };
+  }
+
+  // Only demosaiced (LinearRaw) DNGs with lossless JPEG tiles: Apple ProRAW and similar.
+  function dngSupported(dng) {
+    const m = dng.meta;
+    return m.photometric === 34892 && m.compression === 7 && m.components === 3
+      && dng.tiles.tw > 0 && dng.tiles.th > 0 && dng.tiles.offsets.length > 0;
+  }
+
+  function huffTable(counts, values) {
+    const minCode = new Int32Array(17);
+    const maxCode = new Int32Array(17).fill(-1);
+    const valPtr = new Int32Array(17);
+    let code = 0;
+    let k = 0;
+    for (let len = 1; len <= 16; len++) {
+      const c = counts[len - 1];
+      if (c > 0) { valPtr[len] = k; minCode[len] = code; code += c; k += c; maxCode[len] = code - 1; }
+      else maxCode[len] = -1;
+      code <<= 1;
+    }
+    if (k > values.length) throw new Error('bad Huffman table');
+    // Fast path: the value and length for every 9-bit prefix whose code fits in 9 bits.
+    const fast = new Uint16Array(512);
+    for (let len = 1; len <= 9; len++) {
+      for (let c = minCode[len]; c <= maxCode[len]; c++) {
+        const v = values[valPtr[len] + c - minCode[len]] || 0;
+        const shift = 9 - len;
+        for (let f = 0; f < (1 << shift); f++) fast[(c << shift) | f] = (len << 8) | v | 0x8000;
+      }
+    }
+    return { minCode, maxCode, valPtr, values, fast };
+  }
+
+  // One lossless JPEG (SOF3) tile. Returns { width, height, components, samples: Uint16Array }.
+  function decodeLJ92(b, start, count) {
+    const end = start + count;
+    if (b[start] !== 0xff || b[start + 1] !== 0xd8) throw new Error('tile is not a JPEG');
+    const tables = new Map();
+    let precision = 0;
+    let width = 0;
+    let height = 0;
+    let components = 0;
+    let scanTables = [];
+    let predictor = 1;
+    let pt = 0;
+    let restart = 0;
+    let haveFrame = false;
+    let haveScan = false;
+    let p = start + 2;
+    while (p + 1 < end) {
+      if (b[p] !== 0xff) { p++; continue; }
+      const marker = b[p + 1];
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { p += 2; continue; }
+      if (marker === 0xd9) break;
+      if (p + 4 > end) throw new Error('tile ends early');
+      const length = (b[p + 2] << 8) | b[p + 3];
+      const seg = p + 4;
+      const segEnd = p + 2 + length;
+      if (segEnd > end) throw new Error('tile ends early');
+      if (marker === 0xc4) {
+        let q = seg;
+        while (q < segEnd) {
+          const id = b[q] & 0x0f;
+          const counts = [];
+          let total = 0;
+          for (let i = 0; i < 16; i++) { counts.push(b[q + 1 + i]); total += b[q + 1 + i]; }
+          if (q + 17 + total > segEnd) throw new Error('bad Huffman table');
+          tables.set(id, huffTable(counts, b.subarray(q + 17, q + 17 + total)));
+          q += 17 + total;
+        }
+      } else if (marker === 0xc3) {
+        precision = b[seg];
+        height = (b[seg + 1] << 8) | b[seg + 2];
+        width = (b[seg + 3] << 8) | b[seg + 4];
+        components = b[seg + 5];
+        haveFrame = true;
+      } else if ([0xc0, 0xc1, 0xc2, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb].includes(marker)) {
+        throw new Error('not a lossless JPEG tile');
+      } else if (marker === 0xdd) {
+        restart = (b[seg] << 8) | b[seg + 1];
+      } else if (marker === 0xda) {
+        const ns = b[seg];
+        scanTables = Array.from({ length: ns }, (_, i) => b[seg + 2 + 2 * i] >> 4);
+        predictor = b[seg + 1 + 2 * ns];
+        pt = b[seg + 3 + 2 * ns] & 0x0f;
+        haveScan = true;
+        p = segEnd;
+        break;
+      }
+      p = segEnd;
+    }
+    if (!haveFrame || !haveScan) throw new Error('tile has no image');
+    if (precision < 2 || precision > 16) throw new Error('unsupported precision');
+    const nc = Math.min(components, scanTables.length);
+    const huffs = scanTables.map((t) => { const h = tables.get(t); if (!h) throw new Error('bad Huffman table'); return h; });
+    const out = new Uint16Array(width * height * nc);
+    const seed = 1 << (precision - pt - 1);
+    const mask = (1 << precision) - 1;
+
+    let pos = p;
+    let buf = 0;
+    let bits = 0;
+    const fill = () => {
+      while (bits <= 24) {
+        let byte = 0;
+        if (pos < end) {
+          byte = b[pos++];
+          if (byte === 0xff) {
+            const next = pos < end ? b[pos] : 0xd9;
+            if (next === 0) pos++;
+            else { pos--; byte = 0; }
+          }
+        }
+        buf = ((buf << 8) | byte) >>> 0;
+        bits += 8;
+      }
+    };
+    const receive = (nb) => {
+      if (nb === 0) return 0;
+      if (bits < nb) fill();
+      bits -= nb;
+      return (buf >>> bits) & ((1 << nb) - 1);
+    };
+    const decode = (t) => {
+      if (bits < 16) fill();
+      const f = t.fast[(buf >>> (bits - 9)) & 511];
+      if (f & 0x8000) { bits -= (f >> 8) & 0x7f; return f & 0xff; }
+      let code = 0;
+      for (let len = 1; len <= 16; len++) {
+        code = (code << 1) | ((buf >>> (bits - 1)) & 1);
+        bits--;
+        if (t.maxCode[len] >= code && code >= t.minCode[len]) {
+          const i = t.valPtr[len] + code - t.minCode[len];
+          return i < t.values.length ? t.values[i] : 0;
+        }
+        if (bits < 1) fill();
+      }
+      return 0;
+    };
+
+    let since = 0;
+    for (let y = 0; y < height; y++) {
+      const row = y * width * nc;
+      const above = (y - 1) * width * nc;
+      for (let x = 0; x < width; x++) {
+        const here = row + x * nc;
+        for (let c = 0; c < nc; c++) {
+          const sz = decode(huffs[c]);
+          let diff = receive(sz);
+          if (sz !== 0 && diff < (1 << (sz - 1))) diff = diff - (1 << sz) + 1;
+          let pred;
+          if (x === 0) pred = y === 0 ? seed : out[above + c];
+          else if (y === 0) pred = out[here - nc + c];
+          else {
+            const a = out[here - nc + c];
+            const bb = out[above + x * nc + c];
+            const cc = out[above + (x - 1) * nc + c];
+            switch (predictor) {
+              case 2: pred = bb; break;
+              case 3: pred = cc; break;
+              case 4: pred = a + bb - cc; break;
+              case 5: pred = a + ((bb - cc) >> 1); break;
+              case 6: pred = bb + ((a - cc) >> 1); break;
+              case 7: pred = (a + bb) >> 1; break;
+              default: pred = a;
+            }
+          }
+          out[here + c] = (pred + diff) & mask;
+        }
+        if (restart > 0 && ++since === restart) {
+          since = 0;
+          bits = 0;
+          buf = 0;
+          while (pos + 1 < end) {
+            if (b[pos] === 0xff && b[pos + 1] >= 0xd0 && b[pos + 1] <= 0xd7) { pos += 2; break; }
+            pos++;
+          }
+        }
+      }
+    }
+    return { width, height, components: nc, samples: out };
+  }
+
+  // Linear light, box-downsampled by `ds` as it is decoded (so the full frame never has to be
+  // held), normalised to 0..1 by the black and white levels. Interleaved RGB, unrotated.
+  function decodeDNG(dng, ds = 1, progress) {
+    const { bytes, meta: m, tiles } = dng;
+    const nc = m.components;
+    const outW = Math.floor(m.width / ds);
+    const outH = Math.floor(m.height / ds);
+    const sums = new Float32Array(outW * outH * nc);
+    const lut = m.linearizationTable;
+    const black = m.blackLevel[0] || 0;
+    const scale = 1 / Math.max((m.whiteLevel[0] ?? 65535) - black, 1);
+    const level = new Float32Array(1 << Math.min(m.bitsPerSample, 16));
+    for (let v = 0; v < level.length; v++) level[v] = ((lut.length ? lut[Math.min(v, lut.length - 1)] : v) - black) * scale;
+    const across = Math.ceil(m.width / tiles.tw);
+    const total = Math.min(tiles.offsets.length, tiles.counts.length);
+    const xLimit = outW * ds;
+    const yLimit = outH * ds;
+    for (let t = 0; t < total; t++) {
+      if (progress && t % 16 === 0) progress(t / total);
+      const start = tiles.offsets[t];
+      const length = tiles.counts[t];
+      if (start < 0 || start + length > bytes.length) continue;
+      const frame = decodeLJ92(bytes, start, length);
+      const tx = (t % across) * tiles.tw;
+      const ty = Math.floor(t / across) * tiles.th;
+      const fw = frame.width * frame.components;
+      for (let row = 0; row < frame.height; row++) {
+        const y = ty + row;
+        if (y >= yLimit) break;
+        const oy = Math.floor(y / ds) * outW;
+        const width = Math.min(frame.width, xLimit - tx);
+        const s = row * fw;
+        for (let x = 0; x < width; x++) {
+          const o = (oy + Math.floor((tx + x) / ds)) * nc;
+          const si = s + x * frame.components;
+          for (let c = 0; c < nc; c++) sums[o + c] += level[frame.samples[si + c]];
+        }
+      }
+    }
+    if (ds > 1) { const inv = 1 / (ds * ds); for (let i = 0; i < sums.length; i++) sums[i] *= inv; }
+    return { rgb: sums, width: outW, height: outH };
+  }
+
+  /* ---------- Matrices (ColorTransform.swift) ---------- */
+
+  const mul3 = (a, b) => {
+    const o = new Array(9).fill(0);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) for (let k = 0; k < 3; k++) o[r * 3 + c] += a[r * 3 + k] * b[k * 3 + c];
+    return o;
+  };
+  const inv3 = (m) => {
+    const [a, b, c, d, e, f, g, h, i] = m;
+    const A = e * i - f * h;
+    const B = -(d * i - f * g);
+    const C = d * h - e * g;
+    const det = a * A + b * B + c * C;
+    return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det,
+      B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+      C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+  };
+  const normalized = (m, target) => {
+    const out = m.slice();
+    for (let r = 0; r < 3; r++) {
+      const got = m[r * 3] + m[r * 3 + 1] + m[r * 3 + 2];
+      for (let c = 0; c < 3; c++) out[r * 3 + c] *= target[r] / got;
+    }
+    return out;
+  };
+  const D50 = [0.96422, 1.0, 0.82521];
+
+  // Camera RGB -> XYZ(D50) for a ProRAW frame (ColorTransform.cameraToXYZ), then on to film
+  // layer exposure with neutral pinned to neutral (FilmPipeline.init).
+  function cameraToLayers(F, m) {
+    const cm1 = m.colorMatrix1.length === 9 ? m.colorMatrix1 : null;
+    const cm2 = m.colorMatrix2.length === 9 ? m.colorMatrix2 : null;
+    let mix = 1;
+    if (m.analogBalance.length === 3 && m.analogBalance[0] > 0 && m.analogBalance[2] > 0) {
+      mix = Math.min(1, Math.max(0, 0.5 - Math.log(m.analogBalance[2] / m.analogBalance[0]) * 1.2));
+    }
+    let cm = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    if (cm1 && cm2) cm = cm1.map((v, i) => v * (1 - mix) + cm2[i] * mix);
+    else cm = cm1 || cm2 || cm;
+    const ab = m.analogBalance.length === 3
+      ? [m.analogBalance[0], 0, 0, 0, m.analogBalance[1], 0, 0, 0, m.analogBalance[2]]
+      : [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const toXYZ = normalized(inv3(mul3(ab, cm)), D50);
+    return { toXYZ, layers: normalized(mul3(F.filmMatrix, toXYZ), [1, 1, 1]) };
+  }
+
+  // Rotate/flip RGBA bytes by an EXIF orientation (Darkroom.encode).
+  function orientRGBA(src, w, h, orientation) {
+    if (!(orientation > 1 && orientation <= 8)) return { rgba: src, width: w, height: h };
+    const swaps = orientation >= 5;
+    const ow = swaps ? h : w;
+    const oh = swaps ? w : h;
+    const out = new Uint8ClampedArray(ow * oh * 4);
+    const s32 = new Uint32Array(src.buffer, src.byteOffset, w * h);
+    const o32 = new Uint32Array(out.buffer);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let dx;
+        let dy;
+        switch (orientation) {
+          case 2: dx = w - 1 - x; dy = y; break;
+          case 3: dx = w - 1 - x; dy = h - 1 - y; break;
+          case 4: dx = x; dy = h - 1 - y; break;
+          case 5: dx = y; dy = x; break;
+          case 6: dx = h - 1 - y; dy = x; break;
+          case 7: dx = h - 1 - y; dy = w - 1 - x; break;
+          default: dx = y; dy = w - 1 - x;
+        }
+        o32[dy * ow + dx] = s32[y * w + x];
+      }
+    }
+    return { rgba: out, width: ow, height: oh };
+  }
+
   /* ---------- The whole develop ---------- */
 
   // rgb: scene-linear RGB (interleaved, Float32Array), turned into the negative's densities in
@@ -655,8 +1078,9 @@
   function developNegative(F, rgb, w, h, opts = {}) {
     const report = opts.progress || (() => {});
     const count = w * h;
-    const m = F.layers[opts.primaries === 'displayP3' ? 'displayP3' : 'sRGB'];
-    const gain = Math.pow(2, (opts.exposureStops || 0) + F.ratingStops);
+    // opts.matrix: camera -> film layers for a RAW frame; otherwise the display primaries'.
+    const m = opts.matrix || F.layers[opts.primaries === 'displayP3' ? 'displayP3' : 'sRGB'];
+    const gain = Math.pow(2, (opts.exposureStops || 0) + (opts.baselineExposure || 0) + F.ratingStops);
     report('exposing');
     for (let i = 0; i < count; i++) {
       const j = i * 3;
@@ -776,7 +1200,8 @@
     return offsets;
   }
 
-  const api = { prepare, develop, developNegative, printNegative, photoTransfer };
+  const api = { prepare, develop, developNegative, printNegative, photoTransfer,
+    parseDNG, dngSupported, decodeDNG, cameraToLayers, orientRGBA };
   root.FilmEngine = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof self !== 'undefined' ? self : globalThis);
