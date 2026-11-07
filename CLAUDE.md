@@ -41,7 +41,7 @@
 
 - **GitHub:** `Johnnythan-3/inspicio`, default branch `main`.
 - **Hosting:** Cloudflare Workers static assets (no Worker script), linked to repo. Push to `main` auto-deploys, usually 30–90 s (once over 3 min). Other branches get preview URLs.
-- **Live URL:** https://inspicio.app (bought 2026-11-07, Cloudflare Registrar, auto-renew on; attached via `routes` in `wrangler.jsonc`). Old https://inspicio.johnnythan.workers.dev still serves.
+- **Live URL:** https://inspicio.app (bought 2026-11-07, Cloudflare Registrar, auto-renew on; attached via `routes` in `wrangler.jsonc`). Old workers.dev home/404 forward there (`redirect.js`).
 - **URL privacy rule:** workers.dev subdomain `johnnythan`, renamed from one exposing owner's email name. Never put owner's email or anything derived from it in URLs, files, commits. Commits use GitHub noreply address from repo git config.
 - Fully static, no server code.
 
