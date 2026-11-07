@@ -4,7 +4,7 @@
 
 ## Product
 
-- **Empty state:** big drop zone, click-to-browse fallback. Tool tabs above it (`#modes`): Inspect, Wipe; next Shot on, Film. Same nav moves to panel top when photo open; mode in hash (`#wipe`).
+- **Empty state:** big drop zone, click-to-browse fallback. Tool tabs above it (`#modes`): Inspect, Wipe, Shot on; next Film. Same nav moves to panel top when photo open; mode in hash (`#wipe`).
 - **Loaded state:**
   - **Left:** full-res photo preview, smooth zoom/pan (wheel/trackpad pinch, touch pinch, double-click, drag, +/−/Fit controls, keys + − 0).
   - **Right panel:** metadata in sections, max 340 px wide. Header click collapses section smoothly; collapsed titles saved in `localStorage` (`inspicio.collapsed`). Only display prefs there, never photo data.
@@ -18,9 +18,10 @@
   - **Raw:** every parsed tag, flat list at bottom.
 - **No-metadata state:** screenshots, social/messaging images often have none. Show clear friendly message, never empty panel.
 - **Wipe:** JPEG/PNG lossless (copy segments; drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed by exifr; tag left = no download. exifr can't read WebP/GIF.
+- **Shot on:** canvas card (`renderCard`): photo + 3 editable lines from metadata. Styles Light/Dark/Pixel, shapes Original/Square/4:5 (`inspicio.card`, prefs only). Saves JPEG ≤ 3240 px.
 - **HEIC:** Chrome/Firefox can't display. Still show metadata, placeholder instead of preview.
 - **RAW (DNG, ARW, CR2, CR3, NEF, …):** browsers can't decode, so `loadRawPreview` in `app.js` shows largest embedded JPEG preview (JPEG start marker + frame header; rotated by RAW's EXIF orientation if preview has none). Metadata still from exifr. iPhone ProRAW, Sony ARW embed full size; DJI only 960 × 540.
-- **Photos app drags:** macOS Photos drag gives small preview (e.g. 360 × 480). "Small copy" notice for camera photos under 1200 px. Full size: picker's Photos sidebar, Desktop first, or Safari (~3 s, loading overlay).
+- **Photos app drags:** give small preview; "Small copy" notice under 1200 px. Full size: picker's Photos sidebar, Desktop first, or Safari (~3 s, overlay).
 
 ## Hard rules
 
@@ -28,7 +29,7 @@
 - **One opt-in exception:** "Show map" requests Mapbox static image, sending coordinates (and IP) to Mapbox. Mapbox terms need text credit under map. Never request before click; keep note under button saying what it sends. Public `pk.` token = `MAPBOX_TOKEN` in `app.js` (empty hides button). Default token of Mapbox account `johnnythan`, no card: no URL restrictions, 5,000 requests/month free, no charges possible; over limit map fails, OSM link stays. Map `<img>` uses `referrerPolicy = 'strict-origin'` so URL-restricted token works if added later.
 - **No build step.** Plain HTML, CSS, JS. Opening `index.html` (or static serving) must work.
 - **Metadata parsing:** [`exifr`](https://github.com/MikeKovarik/exifr) (EXIF, GPS, IPTC, XMP, ICC, HEIC), pinned CDN version or vendored. No hand-rolled parser.
-- **Revoke object URLs** (`URL.revokeObjectURL`) when new photo loads.
+- **Revoke object URLs** when new photo loads.
 
 ## Design
 
@@ -36,7 +37,7 @@
 - User's colors: accent `#19448A` (dark `#89ADE6`), light bg `#E9F0EE`. Check text contrast 4.5:1 on change.
 - Light + dark via `prefers-color-scheme` and CSS custom properties.
 - Narrow widths: panel stacks below preview.
-- Human formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`, readable dates, KB/MB. Raw value stays in Raw section.
+- Human formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`, readable dates, KB/MB; raw values in Raw section.
 
 ## Repo and deploy
 
@@ -53,8 +54,8 @@
 - Confirmed by user: JPEG, ProRAW DNG, Sony ARW (full-size previews, smooth on 48 MP), HEIC placeholder, Photos drag notice, trackpad pinch/pan, collapse state, map, copy coordinates, workers.dev redirect. Test RAW from Photos via File › Export › Export Unmodified Original.
 - Not tested: phone (touch pinch, layout).
 - Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
-- Optional: `www.inspicio.app` redirect, `hello@inspicio.app` via Cloudflare Email Routing.
-- Session 7: tabs + Wipe built, tested on real JPEGs (pixels identical); user not yet. Next: Shot on card, then Film (port `../Archived/rolls` Swift engine; per-pixel stages as LUT like `PreviewLUT.swift`).
+- Optional: `www.inspicio.app` redirect, `hello@inspicio.app` (Email Routing).
+- Session 7: tabs, Wipe (user confirmed), Shot on (user not yet). Next: Film (port `../Archived/rolls` Swift engine; per-pixel stages as LUT like `PreviewLUT.swift`).
 - Later, only if asked: tag search, copy as JSON, OSM-tile map fallback.
 
 ## File layout

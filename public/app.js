@@ -1444,6 +1444,300 @@
     );
   }
 
+  /* ---------- Shot on: the photo with its camera and settings underneath ---------- */
+
+  // A card drawn on a canvas: the photo inside a border, and up to three lines of text below it.
+  // The text starts from the metadata but every line can be edited (a screenshot has none). The
+  // card is drawn and saved on this device. Layout is worked out in units of 1/100 of the card's
+  // width, so the preview and the saved file match exactly at different sizes.
+  const CARD_STYLES = {
+    light: { bg: '#ffffff', text: '#17171a', muted: '#6b6b73', font: 'Geist', mono: 'Geist Mono', weight: 600, scale: 1 },
+    dark: { bg: '#0f0f11', text: '#f3f3f5', muted: '#9d9da6', font: 'Geist', mono: 'Geist Mono', weight: 600, scale: 1 },
+    pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', font: 'Departure Mono', mono: 'Departure Mono', weight: 400, scale: 0.9, upper: true },
+  };
+  const CARD_SHAPES = { original: 0, square: 1, portrait: 1.25 }; // card height ÷ width; 0 = fit the photo
+  const CARD_LINES = ['title', 'details', 'small'];
+  const CARD_SIZE = { title: 2.9, details: 2.3, small: 1.9 };
+  const PREVIEW_LONG = 1600;
+  const SAVE_LONG = 3240; // long side of a saved card; under Safari's canvas limit at every shape
+
+  // Style and shape are display preferences, so they are remembered. The text is not.
+  const CARD_KEY = 'inspicio.card';
+  const cardPrefs = (() => {
+    const prefs = { style: 'light', shape: 'original' };
+    try {
+      const saved = JSON.parse(localStorage.getItem(CARD_KEY) || '{}');
+      if (Object.hasOwn(CARD_STYLES, saved.style)) prefs.style = saved.style;
+      if (Object.hasOwn(CARD_SHAPES, saved.shape)) prefs.shape = saved.shape;
+    } catch {
+      // Defaults.
+    }
+    return prefs;
+  })();
+
+  function saveCardPrefs() {
+    try { localStorage.setItem(CARD_KEY, JSON.stringify(cardPrefs)); } catch { /* not saved */ }
+  }
+
+  let cardFonts = null;
+  const loadCardFonts = () => (cardFonts ||= Promise.all(['600 20px Geist', '20px "Geist Mono"', '20px "Departure Mono"']
+    .map((f) => document.fonts.load(f).catch(() => null))));
+
+  const longDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
+
+  function cardDefaults(meta) {
+    const { get } = indexMetadata(meta.segments);
+    const camera = cameraName(get('Make'), get('Model'));
+    const f35 = toNum(get('FocalLengthIn35mmFormat'));
+    const iso = toNum(get('ISO', 'ISOSpeedRatings', 'PhotographicSensitivity'));
+    const lens = toText(get('LensModel', 'Lens'));
+    const taken = get('DateTimeOriginal', 'CreateDate');
+    return {
+      title: camera ? `Shot on ${camera}` : '',
+      // The 35 mm equivalent is the number people know (a phone's 6.86 mm lens is "24 mm").
+      details: [f35 ? `${f35} mm` : fmtFocal(get('FocalLength')), fmtAperture(get('FNumber', 'ApertureValue')),
+        fmtShutter(get('ExposureTime')), iso ? `ISO ${iso}` : null].filter(Boolean).join('   '),
+      // Phones name their lenses like "iPhone 15 Pro back triple camera 6.86mm f/1.78"; those are left out.
+      small: [lens && !/\b(back|front|camera)\b/i.test(lens) ? lens : null,
+        taken instanceof Date && !Number.isNaN(taken.getTime()) ? longDate.format(taken) : null].filter(Boolean).join('  ·  '),
+    };
+  }
+
+  const cardFont = (st, line, px) => (line === 'title' ? `${st.weight} ${px}px "${st.font}"`
+    : `${px}px "${line === 'details' ? st.mono : st.font}"`);
+
+  function cardLayout(ctx, o, ar) {
+    const st = CARD_STYLES[o.style];
+    const pixel = o.style === 'pixel';
+    const side = pixel ? 7 : 4;
+    const top = pixel ? 8 : 4;
+    const pad = pixel ? 4.2 : 3.4;
+    const below = pixel ? 2.2 : 0; // room for the pixel frame under the photo
+    const gap = 1;
+    const text = {};
+    const size = {};
+    const width = {};
+    const rowH = {};
+    for (const k of CARD_LINES) {
+      text[k] = String(o[k] || '').trim();
+      if (st.upper) text[k] = text[k].toUpperCase();
+      size[k] = CARD_SIZE[k] * st.scale;
+      rowH[k] = size[k] * (k === 'title' ? 1.3 : 1.4);
+      ctx.font = cardFont(st, k, 100);
+      width[k] = text[k] ? (ctx.measureText(text[k]).width / 100) * size[k] : 0;
+    }
+    const rows = CARD_LINES.filter((k) => text[k]);
+    const left = ['title', 'small'].filter((k) => text[k]);
+    const leftH = left.reduce((a, k) => a + rowH[k], 0) + (left.length > 1 ? gap : 0);
+
+    // Camera on the left, settings on the right when both fit side by side; otherwise one per row.
+    const solve = (avail) => {
+      const two = Boolean(text.details && left.length
+        && Math.max(width.title, width.small) + 5 + width.details <= avail);
+      const contentH = two ? Math.max(leftH, rowH.details)
+        : rows.reduce((a, k) => a + rowH[k], 0) + Math.max(0, rows.length - 1) * gap;
+      return { two, contentH, barH: below + (rows.length ? contentH + 2 * pad : side) };
+    };
+
+    const ratio = CARD_SHAPES[o.shape];
+    const availW = 100 - 2 * side;
+    let lay = solve(availW);
+    let pw = availW;
+    let H;
+    let y = top;
+    if (!ratio) {
+      H = top + pw / ar + lay.barH;
+    } else {
+      H = 100 * ratio;
+      const fit = (l) => Math.min(availW, (H - top - l.barH) * ar);
+      pw = fit(lay);
+      const again = solve(pw);
+      if (again.barH !== lay.barH) pw = fit(again);
+      lay = again;
+      y = top + (H - top - lay.barH - pw / ar) / 2;
+    }
+    const photo = { x: (100 - pw) / 2, y, w: pw, h: pw / ar };
+    return { st, pixel, text, size, width, rowH, gap, pad, below, left, leftH, rows, H, photo, ...lay };
+  }
+
+  // Pixels per layout unit. A saved card is as sharp as the photo allows, up to SAVE_LONG, and
+  // never smaller than the preview.
+  function cardScale(L, sw, save) {
+    const span = Math.max(100, L.H);
+    if (!save) return PREVIEW_LONG / span;
+    return Math.min(SAVE_LONG / span, Math.max(sw / L.photo.w, PREVIEW_LONG / span));
+  }
+
+  function renderCard(canvas, img, o, save) {
+    const ctx = canvas.getContext('2d');
+    const L = cardLayout(ctx, o, img.width / img.height);
+    const u = cardScale(L, img.width, save);
+    canvas.width = Math.round(100 * u);
+    canvas.height = Math.round(L.H * u);
+    const { st, photo: p } = L;
+
+    ctx.fillStyle = st.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img.probe, p.x * u, p.y * u, p.w * u, p.h * u);
+
+    if (L.pixel) {
+      // The logo's frame: a gap in the top edge with a square dot breaking out of it.
+      const s = 0.7;
+      const g = 1.5;
+      const dot = 3.1;
+      const gapW = 10.6;
+      const x0 = p.x - g - s;
+      const y0 = p.y - g - s;
+      const w = p.w + 2 * (g + s);
+      const h = p.h + 2 * (g + s);
+      const half = (w - gapW) / 2;
+      ctx.fillStyle = st.text;
+      for (const [rx, ry, rw, rh] of [[x0, y0, s, h], [x0 + w - s, y0, s, h], [x0, y0 + h - s, w, s],
+        [x0, y0, half, s], [x0 + w - half, y0, half, s], [x0 + w / 2 - dot / 2, y0 - 1.3, dot, dot]]) {
+        ctx.fillRect(rx * u, ry * u, rw * u, rh * u);
+      }
+    }
+
+    const line = (k, x, yMid, align, avail) => {
+      const fit = Math.min(1, avail / L.width[k]);
+      ctx.font = cardFont(st, k, L.size[k] * fit * u);
+      ctx.fillStyle = k === 'small' ? st.muted : st.text;
+      ctx.textAlign = align;
+      ctx.fillText(L.text[k], x * u, yMid * u);
+    };
+    ctx.textBaseline = 'middle';
+    const textTop = p.y + p.h + L.below + L.pad;
+    const right = p.x + p.w;
+    if (L.two) {
+      let yy = textTop + (L.contentH - L.leftH) / 2;
+      for (const k of L.left) {
+        line(k, p.x, yy + L.rowH[k] / 2, 'left', p.w - L.width.details - 5);
+        yy += L.rowH[k] + L.gap;
+      }
+      line('details', right, textTop + L.contentH / 2, 'right', p.w - Math.max(L.width.title, L.width.small) - 5);
+    } else {
+      let yy = textTop;
+      for (const k of L.rows) {
+        line(k, p.x, yy + L.rowH[k] / 2, 'left', p.w);
+        yy += L.rowH[k] + L.gap;
+      }
+    }
+    return { L, u };
+  }
+
+  let card = null; // the open photo's card text, kept while switching tools
+  let cardCanvas = null;
+  let cardCaption = null;
+  let cardUrl = null;
+  let previewQueued = false;
+
+  const cardOpts = () => ({ ...cardPrefs, title: card.title, details: card.details, small: card.small });
+
+  function drawPreview() {
+    if (previewQueued) return;
+    previewQueued = true;
+    loadCardFonts().then(() => {
+      previewQueued = false;
+      if (!cardCanvas || !current?.img.ok || !card) return;
+      const { img } = current;
+      const { L } = renderCard(cardCanvas, img, cardOpts(), false);
+      const u = cardScale(L, img.width, true);
+      cardCaption.textContent = `Saves at ${Math.round(100 * u)} × ${Math.round(L.H * u)}`;
+    });
+  }
+
+  function buildCardStage() {
+    cardCanvas = el('canvas', { class: 'card-canvas', role: 'img', 'aria-label': 'Preview of the card' });
+    cardCaption = el('span', null, 'Preview');
+    drawPreview();
+    return el('figure', { class: 'photo card-stage' }, cardCanvas, el('figcaption', null, cardCaption));
+  }
+
+  async function saveCard(button, note) {
+    if (!current?.img.ok || !card) return;
+    button.disabled = true;
+    try {
+      await loadCardFonts();
+      const canvas = document.createElement('canvas');
+      renderCard(canvas, current.img, cardOpts(), true);
+      const { width, height } = canvas;
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      canvas.width = 0;
+      if (!blob) throw new Error('could not save');
+      if (cardUrl) URL.revokeObjectURL(cardUrl);
+      cardUrl = URL.createObjectURL(blob);
+      const name = `${baseName(current.file.name)}-shot-on.jpg`;
+      const a = el('a', { href: cardUrl, download: name, hidden: true });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      note.textContent = `Saved ${name}, ${width} × ${height}, ${fmtBytes(blob.size)}. Made on this device.`;
+    } catch {
+      note.textContent = 'Couldn’t save the card. This browser may not have enough memory for a photo this large.';
+    }
+    button.disabled = false;
+  }
+
+  function buildCardPanel(file, meta, img) {
+    if (card?.file !== file) card = { file, ...cardDefaults(meta) };
+    const nodes = [el('div', { class: 'summary' },
+      el('p', { class: 'summary-eyebrow', title: file.name }, file.name),
+      el('h1', { class: 'summary-title' }, 'Shot on card'),
+      el('p', { class: 'summary-sub' }, 'Your photo with its camera and settings underneath. Edit any line.'),
+    )];
+    if (!img.ok) {
+      nodes.push(notice('Can’t make a card', /\.(heic|heif)$/i.test(file.name)
+        ? 'This browser can’t show HEIC photos. Safari can, or save the photo as a JPEG first.'
+        : 'This browser can’t show this photo, so it can’t draw a card with it.'));
+      return nodes;
+    }
+
+    const seg = (key, label, options) => {
+      const box = el('div', { class: 'seg', role: 'group', 'aria-label': label },
+        options.map(([value, text]) => el('button', {
+          type: 'button', 'data-value': value, 'aria-pressed': String(cardPrefs[key] === value),
+        }, text)));
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        cardPrefs[key] = b.dataset.value;
+        for (const other of box.children) other.setAttribute('aria-pressed', String(other === b));
+        saveCardPrefs();
+        drawPreview();
+      });
+      return el('div', { class: 'card-row' }, el('span', { class: 'card-label' }, label), box);
+    };
+
+    const field = (label, key, placeholder) => {
+      const input = el('input', { type: 'text', maxlength: '80', placeholder, spellcheck: 'false', autocomplete: 'off' });
+      input.value = card[key];
+      input.addEventListener('input', () => {
+        card[key] = input.value;
+        drawPreview();
+      });
+      return el('label', { class: 'card-row' }, el('span', { class: 'card-label' }, label), input);
+    };
+
+    const save = el('button', { class: 'map-link wipe-save', type: 'button' }, icon('file'), 'Save card');
+    const note = el('p', { class: 'map-note' }, 'Saved as a JPEG on this device. Your original stays as it is.');
+    save.addEventListener('click', () => saveCard(save, note));
+
+    nodes.push(
+      el('div', { class: 'card-controls' },
+        seg('style', 'Style', [['light', 'Light'], ['dark', 'Dark'], ['pixel', 'Pixel']]),
+        seg('shape', 'Shape', [['original', 'Original'], ['square', 'Square'], ['portrait', '4:5']]),
+        field('Title', 'title', 'Shot on …'),
+        field('Settings', 'details', '35 mm   f/1.8   1/250 s   ISO 100'),
+        field('Small line', 'small', 'Lens, place or date'),
+      ),
+      save,
+      note,
+    );
+    return nodes;
+  }
+
   /* ---------- Modes ---------- */
 
   // The tabs above the drop zone. On the empty page they change the words; with a photo open they
@@ -1464,15 +1758,32 @@
       overlay: 'Drop to wipe',
       doc: 'Inspicio · Wipe photo metadata',
     },
+    'shot-on': {
+      title: ['Show how you', 'shot it.'],
+      sub: 'Put the camera and settings under your photo, ready to post. Made in your browser.',
+      dropSub: 'to make a card',
+      overlay: 'Drop to make a card',
+      doc: 'Inspicio · Shot on card',
+    },
   };
 
   const modesNav = $('#modes');
   let mode = 'inspect';
   let current = null; // { file, meta, img } for the open photo
+  let photoFigure = null; // the zoomable photo; the Shot on tool shows its card in its place
 
   function panelNodes() {
     const { file, meta, img } = current;
-    return [modesNav, ...(mode === 'wipe' ? buildWipePanel(file, meta, img) : buildPanel(file, meta, img))];
+    const build = { wipe: buildWipePanel, 'shot-on': buildCardPanel }[mode] || buildPanel;
+    return [modesNav, ...build(file, meta, img)];
+  }
+
+  const showsCard = () => Boolean(mode === 'shot-on' && current?.img.ok);
+
+  function stageNode() {
+    if (showsCard()) return buildCardStage();
+    cardCanvas = null;
+    return photoFigure;
   }
 
   function setMode(next, fromUser) {
@@ -1487,6 +1798,7 @@
     if (current) {
       document.title = `${current.file.name} · Inspicio`;
       if (changed) {
+        if (showsCard() !== stage.contains(cardCanvas)) stage.replaceChildren(stageNode());
         panel.replaceChildren(...panelNodes());
         panel.scrollTop = 0;
         decodeValues(panel);
@@ -1586,12 +1898,15 @@
 
     current = { file, meta, img };
     if (cleanUrl) URL.revokeObjectURL(cleanUrl);
+    if (cardUrl) URL.revokeObjectURL(cardUrl);
     cleanUrl = null;
+    cardUrl = null;
     cleanFor = null;
+    photoFigure = buildStage(file, img, url);
 
     await withTransition(() => {
       panel.replaceChildren(...panelNodes());
-      stage.replaceChildren(buildStage(file, img, url));
+      stage.replaceChildren(stageNode());
       emptyView.hidden = true;
       viewerView.hidden = false;
       openAnother.hidden = false;
