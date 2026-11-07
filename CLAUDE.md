@@ -41,7 +41,7 @@
 
 - **GitHub:** `Johnnythan-3/inspicio`, default branch `main`.
 - **Hosting:** Cloudflare Workers static assets (no Worker script), linked to repo. Push to `main` auto-deploys, usually 30–90 s (once over 3 min). Other branches get preview URLs.
-- **Live URL:** https://inspicio.johnnythan.workers.dev
+- **Live URL:** https://inspicio.app (bought 2026-11-07, Cloudflare Registrar, auto-renew on; attached via `routes` in `wrangler.jsonc`). Old https://inspicio.johnnythan.workers.dev still serves.
 - **URL privacy rule:** workers.dev subdomain `johnnythan`, renamed from one exposing owner's email name. Never put owner's email or anything derived from it in URLs, files, commits. Commits use GitHub noreply address from repo git config.
 - Fully static, no server code.
 
@@ -54,13 +54,12 @@
   - Empty page: ticker (`buildTicker`), 7 faint rows of made-up tags behind headline, snapped to 22 px grid. Feathered `backdrop-filter` blur behind headline. Subtitle "Every hidden tag, read here in your browser."
   - Drop zone icon: 3 diagonally stacked photos (`.stack-*`), spread 20 px apart on hover; `startBits` floats scrambled data bits up.
   - Photo open: `pixelReveal` canvas, big pixels in photo's colors shrink in 10 steps until sharp (last: 1.5 px) (replaced scan line).
-  - Shorter "Small copy" notice.
   - Tried and removed (user: clutter): pixel trails running around drop zone frame. Don't bring back.
-- Session 6: user confirmed in Firefox: iPhone ProRAW DNG from Finder shows full-size preview (pixel reveal smooth on 48 MP), trackpad pinch/pan, collapse state, map, copy coordinates. Photos drag gives 360 × 480 JPEG copy (expected); test RAW via Photos File › Export › Export Unmodified Original.
+- Session 6: confirmed in Firefox: ProRAW DNG from Finder (full-size, reveal smooth on 48 MP), trackpad pinch/pan, collapse, map, copy coordinates. Photos drag gives small JPEG; test RAW via Photos File › Export › Export Unmodified Original.
 - Sony ARW from Finder, HEIC placeholder (Firefox) confirmed.
 - Not tested: real touch pinch on phone.
 - Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
-- Later, only if asked: tag search, copy as JSON, "download clean copy", custom domain, OSM-tile map fallback.
+- Later, only if asked: tag search, copy as JSON, "download clean copy", OSM-tile map fallback.
 
 ## File layout
 
