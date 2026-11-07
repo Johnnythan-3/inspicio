@@ -1451,13 +1451,13 @@
   // card is drawn and saved on this device. Layout is worked out in units of 1/100 of the card's
   // width, so the preview and the saved file match exactly at different sizes.
   const CARD_STYLES = {
-    light: { bg: '#ffffff', text: '#17171a', muted: '#6b6b73', font: 'Geist', mono: 'Geist Mono', weight: 600, scale: 1 },
-    dark: { bg: '#0f0f11', text: '#f3f3f5', muted: '#9d9da6', font: 'Geist', mono: 'Geist Mono', weight: 600, scale: 1 },
-    pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', font: 'Departure Mono', mono: 'Departure Mono', weight: 400, scale: 0.9, upper: true },
+    light: { bg: '#ffffff', text: '#17171a', muted: '#6b6b73', title: 'italic 400 {px} "Instrument Serif"', font: 'Geist', mono: 'Geist Mono' },
+    dark: { bg: '#0f0f11', text: '#f3f3f5', muted: '#9d9da6', title: 'italic 400 {px} "Instrument Serif"', font: 'Geist', mono: 'Geist Mono' },
+    pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', title: '{px} "Departure Mono"', font: 'Departure Mono', mono: 'Departure Mono', sizes: { title: 2.2, details: 1.6, small: 1.35 }, upper: true },
   };
   const CARD_SHAPES = { original: 0, square: 1, portrait: 1.25 }; // card height ÷ width; 0 = fit the photo
   const CARD_LINES = ['title', 'details', 'small'];
-  const CARD_SIZE = { title: 2.9, details: 2.3, small: 1.9 };
+  const CARD_SIZE = { title: 3.6, details: 1.75, small: 1.5 };
   const PREVIEW_LONG = 1600;
   const SAVE_LONG = 3240; // long side of a saved card; under Safari's canvas limit at every shape
 
@@ -1480,7 +1480,7 @@
   }
 
   let cardFonts = null;
-  const loadCardFonts = () => (cardFonts ||= Promise.all(['600 20px Geist', '20px "Geist Mono"', '20px "Departure Mono"']
+  const loadCardFonts = () => (cardFonts ||= Promise.all(['italic 20px "Instrument Serif"', '20px Geist', '20px "Geist Mono"', '20px "Departure Mono"']
     .map((f) => document.fonts.load(f).catch(() => null))));
 
   const longDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
@@ -1503,17 +1503,17 @@
     };
   }
 
-  const cardFont = (st, line, px) => (line === 'title' ? `${st.weight} ${px}px "${st.font}"`
+  const cardFont = (st, line, px) => (line === 'title' ? st.title.replace('{px}', `${px}px`)
     : `${px}px "${line === 'details' ? st.mono : st.font}"`);
 
   function cardLayout(ctx, o, ar) {
     const st = CARD_STYLES[o.style];
     const pixel = o.style === 'pixel';
-    const side = pixel ? 7 : 4;
-    const top = pixel ? 8 : 4;
-    const pad = pixel ? 4.2 : 3.4;
+    const side = pixel ? 5.5 : 3;
+    const top = pixel ? 6 : 3;
+    const pad = pixel ? 2.2 : 1.9;
     const below = pixel ? 2.2 : 0; // room for the pixel frame under the photo
-    const gap = 1;
+    const gap = 0.5;
     const text = {};
     const size = {};
     const width = {};
@@ -1521,8 +1521,8 @@
     for (const k of CARD_LINES) {
       text[k] = String(o[k] || '').trim();
       if (st.upper) text[k] = text[k].toUpperCase();
-      size[k] = CARD_SIZE[k] * st.scale;
-      rowH[k] = size[k] * (k === 'title' ? 1.3 : 1.4);
+      size[k] = (st.sizes || CARD_SIZE)[k];
+      rowH[k] = size[k] * (k === 'title' ? 1.15 : 1.35);
       ctx.font = cardFont(st, k, 100);
       width[k] = text[k] ? (ctx.measureText(text[k]).width / 100) * size[k] : 0;
     }
