@@ -29,7 +29,7 @@
 - **One opt-in exception:** "Show map" requests Mapbox static image, sending coordinates (and IP) to Mapbox. Mapbox terms need text credit under map. Never request before click; keep note under button saying what it sends. Public `pk.` token = `MAPBOX_TOKEN` in `app.js` (empty hides button). Default token of Mapbox account `johnnythan`, no card: no URL restrictions, 5,000 requests/month free, no charges possible; over limit map fails, OSM link stays. Map `<img>` uses `referrerPolicy = 'strict-origin'` so URL-restricted token works if added later.
 - **No build step.** Plain HTML, CSS, JS. Opening `index.html` (or static serving) must work.
 - **Metadata parsing:** [`exifr`](https://github.com/MikeKovarik/exifr) (EXIF, GPS, IPTC, XMP, ICC, HEIC), pinned CDN version or vendored. No hand-rolled parser.
-- **Revoke object URLs** when new photo loads.
+- **Revoke object URLs** on new photo.
 
 ## Design
 
@@ -54,7 +54,7 @@
 - Confirmed by user: JPEG, ProRAW DNG, Sony ARW (full size, smooth at 48 MP), HEIC placeholder, Photos notice, pinch/pan, collapse, map, copy coords, workers.dev redirect. Test RAW from Photos via File › Export › Export Unmodified Original.
 - Not tested: phone. Motion ideas: logo-dot hop, count-up numbers (Anime.js OK, vendored).
 - Optional: `www.inspicio.app` redirect, `hello@inspicio.app` (Email Routing).
-- Session 7: tabs, Wipe (user confirmed), Shot on (user not yet). Next: Film (port `../Archived/rolls` Swift engine; per-pixel stages as LUT like `PreviewLUT.swift`).
+- Session 7: tabs, Wipe, Shot on (user tuned fonts/sizes). Next: Film (port `../Archived/rolls` Swift engine; per-pixel stages as LUT, see `PreviewLUT.swift`).
 - Later, only if asked: tag search, copy as JSON, OSM-tile map fallback.
 
 ## File layout
