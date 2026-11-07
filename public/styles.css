@@ -483,6 +483,39 @@ body.dragging .stack-front { transform: translate(-20px, 0); transition-delay: 0
   color: var(--accent);
 }
 
+/* Tool tabs. Above the drop zone on the empty page; at the top of the panel once a photo is open
+   (app.js moves the same element, and the view transition carries it across). */
+.modes {
+  display: flex;
+  margin-top: 4px;
+  view-transition-name: modes;
+  animation: rise 0.8s 0.09s var(--ease) both;
+}
+
+.mode {
+  height: 30px;
+  margin-left: -2px;
+  padding: 0 14px;
+  border: 2px solid var(--accent);
+  border-radius: 0;
+  background: var(--bg);
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.mode:first-child { margin-left: 0; }
+.mode:hover { background: var(--accent-soft); }
+.mode[aria-pressed="true"] { background: var(--accent); color: var(--bg); cursor: default; }
+.mode:focus-visible { position: relative; outline-offset: 2px; }
+
+.panel .modes { margin: 0 0 18px; animation: none; }
+.panel .mode { flex: 1; }
+
 body.busy .dropzone { pointer-events: none; }
 body.busy .dropzone-icon { animation: pulse 1.1s var(--ease) infinite; }
 
@@ -1068,6 +1101,26 @@ button.map-link { width: 100%; cursor: pointer; }
 button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .notice-action { margin: 10px 0 0; }
+
+/* Wipe: the clean-copy box under "What it gives away". */
+.wipe-box { animation: rise 0.6s 0.1s var(--ease) both; }
+
+.wipe-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 6px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.wipe-status .spinner { width: 14px; height: 14px; }
+
+.wipe-save { margin: 0 0 10px; padding: 12px; background: var(--accent); color: var(--bg); }
+.map-link.wipe-save:hover { background: color-mix(in srgb, var(--accent) 82%, var(--text)); color: var(--bg); }
+.wipe-result { margin: 0 6px; }
+.wipe-result dd { overflow-wrap: anywhere; }
 
 .map-box { margin: 6px 0 2px; }
 .map-box .map-link { margin: 0; }

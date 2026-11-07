@@ -4,7 +4,7 @@
 
 ## Product
 
-- **Empty state:** big drop zone, click-to-browse fallback.
+- **Empty state:** big drop zone, click-to-browse fallback. Tool tabs above it (`#modes`): Inspect, Wipe; next Shot on, Film. Same nav moves to panel top when photo open; mode in hash (`#wipe`).
 - **Loaded state:**
   - **Left:** full-res photo preview, smooth zoom/pan (wheel/trackpad pinch, touch pinch, double-click, drag, +/−/Fit controls, keys + − 0).
   - **Right panel:** metadata in sections, max 340 px wide. Header click collapses section smoothly; collapsed titles saved in `localStorage` (`inspicio.collapsed`). Only display prefs there, never photo data.
@@ -17,14 +17,15 @@
   - **File:** name, size, MIME type, last modified.
   - **Raw:** every parsed tag, flat list at bottom.
 - **No-metadata state:** screenshots, social/messaging images often have none. Show clear friendly message, never empty panel.
+- **Wipe:** JPEG/PNG lossless (copy segments; drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed by exifr; tag left = no download. exifr can't read WebP/GIF.
 - **HEIC:** Chrome/Firefox can't display. Still show metadata, placeholder instead of preview.
 - **RAW (DNG, ARW, CR2, CR3, NEF, …):** browsers can't decode, so `loadRawPreview` in `app.js` shows largest embedded JPEG preview (JPEG start marker + frame header; rotated by RAW's EXIF orientation if preview has none). Metadata still from exifr. iPhone ProRAW, Sony ARW embed full size; DJI only 960 × 540.
-- **Photos app drags:** dragging out of macOS Photos gives small preview (e.g. 360 × 480, UUID name). Panel shows "Small copy" notice for camera photos under 1200 px. Full size: picker's Photos sidebar, drag to Desktop first, or Safari (~3 s wait, loading overlay).
+- **Photos app drags:** macOS Photos drag gives small preview (e.g. 360 × 480). "Small copy" notice for camera photos under 1200 px. Full size: picker's Photos sidebar, Desktop first, or Safari (~3 s, loading overlay).
 
 ## Hard rules
 
 - **Everything runs in browser.** Photo never leaves machine: no uploads, no analytics on file contents, no backend. Privacy promise = main selling point. Never break.
-- **One opt-in exception:** "Show map" requests Mapbox static image, sending coordinates (and IP) to Mapbox. Mapbox terms require text credit under map. Never request before click, never auto-load, keep note under button saying what it sends. Public `pk.` token = `MAPBOX_TOKEN` in `app.js` (empty hides button). Default public token of Mapbox account `johnnythan`, no card on file: no URL restrictions (need card), 5,000 Static Images requests/month, no possible charges. Over limit: map fails, OpenStreetMap link remains. Map `<img>` uses `referrerPolicy = 'strict-origin'` so URL-restricted token works if added later.
+- **One opt-in exception:** "Show map" requests Mapbox static image, sending coordinates (and IP) to Mapbox. Mapbox terms need text credit under map. Never request before click; keep note under button saying what it sends. Public `pk.` token = `MAPBOX_TOKEN` in `app.js` (empty hides button). Default token of Mapbox account `johnnythan`, no card: no URL restrictions, 5,000 requests/month free, no charges possible; over limit map fails, OSM link stays. Map `<img>` uses `referrerPolicy = 'strict-origin'` so URL-restricted token works if added later.
 - **No build step.** Plain HTML, CSS, JS. Opening `index.html` (or static serving) must work.
 - **Metadata parsing:** [`exifr`](https://github.com/MikeKovarik/exifr) (EXIF, GPS, IPTC, XMP, ICC, HEIC), pinned CDN version or vendored. No hand-rolled parser.
 - **Revoke object URLs** (`URL.revokeObjectURL`) when new photo loads.
@@ -43,18 +44,18 @@
 - **Hosting:** Cloudflare Workers static assets (no Worker script), linked to repo. Push to `main` auto-deploys, usually 30–90 s (once over 3 min). Other branches get preview URLs.
 - **Live URL:** https://inspicio.app (bought 2026-11-07, Cloudflare Registrar, auto-renew on; attached via `routes` in `wrangler.jsonc`). Old workers.dev home/404 forward there (`redirect.js`).
 - **URL privacy rule:** workers.dev subdomain `johnnythan`, renamed from one exposing owner's email name. Never put owner's email or anything derived from it in URLs, files, commits. Commits use GitHub noreply address from repo git config.
-- Fully static, no server code.
 
-## Status (2026-11-07, end of session 6)
+## Status (2026-11-07, session 7)
 
 - All live, user likes all of it. User tests in **Firefox** on Mac (Safari for Photos drags); originals often iPhone 15 Pro ProRAW DNGs (48 MP), Sony A7C II ARWs.
-- Motion and look: "pixel frame" style (grid background, Departure Mono headlines, logo-style frames with gap + breakout dot, `--radius: 0`, outlined buttons). Empty page: `buildTicker` rows of made-up tags behind headline (22 px grid, feathered blur). Drop zone: 3 diagonal photos (`.stack-*`) spread on hover, `startBits` floats bits. Photo open: `pixelReveal` (10 steps, last 1.5 px), `decodeValues` scrambles then resolves values. Raw rows: name above value.
+- Look: "pixel frame" style (grid bg, Departure Mono headlines, frames with gap + breakout dot, outlined buttons). Empty page: `buildTicker` made-up tags behind headline (22 px grid). Drop zone: 3 diagonal photos (`.stack-*`) spread on hover, `startBits` floats bits. Photo open: `pixelReveal` (10 steps, last 1.5 px), `decodeValues` scrambles then resolves values. Raw rows: name above value.
 - Removed (user: clutter): pixel trails around drop zone frame. Don't bring back.
-- Confirmed by user: JPEG, ProRAW DNG and Sony ARW from Finder (full-size previews, reveal smooth on 48 MP), HEIC placeholder, Photos drag notice, trackpad pinch/pan, collapse state, map, copy coordinates, workers.dev redirect. Test RAW from Photos via File › Export › Export Unmodified Original.
+- Confirmed by user: JPEG, ProRAW DNG, Sony ARW (full-size previews, smooth on 48 MP), HEIC placeholder, Photos drag notice, trackpad pinch/pan, collapse state, map, copy coordinates, workers.dev redirect. Test RAW from Photos via File › Export › Export Unmodified Original.
 - Not tested: phone (touch pinch, layout).
 - Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
 - Optional: `www.inspicio.app` redirect, `hello@inspicio.app` via Cloudflare Email Routing.
-- Later, only if asked: tag search, copy as JSON, "download clean copy", OSM-tile map fallback.
+- Session 7: tabs + Wipe built, tested on real JPEGs (pixels identical); user not yet. Next: Shot on card, then Film (port `../Archived/rolls` Swift engine; per-pixel stages as LUT like `PreviewLUT.swift`).
+- Later, only if asked: tag search, copy as JSON, OSM-tile map fallback.
 
 ## File layout
 
@@ -79,6 +80,6 @@ wrangler.jsonc           Cloudflare static assets config (serves ./public)
 
 - Keep file under 8 KB.
 - Test with real camera/phone JPEG with GPS, no-metadata screenshot, HEIC, RAW.
-- User's console warnings about "SF Pro" fonts and CSP-blocked inline script: Firefox fingerprinting protection + browser extension, not site. It rounds timestamps: animate with CSS/Web Animations, never rAF timestamps.
+- Console warnings on "SF Pro" fonts, CSP-blocked inline script: Firefox fingerprinting protection + extension, not site. It rounds timestamps: animate with CSS/Web Animations, never rAF timestamps.
 - GitHub push protection flags Mapbox `pk.` token as secret. Allowed as false positive; new token needs same.
-- In-app browser pane: start server with Bash in background (preview_start can't run python in Desktop folder), then attach via `.claude/launch.json` url. Hidden pane: `img.decode()`, view transitions, CSS animations never finish; stub `decode` to resolve on `load` (reveal needs `naturalWidth`), unset `document.startViewTransition`, call `finish()` on `document.getAnimations()`. Pane caches `styles.css`; swap link href with `?t=` to refresh. CSP blocks `fetch`, so build test files in page (canvas, base64) and load via `DataTransfer` on `#file-input`.
+- In-app browser pane: start server with Bash in background (preview_start can't run python in Desktop folder), attach via `.claude/launch.json` url. Hidden pane: `img.decode()`, view transitions, animations never finish; stub `decode` to resolve on `load`, unset `document.startViewTransition`, `finish()` `document.getAnimations()`. Pane caches `styles.css`/`app.js` hard; open `127.0.0.1:8788` instead of `localhost` (fresh cache), reload after edits. CSP blocks `fetch`: build test files in page, load via `DataTransfer` on `#file-input`.

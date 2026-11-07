@@ -42,9 +42,14 @@
     <section class="empty" id="empty-view">
       <div class="hero-copy">
         <div class="ticker" id="ticker" aria-hidden="true"></div>
-        <h1>See what your<br>photos say.</h1>
-        <p>Every hidden tag, read here in your browser.</p>
+        <h1 id="hero-title">See what your<br>photos say.</h1>
+        <p id="hero-sub">Every hidden tag, read here in your browser.</p>
       </div>
+
+      <nav class="modes" id="modes" aria-label="Tools">
+        <button class="mode" type="button" data-mode="inspect" aria-pressed="true">Inspect</button>
+        <button class="mode" type="button" data-mode="wipe" aria-pressed="false">Wipe</button>
+      </nav>
 
       <button class="dropzone" id="dropzone" type="button">
         <span class="dropzone-icon" id="photo-stack" aria-hidden="true">
@@ -61,7 +66,7 @@
           </svg>
         </span>
         <span class="dropzone-title">Drop a photo</span>
-        <span class="dropzone-sub">or click to choose one</span>
+        <span class="dropzone-sub" id="dropzone-sub">or click to choose one</span>
       </button>
 
       <ul class="formats" aria-label="Supported formats">
@@ -88,7 +93,7 @@
 
   <div class="drag-overlay" id="drag-overlay" aria-hidden="true">
     <div class="drag-overlay-inner">
-      <span class="overlay-drop">Drop to inspect</span>
+      <span class="overlay-drop" id="overlay-drop">Drop to inspect</span>
       <span class="overlay-loading"><span class="spinner"></span>Opening photo…</span>
     </div>
   </div>

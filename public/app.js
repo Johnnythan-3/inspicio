@@ -68,6 +68,10 @@
 
   // Segments that only describe the file or its colors, not the photo. Screenshots and exported images often have these.
   const CONTAINER_SEGMENTS = new Set(['jfif', 'ihdr', 'icc']);
+  // exifr puts a PNG's text chunks (Author, Comment, …) in the same segment as its header, so only
+  // the header fields count as container data there.
+  const PNG_HEADER = new Set(['ImageWidth', 'ImageHeight', 'BitDepth', 'ColorType', 'Compression', 'Filter', 'Interlace']);
+  const isPhotoTag = (l) => !CONTAINER_SEGMENTS.has(l.segment) || (l.segment === 'ihdr' && !PNG_HEADER.has(l.key));
 
   async function readMetadata(file) {
     if (!window.exifr) return { segments: {}, error: 'The metadata reader failed to load. Reload the page and try again.' };
@@ -474,9 +478,15 @@
 
   /* ---------- Panel ---------- */
 
+  function locationOf(get) {
+    const lat = coordinate(get('latitude') ?? get('GPSLatitude'), toText(get('GPSLatitudeRef')));
+    const lon = coordinate(get('longitude') ?? get('GPSLongitude'), toText(get('GPSLongitudeRef')));
+    return { lat, lon, hasCoords: lat !== null && lon !== null && !(lat === 0 && lon === 0) };
+  }
+
   function buildPanel(file, meta, img) {
     const { leaves, get } = indexMetadata(meta.segments);
-    const photoTags = leaves.filter((l) => !CONTAINER_SEGMENTS.has(l.segment));
+    const photoTags = leaves.filter(isPhotoTag);
     const nodes = [];
     let i = 0;
 
@@ -553,9 +563,7 @@
     ], i++));
 
     // Location
-    const lat = coordinate(get('latitude') ?? get('GPSLatitude'), toText(get('GPSLatitudeRef')));
-    const lon = coordinate(get('longitude') ?? get('GPSLongitude'), toText(get('GPSLongitudeRef')));
-    const hasCoords = lat !== null && lon !== null && !(lat === 0 && lon === 0);
+    const { lat, lon, hasCoords } = locationOf(get);
     let altitude = toNum(get('GPSAltitude'));
     const altRef = get('GPSAltitudeRef');
     if (altitude !== null && (toNum(altRef) === 1 || /below/i.test(String(altRef)))) altitude = -altitude;
@@ -591,7 +599,7 @@
       ['Title', toText(get('title', 'ObjectName', 'Headline'))],
       ['Caption', toText(get('ImageDescription', 'description', 'Caption', 'Caption-Abstract'))],
       ['Keywords', toText(keywords)],
-      ['Artist', toText(get('Artist', 'creator', 'Byline', 'By-line'))],
+      ['Artist', toText(get('Artist', 'creator', 'Author', 'Byline', 'By-line'))],
       ['Copyright', toText(get('Copyright', 'rights', 'CopyrightNotice'))],
       ['Credit', toText(get('Credit'))],
       ['Rating', rating && rating > 0 ? stars(rating) : null],
@@ -1192,6 +1200,319 @@
     frame = requestAnimationFrame(tick);
   }
 
+  /* ---------- Wipe: a clean copy without the hidden data ---------- */
+
+  // JPEG and PNG are cleaned by copying the file and leaving out the parts that hold
+  // metadata, so the picture data itself is untouched (no re-compression, same quality). Anything
+  // else the browser can display (HEIC in Safari, a RAW file's built-in preview, AVIF, TIFF, GIF)
+  // is redrawn on a canvas and saved as a new JPEG or PNG, which carries no metadata at all.
+  // Both happen on this device; the copy is saved straight back to it.
+
+  const ascii = (b, at, text) => [...text].every((c, i) => b[at + i] === c.charCodeAt(0));
+
+  // An EXIF block holding only the rotation, so a cleaned photo still shows upright.
+  function orientationSegment(o) {
+    return new Uint8Array([
+      0xFF, 0xE1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, // APP1, length 34, "Exif\0\0"
+      0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08, // TIFF header, big-endian, IFD0 at 8
+      0x00, 0x01, // one entry
+      0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, o, 0x00, 0x00, // Orientation, SHORT, 1
+      0x00, 0x00, 0x00, 0x00, // no next IFD
+    ]);
+  }
+
+  // Keeps the picture data, the JFIF header, the color profile and Adobe's color-transform flag.
+  // Drops EXIF, XMP, IPTC, comments, maker data and every image stored after the main one (iPhone
+  // HDR gain maps and depth maps are separate JPEGs appended to the file, each with its own EXIF).
+  function stripJpeg(b, orientation) {
+    const parts = [b.subarray(0, 2)];
+    let rotated = !(orientation > 1 && orientation <= 8);
+    let p = 2;
+    while (p + 1 < b.length) {
+      if (b[p] !== 0xFF) throw new Error('JPEG structure not recognised');
+      const m = b[p + 1];
+      if (m === 0xFF) { p += 1; continue; }
+      if (m === 0xD9) {
+        parts.push(b.subarray(p, p + 2));
+        return parts;
+      }
+      if (m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { parts.push(b.subarray(p, p + 2)); p += 2; continue; }
+      const end = p + 2 + ((b[p + 2] << 8) | b[p + 3]);
+      if (end > b.length) throw new Error('JPEG ends early');
+      const keep = m === 0xE0 ? ascii(b, p + 4, 'JFIF\0')
+        : m === 0xE2 ? ascii(b, p + 4, 'ICC_PROFILE\0')
+          : m === 0xEE ? ascii(b, p + 4, 'Adobe')
+            : !(m >= 0xE1 && m <= 0xEF) && m !== 0xFE;
+      if (keep && !rotated && m !== 0xE0) {
+        parts.push(orientationSegment(orientation));
+        rotated = true;
+      }
+      if (keep) parts.push(b.subarray(p, end));
+      p = end;
+      if (m === 0xDA) {
+        // Compressed picture data runs until the next real marker. 0xFF00 is an escaped byte and
+        // 0xFFD0-D7 are restart markers, both part of the data.
+        let q = p;
+        for (;;) {
+          q = b.indexOf(0xFF, q);
+          if (q === -1 || q + 1 >= b.length) throw new Error('JPEG ends early');
+          const n = b[q + 1];
+          if (n === 0x00 || (n >= 0xD0 && n <= 0xD7)) q += 2;
+          else if (n === 0xFF) q += 1;
+          else break;
+        }
+        parts.push(b.subarray(p, q));
+        p = q;
+      }
+    }
+    throw new Error('JPEG ends early');
+  }
+
+  // Keeps the chunks that affect how the picture looks (and animation, for APNG). Drops text
+  // chunks, EXIF, timestamps and anything unknown.
+  const PNG_KEEP = new Set(['tRNS', 'cHRM', 'gAMA', 'iCCP', 'sBIT', 'sRGB', 'cICP', 'mDCv', 'cLLi',
+    'pHYs', 'bKGD', 'acTL', 'fcTL', 'fdAT']);
+
+  function stripPng(b) {
+    const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    const parts = [b.subarray(0, 8)];
+    let p = 8;
+    while (p + 12 <= b.length) {
+      const end = p + 12 + view.getUint32(p);
+      if (end > b.length) throw new Error('PNG ends early');
+      const type = String.fromCharCode(b[p + 4], b[p + 5], b[p + 6], b[p + 7]);
+      const critical = b[p + 4] < 0x61; // an uppercase first letter marks a chunk every reader needs
+      if (critical || PNG_KEEP.has(type)) parts.push(b.subarray(p, end));
+      if (type === 'IEND') return parts;
+      p = end;
+    }
+    throw new Error('PNG ends early');
+  }
+
+  // Safari limits a canvas to about 16.7 megapixels; other browsers allow far more.
+  const isWebKit = 'GestureEvent' in window;
+
+  async function redraw(img, wantPng) {
+    const max = isWebKit ? 16e6 : 120e6;
+    const scale = Math.min(1, Math.sqrt(max / (img.width * img.height)));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    let ctx = null;
+    try { ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }); } catch { ctx = null; }
+    ctx = ctx || canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas unavailable');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img.probe, 0, 0, w, h);
+    const type = wantPng ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, 0.92));
+    canvas.width = 0;
+    if (!blob) throw new Error('could not save');
+    return { blob, width: w, height: h, scaled: scale < 1 };
+  }
+
+  const baseName = (name) => name.replace(/\.[^.]+$/, '') || 'photo';
+
+  // Returns { blob, name, lossless, width?, height?, scaled? } or throws with a message for people.
+  async function makeCleanCopy(file, img) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const ext = (/\.[^.]+$/.exec(file.name) || [''])[0];
+    const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+    const isPng = ascii(bytes, 0, '\x89PNG\r\n\x1A\n');
+
+    if ((isJpeg || isPng) && !RAW_EXT.test(file.name)) {
+      let parts;
+      if (isJpeg) {
+        let orientation;
+        try { orientation = await window.exifr.orientation(file); } catch { orientation = undefined; }
+        parts = stripJpeg(bytes, orientation);
+      } else {
+        parts = stripPng(bytes);
+      }
+      const type = isJpeg ? 'image/jpeg' : 'image/png';
+      return { blob: new Blob(parts, { type }), name: `${baseName(file.name)}-clean${ext || (isJpeg ? '.jpg' : '.png')}`, lossless: true };
+    }
+
+    if (!img.ok || !img.probe) {
+      const heic = /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type);
+      throw new Error(heic
+        ? 'This browser can’t open HEIC photos, so it can’t make a clean copy. Safari can, or save the photo as a JPEG first.'
+        : 'This browser can’t open this file, so it can’t make a clean copy. Save it as a JPEG first.');
+    }
+    const png = /\.(gif|bmp)$/i.test(file.name);
+    const out = await redraw(img, png);
+    return { ...out, name: `${baseName(file.name)}-clean${png ? '.png' : '.jpg'}`, lossless: false };
+  }
+
+  // Reads the copy back with the same parser, so "nothing left" is checked, not assumed.
+  async function leftoverTags(blob) {
+    const meta = await readMetadata(blob);
+    return indexMetadata(meta.segments).leaves
+      .filter((l) => isPhotoTag(l) && l.key !== 'Orientation');
+  }
+
+  let cleanUrl = null;
+  let cleanFor = null; // the file the current clean copy was made from
+
+  function buildWipePanel(file, meta, img) {
+    const { leaves, get } = indexMetadata(meta.segments);
+    const photoTags = leaves.filter(isPhotoTag);
+    const nodes = [];
+    const { lat, lon, hasCoords } = locationOf(get);
+
+    nodes.push(el('div', { class: 'summary' },
+      el('p', { class: 'summary-eyebrow', title: file.name }, file.name),
+      el('h1', { class: 'summary-title' }, photoTags.length ? 'Hidden data found' : 'Nothing hidden'),
+      el('p', { class: 'summary-sub' }, photoTags.length
+        ? `${photoTags.length} ${photoTags.length === 1 ? 'tag travels' : 'tags travel'} with this photo when you share it.`
+        : 'This photo carries no location, date or camera details.'),
+    ));
+
+    if (meta.error) {
+      nodes.push(notice('Metadata couldn’t be read', meta.error));
+      return nodes;
+    }
+
+    if (!photoTags.length) {
+      nodes.push(notice('Ready to share as it is', 'There is nothing to wipe. Screenshots and photos saved from social media or messaging apps are usually clean already.'));
+      return nodes;
+    }
+
+    nodes.push(group('What it gives away', 'info', [
+      ['Location', hasCoords ? `${lat.toFixed(4)}, ${lon.toFixed(4)}` : null, hasCoords ? 'Where it was taken, to a few meters' : null],
+      ['Taken', fmtDate(get('DateTimeOriginal', 'CreateDate'), toText(get('OffsetTimeOriginal')))],
+      ['Camera', cameraName(get('Make'), get('Model'))],
+      ['Lens', toText(get('LensModel', 'Lens'))],
+      ['Software', toText(get('Software', 'CreatorTool'))],
+      ['Name', toText(get('OwnerName', 'CameraOwnerName', 'Artist', 'creator', 'Author', 'Byline', 'By-line'))],
+      ['Caption', toText(get('ImageDescription', 'description', 'Caption', 'Caption-Abstract'))],
+      ['Serial no.', toText(get('BodySerialNumber', 'SerialNumber', 'LensSerialNumber'))],
+    ], 0));
+
+    const box = el('div', { class: 'wipe-box', 'aria-live': 'polite' },
+      el('p', { class: 'wipe-status' }, el('span', { class: 'spinner' }), 'Making a clean copy…'));
+    nodes.push(box);
+    fillWipeBox(box, file, img, photoTags.length);
+    return nodes;
+  }
+
+  async function fillWipeBox(box, file, img, count) {
+    await null; // let the panel put the box on the page first
+    let copy;
+    let left;
+    try {
+      if (cleanFor?.file !== file) {
+        const made = await makeCleanCopy(file, img);
+        left = await leftoverTags(made.blob);
+        if (cleanUrl) URL.revokeObjectURL(cleanUrl);
+        cleanUrl = URL.createObjectURL(made.blob);
+        cleanFor = { file, made, left };
+      }
+      ({ made: copy, left } = cleanFor);
+    } catch (err) {
+      const msg = err && /^[A-Z]/.test(err.message) && err.message.endsWith('.') ? err.message
+        : 'Something in this file wasn’t what Inspicio expected, so no copy was made.';
+      box.replaceChildren(notice('Couldn’t make a clean copy', msg));
+      return;
+    }
+    if (current?.file !== file || !box.isConnected) return;
+
+    if (left.length) {
+      box.replaceChildren(notice('Couldn’t wipe everything',
+        `${left.length} ${left.length === 1 ? 'tag is' : 'tags are'} still in the copy, so it isn’t offered. Save the photo as a JPEG and try again.`));
+      return;
+    }
+
+    const save = el('a', { class: 'map-link wipe-save', href: cleanUrl, download: copy.name },
+      icon('file'), 'Save clean copy');
+    const how = copy.lossless
+      ? 'Same picture, same quality. Only the hidden data is gone. Rotation and colors are kept.'
+      : `Saved as a new ${copy.blob.type === 'image/png' ? 'PNG' : 'JPEG'}, ${copy.width} × ${copy.height}`
+        + (copy.scaled ? ' (this browser’s size limit)' : '')
+        + (img.rawPreview ? ', from the RAW file’s built-in preview' : '') + '.';
+    box.replaceChildren(
+      save,
+      el('dl', { class: 'rows wipe-result' },
+        el('div', { class: 'row' }, el('dt', null, 'Removed'), el('dd', { class: 'num' }, `${count} ${count === 1 ? 'tag' : 'tags'}`)),
+        el('div', { class: 'row' }, el('dt', null, 'Checked'), el('dd', null, 'Nothing left')),
+        el('div', { class: 'row' }, el('dt', null, 'File'), el('dd', { class: 'num' }, copy.name)),
+        el('div', { class: 'row' }, el('dt', null, 'Size'), el('dd', { class: 'num' }, `${fmtBytes(file.size)} → ${fmtBytes(copy.blob.size)}`)),
+      ),
+      el('p', { class: 'map-note' }, how),
+    );
+  }
+
+  /* ---------- Modes ---------- */
+
+  // The tabs above the drop zone. On the empty page they change the words; with a photo open they
+  // sit at the top of the panel and switch what the panel shows for the same photo. The choice is
+  // kept in the address (#wipe) so a link can open a tool directly. Nothing from a photo goes there.
+  const MODES = {
+    inspect: {
+      title: ['See what your', 'photos say.'],
+      sub: 'Every hidden tag, read here in your browser.',
+      dropSub: 'or click to choose one',
+      overlay: 'Drop to inspect',
+      doc: 'Inspicio · See what your photos say',
+    },
+    wipe: {
+      title: ['Wipe what your', 'photos say.'],
+      sub: 'Remove the location, date and camera before you share. Done in your browser.',
+      dropSub: 'to make a clean copy',
+      overlay: 'Drop to wipe',
+      doc: 'Inspicio · Wipe photo metadata',
+    },
+  };
+
+  const modesNav = $('#modes');
+  let mode = 'inspect';
+  let current = null; // { file, meta, img } for the open photo
+
+  function panelNodes() {
+    const { file, meta, img } = current;
+    return [modesNav, ...(mode === 'wipe' ? buildWipePanel(file, meta, img) : buildPanel(file, meta, img))];
+  }
+
+  function setMode(next, fromUser) {
+    if (!MODES[next]) next = 'inspect';
+    const changed = next !== mode;
+    mode = next;
+    const m = MODES[mode];
+    for (const b of modesNav.querySelectorAll('.mode')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    if (fromUser) history.replaceState(null, '', mode === 'inspect' ? location.pathname + location.search : `#${mode}`);
+    $('#overlay-drop').textContent = m.overlay;
+
+    if (current) {
+      document.title = `${current.file.name} · Inspicio`;
+      if (changed) {
+        panel.replaceChildren(...panelNodes());
+        panel.scrollTop = 0;
+        decodeValues(panel);
+      }
+      return;
+    }
+    document.title = m.doc;
+    const title = $('#hero-title');
+    title.replaceChildren(m.title[0], el('br'), m.title[1]);
+    $('#hero-sub').textContent = m.sub;
+    $('#dropzone-sub').textContent = m.dropSub;
+    if (changed && !reduceMotion.matches) {
+      for (const node of [title, $('#hero-sub')]) {
+        node.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+      }
+    }
+  }
+
+  modesNav.addEventListener('click', (e) => {
+    const b = e.target.closest('.mode');
+    if (b) setMode(b.dataset.mode, true);
+  });
+
+  window.addEventListener('hashchange', () => setMode(location.hash.slice(1)));
+
   /* ---------- State ---------- */
 
   function withTransition(update) {
@@ -1263,8 +1584,13 @@
     const previousUrl = currentUrl;
     currentUrl = url;
 
+    current = { file, meta, img };
+    if (cleanUrl) URL.revokeObjectURL(cleanUrl);
+    cleanUrl = null;
+    cleanFor = null;
+
     await withTransition(() => {
-      panel.replaceChildren(...buildPanel(file, meta, img));
+      panel.replaceChildren(...panelNodes());
       stage.replaceChildren(buildStage(file, img, url));
       emptyView.hidden = true;
       viewerView.hidden = false;
@@ -1467,5 +1793,6 @@
 
   buildTicker();
 
+  setMode(location.hash.slice(1));
   document.body.dataset.state = 'empty';
 })();
