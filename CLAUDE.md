@@ -16,7 +16,7 @@
   - **Image:** pixel dimensions, orientation, color space, ICC profile.
   - **File:** name, size, MIME type, last modified.
   - **Raw:** every parsed tag, flat list at bottom.
-- **No-metadata state:** screenshots, social/messaging images often have none. Show clear friendly message, never empty panel.
+- **No-metadata state:** screenshots, social images often have none. Friendly message, never empty panel.
 - **Wipe:** JPEG/PNG lossless (copy segments; drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed by exifr; tag left = no download. exifr can't read WebP/GIF.
 - **Shot on:** canvas card (`renderCard`), 3 editable lines from metadata. Style Light/Dark/Pixel, Font Serif/Wide/Hand (`CARD_FONTS`, not Pixel), Shape Original/Square/4:5 (`inspicio.card`, prefs only). Slim bar (user: more photo). Saves JPEG ≤ 3240 px.
 - **HEIC:** Chrome/Firefox can't display. Still show metadata, placeholder instead of preview.
