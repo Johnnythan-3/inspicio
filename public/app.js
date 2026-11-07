@@ -1495,13 +1495,12 @@
 
   function cardDefaults(meta) {
     const { get } = indexMetadata(meta.segments);
-    const camera = cameraName(get('Make'), get('Model'));
     const f35 = toNum(get('FocalLengthIn35mmFormat'));
     const iso = toNum(get('ISO', 'ISOSpeedRatings', 'PhotographicSensitivity'));
     const lens = toText(get('LensModel', 'Lens'));
     const taken = get('DateTimeOriginal', 'CreateDate');
     return {
-      title: camera ? `Shot on ${camera}` : '',
+      title: toText(get('Model')) || toText(get('Make')) || '', // the model alone: "iPhone 15 Pro"
       // The 35 mm equivalent is the number people know (a phone's 6.86 mm lens is "24 mm").
       details: [f35 ? `${f35} mm` : fmtFocal(get('FocalLength')), fmtAperture(get('FNumber', 'ApertureValue')),
         fmtShutter(get('ExposureTime')), iso ? `ISO ${iso}` : null].filter(Boolean).join('   '),
@@ -1742,7 +1741,7 @@
         seg('style', 'Style', [['light', 'Light'], ['dark', 'Dark'], ['pixel', 'Pixel']]),
         fontRow,
         seg('shape', 'Shape', [['original', 'Original'], ['square', 'Square'], ['portrait', '4:5']]),
-        field('Title', 'title', 'Shot on …'),
+        field('Title', 'title', 'Camera'),
         field('Settings', 'details', '35 mm   f/1.8   1/250 s   ISO 100'),
         field('Small line', 'small', 'Lens, place or date'),
       ),
