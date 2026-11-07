@@ -788,7 +788,8 @@
   let heifSeq = 0;
   const heifJobs = new Map();
 
-  function decodeHeif(buffer) {
+  // `kind` 'gainmap' reads the photo's HDR gain map instead (for the Film tool, in every browser).
+  function decodeHeif(buffer, kind) {
     if (!heifWorker) {
       heifWorker = new Worker('heif-worker.js');
       heifWorker.onmessage = (e) => {
@@ -809,7 +810,7 @@
     const id = ++heifSeq;
     return new Promise((resolve, reject) => {
       heifJobs.set(id, { resolve, reject });
-      heifWorker.postMessage({ id, buffer }, [buffer]);
+      heifWorker.postMessage({ id, buffer, kind }, [buffer]);
     });
   }
 
@@ -2019,9 +2020,28 @@
         canvas: null, caption: null, original: null, busy: false, again: false, saving: false,
         // A DNG is developed from its sensor data when the worker can read it ('maybe' until
         // it has tried); everything else, and a DNG it can't read, from the finished picture.
-        raw: /\.dng$/i.test(file.name) ? 'maybe' : 'no', rawGen: -1 };
+        raw: /\.dng$/i.test(file.name) ? 'maybe' : 'no', rawGen: -1,
+        // An iPhone HEIC's HDR gain map, read once when the film is first developed.
+        gain: null, gainGen: -1, hdr: false };
     }
     return film;
+  }
+
+  // The photo's HDR gain map, or null. iPhone photos from iOS 18 on have one: it says how much
+  // brighter each part of the photo is in its HDR version, which is the highlight detail the
+  // finished picture had to give up.
+  function filmGainMap(f) {
+    f.gain ||= (isHeif(f.file) ? f.file.arrayBuffer().then((buffer) => decodeHeif(buffer, 'gainmap')) : Promise.resolve(null))
+      .then((r) => (r && !r.none ? { data: r.gain, width: r.width, height: r.height, meta: r.meta } : null))
+      .catch(() => null)
+      .then((map) => {
+        if (map && !f.hdr) {
+          f.hdr = true;
+          filmShowSource(f);
+        }
+        return map;
+      });
+    return f.gain;
   }
 
   const fmtStops = (v) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`);
@@ -2049,10 +2069,25 @@
         filmShowSource(f);
       }
     }
-    const src = keep ? (f.source ||= filmPixels(f.img, FILM_PREVIEW_PIXELS)) : filmPixels(f.img, maxPixels);
-    const pixels = keep ? src.pixels.slice(0) : src.pixels;
-    return filmRun({ ...settings, pixels, width: src.width, height: src.height, primaries: src.primaries,
-      placement: 'photo' }, [pixels], onStage);
+    const gain = await filmGainMap(f);
+    for (let attempt = 0; ; attempt++) {
+      const src = keep ? (f.source ||= filmPixels(f.img, FILM_PREVIEW_PIXELS)) : filmPixels(f.img, maxPixels);
+      const pixels = keep ? src.pixels.slice(0) : src.pixels;
+      const msg = { ...settings, pixels, width: src.width, height: src.height, primaries: src.primaries, placement: 'photo' };
+      if (gain) {
+        // The worker keeps the gain map; a new worker is sent it again.
+        filmWorkerReady();
+        msg.useGain = true;
+        if (f.gainGen !== filmWorkerGen) msg.gain = gain;
+        f.gainGen = filmWorkerGen;
+      }
+      try {
+        return await filmRun(msg, [pixels], onStage);
+      } catch (err) {
+        if (err.message !== 'need-gain' || attempt) throw err;
+        f.gainGen = -1;
+      }
+    }
   }
 
   async function filmPreview() {
@@ -2090,7 +2125,7 @@
       // A DNG developed from its sensor data can have a different shape than its preview.
       if (f.frame && stageZoom) reshape(f.frame, stageZoom, res.width / res.height, saveW);
       const size = `${saveW} × ${saveH}`;
-      f.captionText = `Portra 400${res.raw ? ' from RAW' : ''}  ·  saves at ${size}`;
+      f.captionText = `Portra 400${res.raw ? ' from RAW' : f.hdr ? ' with HDR' : ''}  ·  saves at ${size}`;
       f.caption.textContent = f.captionText;
     } catch (err) {
       if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
@@ -2191,6 +2226,10 @@
       return [`${model || 'RAW file'} · built-in preview`, /\.dng$/i.test(file.name)
         ? 'This DNG’s sensor data is in a format the film can’t read yet, so this uses the JPEG preview inside the file.'
         : 'Browsers can’t read this camera’s RAW format, so this uses the JPEG preview inside the file.'];
+    }
+    if (f.hdr) {
+      return [`${model || 'Photo'} · HDR photo`,
+        'Your iPhone already processed this photo, so the film goes on top of Apple’s look. Its HDR gain map gives the film back the highlights. Close, not exact.'];
     }
     return [`${model || 'Photo'} · finished photo`, apple
       ? 'Your iPhone already processed this photo, so the film goes on top of Apple’s look. Close, not exact.'

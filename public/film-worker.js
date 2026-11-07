@@ -20,6 +20,43 @@ let PHOTO = null;
 // The last negative, kept so a change to print brightness alone only reprints it.
 let cache = null;
 
+// The open photo's HDR gain map (an iPhone HEIC from iOS 18 on), sent once per photo.
+let gainMap = null;
+
+// How much brighter each pixel is in the photo's HDR version than in the picture itself, from
+// its gain map (ISO 21496-1: a gain in stops between min and max, after a gamma), for a w × h
+// picture. Only gains above 1 are kept: the film gets the highlights back that the picture had to
+// clip or squeeze, and the rest of the picture stays as it is. Null if the map doesn't fit.
+function gainFactors(map, w, h) {
+  const { data, width: gw, height: gh, meta } = map;
+  if (Math.abs(gw / gh - w / h) > 0.02 * (w / h)) return null;
+  const c = meta.channels[0];
+  const lut = new Float32Array(256);
+  for (let v = 0; v < 256; v++) {
+    const stops = c.min + (c.max - c.min) * Math.pow(v / 255, 1 / c.gamma);
+    lut[v] = Math.max(1, Math.pow(2, stops));
+  }
+  const out = new Float32Array(w * h);
+  const sx = gw / w;
+  const sy = gh / h;
+  for (let y = 0; y < h; y++) {
+    const fy = Math.min(gh - 1, Math.max(0, (y + 0.5) * sy - 0.5));
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(gh - 1, y0 + 1);
+    const ty = fy - y0;
+    for (let x = 0; x < w; x++) {
+      const fx = Math.min(gw - 1, Math.max(0, (x + 0.5) * sx - 0.5));
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(gw - 1, x0 + 1);
+      const tx = fx - x0;
+      const top = lut[data[y0 * gw + x0]] * (1 - tx) + lut[data[y0 * gw + x1]] * tx;
+      const bottom = lut[data[y1 * gw + x0]] * (1 - tx) + lut[data[y1 * gw + x1]] * tx;
+      out[y * w + x] = top * (1 - ty) + bottom * ty;
+    }
+  }
+  return out;
+}
+
 // The open DNG (parsed once) and its decoded light at preview size.
 let rawFile = null;
 let rawLinear = null;
@@ -86,8 +123,11 @@ self.onmessage = (e) => {
     return;
   }
   const { id, key, pixels, width: w, height: h, primaries, exposureStops, printStops, placement, keep } = e.data;
+  if (e.data.gain) gainMap = { key, ...e.data.gain };
+  const map = e.data.useGain && gainMap?.key === key ? gainMap : null;
+  if (e.data.useGain && !map) return self.postMessage({ id, error: 'need-gain' });
   try {
-    const negKey = `${key}|${primaries}|${exposureStops}`;
+    const negKey = `${key}|${primaries}|${exposureStops}|${map ? 'hdr' : ''}`;
     let density;
     if (cache && cache.key === negKey && cache.w === w && cache.h === h) {
       density = cache.density;
@@ -98,10 +138,12 @@ self.onmessage = (e) => {
       // 'photo': a finished photo, decoded through the curve that undoes its tone curve.
       // Otherwise plain sRGB / P3 decoding to linear light.
       const table = placement === 'photo' ? (PHOTO ||= FilmEngine.photoTransfer(F)) : DECODE;
+      const boost = map ? gainFactors(map, w, h) : null;
       for (let i = 0; i < count; i++) {
-        rgb[i * 3] = table[src[i * 4]];
-        rgb[i * 3 + 1] = table[src[i * 4 + 1]];
-        rgb[i * 3 + 2] = table[src[i * 4 + 2]];
+        const b = boost ? boost[i] : 1;
+        rgb[i * 3] = table[src[i * 4]] * b;
+        rgb[i * 3 + 1] = table[src[i * 4 + 1]] * b;
+        rgb[i * 3 + 2] = table[src[i * 4 + 2]] * b;
       }
       density = FilmEngine.developNegative(F, rgb, w, h, {
         primaries,
