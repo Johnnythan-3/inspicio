@@ -1764,6 +1764,9 @@
   let cardCaption = null;
   let cardFrame = null;
   let cardSaveW = 0; // width of the saved card, which counts as 100% zoom
+  let cardZoom = 1; // the preview's zoom level
+  let cardHi = false; // whether the preview is drawn at the saved size (when zoomed in)
+  let cardHiTimer = 0;
   let cardUrl = null;
   let previewQueued = false;
 
@@ -1776,12 +1779,27 @@
       previewQueued = false;
       if (!cardCanvas || !current?.img.ok || !card) return;
       const { img } = current;
-      const { L } = renderCard(cardCanvas, img, cardOpts(), false);
+      // Zoomed in past the preview's own pixels, the preview is drawn at the saved size instead.
+      cardHi = cardWantsHi();
+      const { L } = renderCard(cardCanvas, img, cardOpts(), cardHi);
       const u = cardScale(L, img.width, true);
       cardSaveW = Math.round(100 * u);
       cardCaption.textContent = `Saves at ${cardSaveW} × ${Math.round(L.H * u)}`;
-      if (cardFrame && stageZoom) reshape(cardFrame, stageZoom, cardCanvas.width / cardCanvas.height, cardSaveW);
+      if (cardFrame && stageZoom) reshape(cardFrame, stageZoom, 100 / L.H, cardSaveW);
     });
+  }
+
+  function cardWantsHi() {
+    if (!cardFrame || cardZoom <= 1) return false;
+    const shown = cardFrame.clientWidth * cardZoom * (window.devicePixelRatio || 1);
+    return shown > (PREVIEW_LONG * cardFrame.clientWidth) / Math.max(cardFrame.clientWidth, cardFrame.clientHeight) * 1.1;
+  }
+
+  // Redraws the preview at the size the zoom needs, once zooming settles.
+  function cardZoomed(scale) {
+    cardZoom = scale;
+    clearTimeout(cardHiTimer);
+    cardHiTimer = setTimeout(() => { if (cardCanvas && cardWantsHi() !== cardHi) drawPreview(); }, 250);
   }
 
   function buildCardStage() {
@@ -1791,9 +1809,12 @@
     const { img } = current;
     stageZoom?.stop();
     const z = zoomable(cardCanvas, { ar: img.width / img.height, natW: PREVIEW_LONG, label: 'Preview of the card.',
-      full: () => cardSaveW || cardCanvas.width });
+      pixels: () => Math.max(cardSaveW, cardCanvas.width), full: () => cardSaveW || cardCanvas.width,
+      onZoom: cardZoomed });
     cardFrame = z.frame;
     stageZoom = z.zoom;
+    cardZoom = 1;
+    cardHi = false;
     drawPreview();
     return el('figure', { class: 'photo card-stage' }, z.frame, el('figcaption', null, cardCaption, z.controls));
   }
