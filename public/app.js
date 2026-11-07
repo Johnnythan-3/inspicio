@@ -1456,15 +1456,16 @@
     // Pixel sets everything in the logo's pixel font, so the title font choice doesn't apply.
     pixel: { bg: '#e9f0ee', text: '#19448a', muted: '#55555d', title: '{px} "Departure Mono"', font: 'Departure Mono', mono: 'Departure Mono', sizes: { title: 1.68, details: 1.22, small: 1.04 }, upper: true },
   };
-  // Title fonts for Light and Dark. k evens out their sizes: Michroma is very wide, Caveat small.
+  // Title and settings fonts for Light and Dark. k (title) and dk (settings) even out their sizes:
+  // Michroma is very wide, Caveat small, and an italic serif reads smaller than mono did.
   const CARD_FONTS = {
-    fraunces: { label: 'Serif', css: 'italic 500 {px} "Fraunces"', k: 1 },
-    michroma: { label: 'Wide', css: '400 {px} "Michroma"', k: 0.62 },
-    caveat: { label: 'Hand', css: '600 {px} "Caveat"', k: 1.3 },
+    fraunces: { label: 'Serif', css: 'italic 500 {px} "Fraunces"', k: 1, dk: 1.15 },
+    michroma: { label: 'Wide', css: '400 {px} "Michroma"', k: 0.72, dk: 1 },
+    caveat: { label: 'Hand', css: '600 {px} "Caveat"', k: 1.3, dk: 1.4 },
   };
   const CARD_SHAPES = { original: 0, square: 1, portrait: 1.25 }; // card height ÷ width; 0 = fit the photo
   const CARD_LINES = ['title', 'details', 'small'];
-  const CARD_SIZE = { title: 2.75, details: 1.34, small: 1.15 };
+  const CARD_SIZE = { title: 2.75, details: 1.34, small: 1.4 };
   const PREVIEW_LONG = 1600;
   const SAVE_LONG = 3240; // long side of a saved card; under Safari's canvas limit at every shape
 
@@ -1518,13 +1519,16 @@
   }
 
   function cardLayout(ctx, o, ar) {
+    // Sizes are in % of the card's width, which is the short side of a tall card. Scale the text
+    // and its spacing up there, so a portrait card reads like a landscape one of the same size.
+    const tall = Math.min(1.5, Math.max(1, CARD_SHAPES[o.shape] || 1 / ar));
     const st = CARD_STYLES[o.style];
     const pixel = o.style === 'pixel';
     const side = pixel ? 5.5 : 3;
     const top = pixel ? 6 : 3;
-    const pad = pixel ? 2.2 : 1.9;
+    const pad = (pixel ? 2.2 : 1.9) * tall;
     const below = pixel ? 2.2 : 0; // room for the pixel frame under the photo
-    const gap = 0.5;
+    const gap = 0.5 * tall;
     const text = {};
     const size = {};
     const width = {};
@@ -1532,7 +1536,8 @@
     for (const k of CARD_LINES) {
       text[k] = String(o[k] || '').trim();
       if (st.upper) text[k] = text[k].toUpperCase();
-      size[k] = (st.sizes || CARD_SIZE)[k] * (k !== 'small' && !st.title ? CARD_FONTS[o.font].k : 1);
+      const f = st.title ? null : CARD_FONTS[o.font];
+      size[k] = (st.sizes || CARD_SIZE)[k] * tall * (!f || k === 'small' ? 1 : k === 'title' ? f.k : f.dk);
       rowH[k] = size[k] * (k === 'title' ? 1.15 : 1.35);
       ctx.font = cardFont(st, k, 100, o.font);
       width[k] = text[k] ? (ctx.measureText(text[k]).width / 100) * size[k] : 0;
