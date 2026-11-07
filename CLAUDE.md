@@ -50,10 +50,9 @@
 
 - All live, user likes all of it. User tests in **Firefox** on Mac (Safari for Photos drags); originals often iPhone 15 Pro ProRAW DNGs (48 MP), Sony A7C II ARWs.
 - Look: "pixel frame" style (grid bg, Departure Mono headlines, frames with gap + breakout dot, outlined buttons). Empty page: `buildTicker` made-up tags behind headline (22 px grid). Drop zone: 3 diagonal photos (`.stack-*`) spread on hover, `startBits` floats bits. Photo open: `pixelReveal` (10 steps, last 1.5 px), `decodeValues` scrambles then resolves values. Raw rows: name above value.
-- Removed (user: clutter): pixel trails around drop zone frame. Don't bring back.
-- Confirmed by user: JPEG, ProRAW DNG, Sony ARW (full-size previews, smooth on 48 MP), HEIC placeholder, Photos drag notice, trackpad pinch/pan, collapse state, map, copy coordinates, workers.dev redirect. Test RAW from Photos via File › Export › Export Unmodified Original.
-- Not tested: phone (touch pinch, layout).
-- Motion ideas left: logo-dot hop, count-up numbers. Anime.js approved (vendor, never CDN).
+- Removed as clutter, don't bring back: pixel trails around drop zone.
+- Confirmed by user: JPEG, ProRAW DNG, Sony ARW (full size, smooth at 48 MP), HEIC placeholder, Photos notice, pinch/pan, collapse, map, copy coords, workers.dev redirect. Test RAW from Photos via File › Export › Export Unmodified Original.
+- Not tested: phone. Motion ideas: logo-dot hop, count-up numbers (Anime.js OK, vendored).
 - Optional: `www.inspicio.app` redirect, `hello@inspicio.app` (Email Routing).
 - Session 7: tabs, Wipe (user confirmed), Shot on (user not yet). Next: Film (port `../Archived/rolls` Swift engine; per-pixel stages as LUT like `PreviewLUT.swift`).
 - Later, only if asked: tag search, copy as JSON, OSM-tile map fallback.
