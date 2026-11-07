@@ -1259,7 +1259,8 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
   pointer-events: none;
 }
 
-.film-canvas.is-ready + .film-original { opacity: 0; }
+.film-detail { position: absolute; inset: 0; } /* the full-detail film, over the preview when zoomed in */
+.film-canvas.is-ready ~ .film-original { opacity: 0; }
 .film-frame.show-original .film-original { opacity: 1; transition: none; }
 .film-frame.is-developing .film-canvas.is-ready { filter: saturate(0.85); transition: filter 0.3s; }
 

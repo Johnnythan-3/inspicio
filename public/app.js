@@ -1011,6 +1011,7 @@
       const pct = Math.max(1, Math.round(((frame.clientWidth * s) / (full() || 1)) * 100));
       ui.level.textContent = `${pct}%`;
       ui.level.setAttribute('aria-label', `${pct}%. Fit to view`);
+      opts.onZoom?.(s);
       ui.out.disabled = s === 1;
       ui.zin.disabled = s >= maxScale() - 0.001;
     };
@@ -1153,7 +1154,7 @@
   // A zoomable frame around `content` (the photo, the Shot on card or the film), with its
   // − / % / + controls for the caption. `ar` is its aspect ratio and `natW` the widest it is shown
   // at fit, in CSS pixels.
-  function zoomable(content, { ar, natW, label, pixels, full }) {
+  function zoomable(content, { ar, natW, label, pixels, full, onZoom }) {
     content.classList.add('zoom-img');
     const frame = el('div', {
       class: 'zoom-frame',
@@ -1165,7 +1166,7 @@
     const out = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom out' }, '−');
     const level = el('button', { class: 'zoom-level', type: 'button', title: 'Fit to view' }, '');
     const zin = el('button', { class: 'zoom-btn', type: 'button', 'aria-label': 'Zoom in' }, '+');
-    const zoom = attachZoom(frame, content, { out, level, zin }, { pixels, full });
+    const zoom = attachZoom(frame, content, { out, level, zin }, { pixels, full, onZoom });
     return { frame, zoom, controls: el('div', { class: 'zoom-controls' }, out, level, zin) };
   }
 
@@ -1949,6 +1950,16 @@
     return filmWorker;
   }
 
+  // Stops whatever the worker is doing (a full-detail develop nobody needs any more); the next job
+  // starts a fresh worker.
+  function filmRestartWorker() {
+    if (!filmWorker) return;
+    filmWorker.terminate();
+    filmWorker = null;
+    for (const job of filmJobs.values()) job.reject(new Error('cancelled'));
+    filmJobs.clear();
+  }
+
   function filmRun(message, transfer, onStage) {
     const worker = filmWorkerReady();
     const id = ++filmSeq;
@@ -2011,6 +2022,7 @@
         f.raw = 'yes';
         return res;
       } catch (err) {
+        if (err.message === 'cancelled') throw err;
         if (err.message === 'need-file') { f.rawGen = -1; continue; }
         f.raw = 'no';
         filmShowSource(f);
@@ -2026,6 +2038,13 @@
     const f = film;
     if (!f || !f.canvas || !f.img.ok) return;
     if (f.busy) { f.again = true; return; }
+    if (f.detail && f.detail.settings !== filmSettings(f)) {
+      // The sliders moved: the full-detail film is out of date. Stop developing it, unless it is
+      // being saved, so the preview doesn't wait behind it.
+      if (f.detail.running && !f.saving) filmRestartWorker();
+      f.detail = null;
+      filmShowDetail(f);
+    }
     f.busy = true;
     f.again = false;
     f.stage?.classList.add('is-developing');
@@ -2050,7 +2069,8 @@
       // A DNG developed from its sensor data can have a different shape than its preview.
       if (f.frame && stageZoom) reshape(f.frame, stageZoom, res.width / res.height, saveW);
       const size = `${saveW} × ${saveH}`;
-      f.caption.textContent = `Portra 400${res.raw ? ' from RAW' : ''}  ·  saves at ${size}`;
+      f.captionText = `Portra 400${res.raw ? ' from RAW' : ''}  ·  saves at ${size}`;
+      f.caption.textContent = f.captionText;
     } catch (err) {
       if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
       if (f.note) f.note.textContent = String(err.message || err);
@@ -2058,7 +2078,59 @@
       f.busy = false;
       f.stage?.classList.remove('is-developing');
       if (f.again && film === f) filmPreview();
+      else filmWantDetail(f);
     }
+  }
+
+  const filmSettings = (f) => `${f.exposure}|${f.brightness}`;
+
+  // Full detail: the film developed at its saved size. The preview is about 1.4 megapixels, so
+  // once it is zoomed in past its own pixels this is developed in the background and replaces it,
+  // until a slider moves. Saving uses it too, so a save after zooming is instant.
+  function filmDetail(f) {
+    const settings = filmSettings(f);
+    if (f.detail?.settings === settings) return f.detail.promise;
+    const detail = { settings, canvas: null, running: true };
+    f.detail = detail;
+    const onStage = (stage) => {
+      const text = `${FILM_STAGES[stage] || 'Developing'}…`;
+      if (f.saving && f.note) f.note.textContent = text;
+      if (f.caption && f.detail === detail) f.caption.textContent = `Full detail: ${text}`;
+    };
+    detail.promise = filmJob(f, FILM_SAVE_PIXELS, false, onStage).then((res) => {
+      const canvas = el('canvas', { class: 'film-canvas film-detail is-ready' });
+      canvas.width = res.width;
+      canvas.height = res.height;
+      canvas.getContext('2d').putImageData(new ImageData(res.rgba, res.width, res.height), 0, 0);
+      detail.canvas = canvas;
+      return { canvas, width: res.width, height: res.height };
+    }).finally(() => {
+      detail.running = false;
+      if (f.detail !== detail) return;
+      if (!detail.canvas) f.detail = null;
+      if (f.caption && f.captionText) f.caption.textContent = f.captionText;
+      filmShowDetail(f);
+    });
+    return detail.promise;
+  }
+
+  // Puts the full-detail film over the preview when it matches the sliders; removes it otherwise.
+  function filmShowDetail(f) {
+    if (!f.stage) return;
+    const d = f.detail;
+    const on = d?.canvas && d.settings === filmSettings(f) ? d.canvas : null;
+    for (const c of f.stage.querySelectorAll('.film-detail')) if (c !== on) c.remove();
+    if (on && on.parentNode !== f.stage) f.canvas.after(on);
+  }
+
+  // Asks for full detail once zooming settles past the preview's own pixels.
+  function filmWantDetail(f) {
+    clearTimeout(f.detailTimer);
+    f.detailTimer = setTimeout(() => {
+      if (film !== f || !f.frame || !f.canvas || f.busy || !f.saveW) return;
+      const shown = f.frame.clientWidth * (f.zoomScale || 1) * (window.devicePixelRatio || 1);
+      if (f.saveW > f.canvas.width * 1.1 && shown > f.canvas.width * 1.25) filmDetail(f).catch(() => {});
+    }, 350);
   }
 
   function buildFilmStage() {
@@ -2073,9 +2145,14 @@
     f.stage = el('div', { class: 'film-frame' }, f.canvas, f.original);
     stageZoom?.stop();
     const z = zoomable(f.stage, { ar: f.canvas.width / f.canvas.height, natW: f.img.width,
-      label: 'The photo developed on Portra 400.', pixels: () => f.canvas?.width || 1, full: () => f.saveW || f.img.width });
+      label: 'The photo developed on Portra 400.',
+      pixels: () => Math.max(f.canvas?.width || 1, f.saveW || 0),
+      full: () => f.saveW || f.img.width,
+      onZoom: (scale) => { f.zoomScale = scale; filmWantDetail(f); } });
     f.frame = z.frame;
     stageZoom = z.zoom;
+    f.zoomScale = 1;
+    filmShowDetail(f);
     filmPreview();
     return el('figure', { class: 'photo film-stage' }, z.frame, el('figcaption', null, f.caption, z.controls));
   }
@@ -2112,14 +2189,9 @@
     button.disabled = true;
     try {
       note.textContent = 'Developing at full size…';
-      const res = await filmJob(f, FILM_SAVE_PIXELS, false,
-        (stage) => { note.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
-      const canvas = document.createElement('canvas');
-      canvas.width = res.width;
-      canvas.height = res.height;
-      canvas.getContext('2d').putImageData(new ImageData(res.rgba, res.width, res.height), 0, 0);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-      canvas.width = 0;
+      const res = await filmDetail(f);
+      note.textContent = 'Saving…';
+      const blob = await new Promise((resolve) => res.canvas.toBlob(resolve, 'image/jpeg', 0.92));
       if (!blob) throw new Error('This browser couldn’t save the photo.');
       if (f.url) URL.revokeObjectURL(f.url);
       f.url = URL.createObjectURL(blob);
