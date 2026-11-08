@@ -2483,38 +2483,62 @@ html[data-motion="calm"] .save-card { animation: none; }
 [data-look="mellow"] .welcome-name { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 [data-look="mellow"] .welcome-go { border-radius: 12px; }
 
-/* ---------- Film tab: a strip of film (both looks) ---------- */
+/* ---------- Tab icons (both looks) ---------- */
 
-/* Sprocket holes along the top and bottom edges, in the tab's text color. */
-.mode[data-mode="film"] { position: relative; }
+/* Hovering a tab raises a small pixel icon above its word: a magnifying glass that searches, a
+   scrub brush that scrubs, a camera beside a phone, and a film reel that rolls side to side.
+   Moves are in whole icon pixels (2 px), so the pixels stay sharp. */
+.mode { position: relative; }
 
-.mode[data-mode="film"]::before,
-.mode[data-mode="film"]::after {
-  content: "";
+.mode-icon {
   position: absolute;
-  left: 4px;
-  right: 4px;
-  height: 3px;
-  background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px);
-  opacity: 0.55;
+  left: 50%;
+  bottom: calc(100% + 3px);
+  display: block;
+  line-height: 0;
+  color: var(--accent);
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity 0.2s ease, transform 0.4s var(--ease);
   pointer-events: none;
 }
 
-.mode[data-mode="film"]::before { top: 3px; }
-.mode[data-mode="film"]::after { bottom: 3px; }
+.mode-icon svg { display: block; overflow: visible; }
 
-/* Mellow: only the rows of holes, softer, clear of the underline. */
-[data-look="mellow"] .mode[data-mode="film"]::before,
-[data-look="mellow"] .mode[data-mode="film"]::after { height: 2.5px; border-radius: 1px; opacity: 0.45; }
-[data-look="mellow"] .mode[data-mode="film"]::before { top: 6px; }
-[data-look="mellow"] .mode[data-mode="film"]::after { bottom: 7px; }
-
-/* The rows are cut to a whole number of holes (4 px hole, 4 px gap) and centred, so each row
-   starts and ends on a full hole. */
-.mode[data-mode="film"]::before,
-.mode[data-mode="film"]::after {
-  right: auto;
-  left: 50%;
-  width: calc(round(down, 100% - 8px, 8px) - 4px);
-  transform: translateX(-50%);
+@media (hover: hover) {
+  .mode:hover .mode-icon { opacity: 1; transform: translate(-50%, 0); }
+  .mode[data-mode="inspect"]:hover .mode-icon svg { animation: icon-search 1.4s 0.3s steps(1) infinite; }
+  .mode[data-mode="wipe"]:hover .mode-icon svg { animation: icon-scrub 0.32s 0.3s steps(2) infinite alternate; }
+  .mode[data-mode="shot-on"]:hover .mode-icon svg { animation: icon-snap 1.6s 0.3s steps(1) infinite; }
+  .mode[data-mode="film"]:hover .mode-icon svg { animation: icon-roll 1.4s 0.3s steps(4) infinite alternate; }
 }
+
+@keyframes icon-search {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(2px, 0); }
+  50% { transform: translate(2px, -2px); }
+  75% { transform: translate(0, -2px); }
+}
+
+@keyframes icon-scrub {
+  from { transform: translateX(-2px); }
+  to { transform: translateX(2px); }
+}
+
+@keyframes icon-snap {
+  0%, 70%, 100% { transform: none; }
+  75% { transform: translateY(-2px); }
+}
+
+@keyframes icon-roll {
+  from { transform: translateX(-8px) rotate(0deg); }
+  to { transform: translateX(8px) rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-icon svg { animation: none !important; }
+}
+html[data-motion="calm"] .mode-icon svg { animation: none !important; }
+
+/* Room above the panel's tabs for the tallest icon (the 22 px reel), so it isn't cut off. */
+.panel { padding-top: 28px; }
