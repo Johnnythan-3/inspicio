@@ -2279,3 +2279,27 @@ html[data-motion="calm"] .save-card { animation: none; }
   [data-look="mellow"] .hero-copy h1 { font-size: 36px; }
   [data-look="mellow"] .local-badge { padding: 0; justify-content: center; }
 }
+
+/* ---------- Empty page fits the screen (both looks) ---------- */
+
+/* When the screen is tall enough, the empty page is exactly one screen and doesn't scroll: the
+   drop zone gives up height first (down to 168 px), the content stays centred and the footer
+   sits at the bottom. If it still doesn't fit (a short window, or the error line showing), the
+   rest spills below and the page scrolls, so nothing is ever cut off. */
+@media (min-height: 520px) {
+  html:has(> body[data-state="empty"]) { overscroll-behavior: none; }
+
+  .empty,
+  [data-look="mellow"] .empty {
+    height: calc(100dvh - var(--topbar-h));
+    min-height: 0;
+    padding-top: clamp(16px, 4vh, 48px);
+    padding-bottom: 14px;
+    gap: clamp(12px, 2.6vh, 28px);
+  }
+
+  .empty > * { flex-shrink: 0; }
+  .empty > .dropzone { flex-shrink: 1; min-height: 168px; }
+  .empty > .hero-copy,
+  .empty > .empty-foot { margin-top: auto; }
+}
