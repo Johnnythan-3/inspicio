@@ -2486,8 +2486,9 @@ html[data-motion="calm"] .save-card { animation: none; }
 /* ---------- Tab icons (both looks) ---------- */
 
 /* Hovering a tab raises a small pixel icon above its word: a magnifying glass that searches, a
-   sponge that scrubs, a camera beside a phone, and a film reel that rolls side to side.
-   Moves are in whole icon pixels (2 px), so the pixels stay sharp. */
+   sponge that scrubs and a camera beside a phone. Film instead shows rows of sprocket holes along
+   its top and bottom edges, running sideways like film through a camera. Moves are in whole
+   pixels, so the pixels stay sharp. */
 .mode { position: relative; }
 
 .mode-icon {
@@ -2516,14 +2517,14 @@ html[data-motion="calm"] .save-card { animation: none; }
 .ic-steel { fill: #9aa3ad; }
 .ic-lens { fill: var(--accent); }
 .ic-screen { fill: #9fc6ea; }
-.ic-reel { fill: #8b939c; }
 
 @media (hover: hover) {
   .mode:hover .mode-icon { opacity: 1; transform: translate(-50%, 0); }
   .mode[data-mode="inspect"]:hover .mode-icon svg { animation: icon-search 1.4s 0.36s steps(1) infinite; }
   .mode[data-mode="wipe"]:hover .mode-icon svg { animation: icon-scrub 0.32s 0.36s steps(2) infinite alternate; }
   .mode[data-mode="shot-on"]:hover .mode-icon svg { animation: icon-snap 1.6s 0.36s steps(1) infinite; }
-  .mode[data-mode="film"]:hover .mode-icon svg { animation: icon-roll 1.4s 0.36s steps(4) infinite alternate; }
+  .mode[data-mode="film"]:hover::before,
+  .mode[data-mode="film"]:hover::after { opacity: 0.6; animation: film-run 0.5s steps(4) infinite; }
 }
 
 @keyframes icon-search {
@@ -2543,15 +2544,37 @@ html[data-motion="calm"] .save-card { animation: none; }
   75% { transform: translateY(-2px); }
 }
 
-@keyframes icon-roll {
-  from { transform: translateX(-8px) rotate(0deg); }
-  to { transform: translateX(8px) rotate(360deg); }
+/* Film's sprocket rows: 4 px holes, 4 px apart, hidden until hover. */
+.mode[data-mode="film"]::before,
+.mode[data-mode="film"]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px);
+  opacity: 0;
+  transition: opacity 0.24s ease;
+  pointer-events: none;
 }
+
+.mode[data-mode="film"]::before { top: 3px; }
+.mode[data-mode="film"]::after { bottom: 3px; }
+[data-look="mellow"] .mode[data-mode="film"]::before,
+[data-look="mellow"] .mode[data-mode="film"]::after { left: 6px; right: 6px; height: 2.5px; }
+[data-look="mellow"] .mode[data-mode="film"]::before { top: 6px; }
+[data-look="mellow"] .mode[data-mode="film"]::after { bottom: 7px; }
+
+@keyframes film-run { to { background-position: 8px 0; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .mode-icon svg { animation: none !important; }
+  .mode-icon svg,
+  .mode[data-mode="film"]::before,
+  .mode[data-mode="film"]::after { animation: none !important; }
 }
-html[data-motion="calm"] .mode-icon svg { animation: none !important; }
+html[data-motion="calm"] .mode-icon svg,
+html[data-motion="calm"] .mode[data-mode="film"]::before,
+html[data-motion="calm"] .mode[data-mode="film"]::after { animation: none !important; }
 
-/* Room above the panel's tabs for the tallest icon (the 22 px reel), so it isn't cut off. */
+/* Room above the panel's tabs for the tallest icon (the 20 px magnifier), so it isn't cut off. */
 .panel { padding-top: 28px; }
