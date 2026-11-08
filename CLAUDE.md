@@ -31,8 +31,8 @@
 
 ## Design
 
-- **Two looks**, chosen in display settings (`prefs.js`, sliders button bottom right on every page; left of panel when photo open on wide screens). `inspicio.prefs` = look `pixel`|`mellow`, theme `auto`|`light`|`dark` (`data-theme`), motion `full`|`calm` (`data-motion`, = reduced motion). `<html data-look="pixel">` default before JS. **First visit** (no `inspicio.prefs`, main page only): blurred "Which look would you like?" chooser (Original = pixel, Mellow); picking previews live, colors glide (`@property` color tokens + `html.look-shifting`); Continue saves.
-- **Mellow** ("quiet gallery"): stone bg `#D6D3D1` (user's pick; dark `#1C1917`), white cards, soft radius, 1px lines, Geist sentence case, underline tabs, sunken segmented controls, soft "i" logo (`.mark-soft`) + photo icon. All rules scoped `[data-look="mellow"]` at end of `styles.css`; tokens `--sunken`, `--raised`, `--on-accent`.
+- **Two looks**, chosen in display settings (`prefs.js`, sliders button bottom right, every page; left of panel when photo open, wide screens). `inspicio.prefs` = look `pixel`|`mellow`, theme `auto`|`light`|`dark` (`data-theme`), motion `full`|`calm` (`data-motion`, = reduced motion). `<html data-look="pixel">` default before JS. **First visit** (no `inspicio.prefs`, main page only): blurred "Which look would you like?" chooser (Original = pixel, Mellow); live preview, colors glide (`@property` tokens + `html.look-shifting`).
+- **Mellow** ("quiet gallery"): stone bg `#D6D3D1` (user's pick; dark `#1C1917`), white cards, soft radius, Geist sentence case, underline tabs, sunken segments, soft logo (`.mark-soft`). All rules scoped `[data-look="mellow"]` at end of `styles.css`; tokens `--sunken`, `--raised`, `--on-accent`.
 - **Pixel** (default): original look (rules above mellow block): square corners, Departure Mono labels (11 px grid), grid bg, ticker, diagonal photos, `pixelReveal`, `decodeValues`, data bits (JS effects gated by `pixelLook()`).
 - Both: one accent `#19448A` (dark `#89ADE6`), Geist + Geist Mono, contrast 4.5:1, light + dark. Narrow: panel below. Every UI change: check both looks.
 - Human formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`.
@@ -47,8 +47,8 @@
 
 - User tests in **Firefox** (Mac) and **Safari** (iPhone); photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
 - Confirmed: Wipe, Shot on, HEIC, DNG, ARW, gain map, fast Film, iPhone Save to Photos, Frame on iPhone, sticky stage, save bar, phone zoom, Safari save.
-- Session 9: HDR JPEG gain maps; hold-to-compare fixes; Mellow look + settings + first-visit chooser; home page fits one screen; **tab hover icons** (user loves them): pixel SVGs in `index.html` (`.mode-icon`, colors `.ic-*`), magnifier searches, sponge scrubs, camera + phone flashes, film strip runs (CSS `.film-icon`); 2 px steps; sliding fill = transform only (`--fill-base/x/s`).
-- **Not yet checked by user:** HDR JPEG film; sticky-fill fix; Mellow look on iPhone + desktop; settings button.
+- Session 9: HDR JPEG gain maps; compare fixes; Mellow + settings + first-visit chooser; one-screen home; **tab hover icons** (user loves them): pixel SVGs in `index.html` (`.mode-icon`, `.ic-*`): magnifier, sponge, camera + phone with flash, CSS film strip (`.film-icon`); 2 px steps; sliding fill = transform only (`--fill-base/x/s`).
+- **Not yet checked by user:** HDR JPEG film; compare fill; Mellow + settings; first-visit chooser; one-screen home; icon motion; fill smoothness; dark mode both looks.
 - User wants features non-techy people notice; skip deep technical ones. **Held off:** Film lab chooser (Frontier/scanners).
 - **Next ideas:** Apple `linearthumbnail` aux; camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
 
@@ -65,4 +65,4 @@
 - Firefox rounds timestamps: animate with CSS/WAAPI. Mapbox `pk.` token push warning: allowed.
 - Third-party code in Node blocked; our own `film.js` in Node is fine (bench, compare old vs new).
 - Don't reuse `data-mode` outside tabs.
-- Browser pane: server via Bash background, `.claude/launch.json`. Often hidden: timings wrong, animations frozen; stub `img.decode`, unset `startViewTransition`. Stale cache: open `/film.js` (no CSP) and `fetch(f, {cache:'reload'})` each file. Test files: `public/_test.*` + temporary `_fetch-test.js` worker, load via `DataTransfer` on `#file-input`; delete `_*` before commit.
+- Browser pane: server via Bash background, `.claude/launch.json`. Often hidden: animations, rAF, ResizeObserver frozen; stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: open `/film.js` (no CSP) and `fetch(f, {cache:'reload'})` each file. Test files: `public/_test.*` + temporary `_fetch-test.js` worker, load via `DataTransfer` on `#file-input`; delete `_*` before commit.
