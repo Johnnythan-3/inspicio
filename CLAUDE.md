@@ -17,7 +17,7 @@
   - Preview 1.4 MP; zooming past it develops full detail (`filmDetail`), slider cancels by restarting worker, Save reuses it. Caption = thin filling bar while developing, width measured to final text (`filmCaptionBar`).
   - Sliders: Exposure 0.5, Brightness 0.1 steps. **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms each), bar = one animation, speed changed per step (`barController`, `SAVE_STEPS` ms/MP, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: Ready → "Save to Photos" (share sheet; web can't write Photos).
-- **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, photo fills, fixed 70 px control strip, square pixel tool buttons (Film: Exposure/Bright/Frame/Original hold/Save; Shot on: Style/Font/Shape/Text/Save); settings button moves to photo's top corner.
+- **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, photo fills, fixed 70 px control strip, square pixel tool buttons (Film: Exposure/Bright/Frame/Original hold/Save; Shot on: Style/Font/Shape/Text/Save); settings button in photo's corner.
 - **HEIC:** Safari native; Chrome/Firefox via vendored libheif 1.19.8 pure-JS (LGPL; WASM needs CSP change) → q0.95 JPEG blob.
 - **RAW:** largest embedded JPEG (`loadRawPreview`). **Photos drags:** small preview notice.
 
