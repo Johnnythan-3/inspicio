@@ -47,7 +47,7 @@
 
 - User tests in **Firefox** (Mac) and **Safari** (iPhone); photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
 - Confirmed: Wipe, Shot on, HEIC, DNG, ARW, gain map, fast Film, iPhone Save to Photos, Frame on iPhone, sticky stage, save bar, phone zoom, Safari save.
-- Session 9: HDR JPEG gain maps; hold-to-compare fixes (no text selection, no sticky fill); Mellow look + display settings.
+- Session 9: HDR JPEG gain maps; hold-to-compare fixes; Mellow look + settings + first-visit chooser; home page fits one screen; **tab hover icons** (user loves them): pixel SVGs in `index.html` (`.mode-icon`, colors `.ic-*`), magnifier searches, sponge scrubs, camera + phone flashes, film strip runs (CSS `.film-icon`); 2 px steps; sliding fill = transform only (`--fill-base/x/s`).
 - **Not yet checked by user:** HDR JPEG film; sticky-fill fix; Mellow look on iPhone + desktop; settings button.
 - User wants features non-techy people notice; skip deep technical ones. **Held off:** Film lab chooser (Frontier/scanners).
 - **Next ideas:** Apple `linearthumbnail` aux; camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
