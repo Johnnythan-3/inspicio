@@ -16,8 +16,12 @@
   const listeners = new Set();
 
   let prefs = { look: 'mellow', theme: 'auto', motion: 'full' };
+  // A first visit (nothing saved yet, and storage works so the answer can be kept) asks which look.
+  let firstVisit = false;
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    const raw = localStorage.getItem(KEY);
+    firstVisit = raw === null;
+    const saved = JSON.parse(raw || '{}');
     for (const k of Object.keys(OPTIONS)) {
       if (OPTIONS[k].some(([v]) => v === saved[k])) prefs[k] = saved[k];
     }
@@ -39,12 +43,24 @@
     onChange: (fn) => listeners.add(fn),
   };
 
+  const notify = (k, v) => { for (const fn of listeners) fn(k, v); };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch { /* not kept */ } };
+
   function set(k, v) {
     if (prefs[k] === v) return;
     prefs = { ...prefs, [k]: v };
-    try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch { /* not kept */ }
+    save();
     apply();
-    for (const fn of listeners) fn(k, v);
+    notify(k, v);
+  }
+
+  // While the look changes, the page's colors glide to the new ones (styles.css registers the
+  // color tokens so they can be animated) instead of jumping.
+  let shiftTimer = 0;
+  function shiftColors() {
+    root.classList.add('look-shifting');
+    clearTimeout(shiftTimer);
+    shiftTimer = setTimeout(() => root.classList.remove('look-shifting'), 900);
   }
 
   /* ---------- The settings button and its panel ---------- */
@@ -107,6 +123,7 @@
         b.textContent = text;
         b.setAttribute('aria-pressed', String(prefs[k] === v));
         b.addEventListener('click', () => {
+          if (k === 'look' || k === 'theme') shiftColors();
           set(k, v);
           for (const other of group.children) other.setAttribute('aria-pressed', String(other === b));
         });
@@ -135,6 +152,104 @@
     document.body.append(panel, button);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
-  else build();
+  /* ---------- First visit: which look? ---------- */
+
+  // On the main page only. Each choice shows at once on the blurred page behind; Continue keeps it.
+  const LOOKS = [
+    ['pixel', 'Original', 'Pixel details and square corners'],
+    ['mellow', 'Mellow', 'Soft, quiet and rounded'],
+  ];
+
+  function welcome() {
+    const box = document.createElement('div');
+    box.className = 'welcome';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', 'welcome-title');
+
+    const card = document.createElement('div');
+    card.className = 'welcome-card';
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'welcome-eyebrow';
+    eyebrow.textContent = 'Welcome to Inspicio';
+    const title = document.createElement('h2');
+    title.className = 'welcome-title';
+    title.id = 'welcome-title';
+    title.textContent = 'Which look would you like?';
+    const sub = document.createElement('p');
+    sub.className = 'welcome-sub';
+    sub.textContent = 'You can change it any time with the button in the corner.';
+
+    const options = document.createElement('div');
+    options.className = 'welcome-options';
+    options.setAttribute('role', 'group');
+    options.setAttribute('aria-label', 'Look');
+    let chosen = prefs.look;
+    for (const [v, name, desc] of LOOKS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'welcome-option';
+      b.dataset.value = v;
+      b.setAttribute('aria-pressed', String(v === chosen));
+      const swatch = document.createElement('span');
+      swatch.className = `welcome-swatch swatch-${v}`;
+      swatch.setAttribute('aria-hidden', 'true');
+      const aa = document.createElement('span');
+      aa.textContent = 'Aa';
+      swatch.append(aa);
+      const n = document.createElement('span');
+      n.className = 'welcome-name';
+      n.textContent = name;
+      const d = document.createElement('span');
+      d.className = 'welcome-desc';
+      d.textContent = desc;
+      b.append(swatch, n, d);
+      b.addEventListener('click', () => {
+        if (chosen === v) return;
+        chosen = v;
+        for (const o of options.children) o.setAttribute('aria-pressed', String(o === b));
+        shiftColors();
+        root.dataset.look = v;
+        notify('look', v);
+      });
+      options.append(b);
+    }
+
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'map-link wipe-save welcome-go';
+    go.textContent = 'Continue';
+
+    card.append(eyebrow, title, sub, options, go);
+    box.append(card);
+
+    const others = [...document.body.children];
+    for (const el of others) el.inert = true;
+    document.body.append(box);
+    options.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+
+    const close = () => {
+      prefs = { ...prefs, look: chosen };
+      save();
+      apply();
+      for (const b of document.querySelectorAll('#prefs-panel [aria-labelledby="prefs-look"] button')) {
+        b.setAttribute('aria-pressed', String(b.dataset.value === chosen));
+      }
+      for (const el of others) el.inert = false;
+      box.classList.add('is-closing');
+      setTimeout(() => box.remove(), 400);
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    go.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+  }
+
+  function start() {
+    build();
+    if (firstVisit && document.getElementById('app')) welcome();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();

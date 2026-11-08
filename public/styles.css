@@ -48,6 +48,24 @@
 
 /* ---------- Tokens ---------- */
 
+/* The color tokens are registered as colors so a change of look or theme can glide between
+   them (html.look-shifting, set by prefs.js for a moment). */
+@property --bg { syntax: "<color>"; inherits: true; initial-value: #e9f0ee; }
+@property --surface { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+@property --card { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+@property --card-hover { syntax: "<color>"; inherits: true; initial-value: #fbfbfa; }
+@property --stage { syntax: "<color>"; inherits: true; initial-value: #dfe7e4; }
+@property --text { syntax: "<color>"; inherits: true; initial-value: #17171a; }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: #55555d; }
+@property --faint { syntax: "<color>"; inherits: true; initial-value: #9d9da6; }
+@property --line { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --line-strong { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --accent { syntax: "<color>"; inherits: true; initial-value: #19448a; }
+@property --accent-soft { syntax: "<color>"; inherits: true; initial-value: transparent; }
+
+html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --card 0.8s ease, --card-hover 0.8s ease, --stage 0.8s ease, --text 0.8s ease, --muted 0.8s ease, --faint 0.8s ease, --line 0.8s ease, --line-strong 0.8s ease, --accent 0.8s ease, --accent-soft 0.8s ease; }
+
+
 :root {
   --bg: #e9f0ee;
   --bg-glow: rgba(25, 68, 138, 0.08);
@@ -2303,3 +2321,161 @@ html[data-motion="calm"] .save-card { animation: none; }
   .empty > .hero-copy,
   .empty > .empty-foot { margin-top: auto; }
 }
+
+/* ---------- First visit: which look? (prefs.js) ---------- */
+
+.welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  animation: fade-in 0.4s ease both;
+  transition: opacity 0.35s ease;
+}
+
+.welcome.is-closing { opacity: 0; pointer-events: none; }
+
+.welcome-card {
+  box-sizing: border-box;
+  width: min(460px, 100%);
+  padding: 26px 24px 22px;
+  border: 2px solid var(--accent);
+  background: var(--bg);
+  box-shadow: var(--shadow-photo);
+  text-align: center;
+  animation: rise 0.5s 0.1s var(--ease) both;
+}
+
+.welcome-eyebrow {
+  margin: 0 0 8px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.welcome-title {
+  margin: 0;
+  font-family: var(--pixel);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.welcome-sub { margin: 8px 0 20px; font-size: 14px; color: var(--muted); }
+
+.welcome-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+
+.welcome-option {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 8px 8px 12px;
+  border: 2px solid var(--line-strong);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.25s, background-color 0.25s, transform 0.2s var(--ease);
+}
+
+.welcome-option[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.welcome-option:active { transform: scale(0.98); }
+@media (hover: hover) { .welcome-option:hover:not([aria-pressed="true"]) { border-color: var(--accent-line); } }
+
+.welcome-swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.welcome-swatch > span { position: relative; z-index: 1; font-size: 22px; line-height: 1; }
+
+/* Each swatch always shows its own look, whichever look the page has. */
+.swatch-pixel {
+  --s-bg: #e9f0ee;
+  --s-fg: #19448a;
+  --s-grid: rgba(25, 68, 138, 0.1);
+  background:
+    linear-gradient(var(--s-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--s-grid) 1px, transparent 1px),
+    var(--s-bg);
+  background-size: 11px 11px;
+}
+
+.swatch-pixel::before {
+  content: "";
+  position: absolute;
+  inset: 22% 24%;
+  border: 3px solid var(--s-fg);
+  background: var(--s-bg);
+}
+
+.swatch-pixel::after {
+  content: "";
+  position: absolute;
+  top: calc(22% - 5px);
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  background: var(--s-fg);
+}
+
+.swatch-pixel > span { font-family: "Departure Mono", var(--mono); text-transform: uppercase; color: var(--s-fg); }
+
+.swatch-mellow {
+  --s-bg: #d6d3d1;
+  --s-card: #fafaf9;
+  --s-fg: #1c1917;
+  border-radius: 8px;
+  background: var(--s-bg);
+}
+
+.swatch-mellow::before {
+  content: "";
+  position: absolute;
+  inset: 20% 18%;
+  border-radius: 10px;
+  background: var(--s-card);
+  box-shadow: 0 6px 16px -8px rgba(28, 25, 23, 0.35);
+}
+
+.swatch-mellow > span { font-family: var(--font); font-weight: 600; letter-spacing: -0.03em; color: var(--s-fg); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .swatch-pixel { --s-bg: #0b0b0d; --s-fg: #89ade6; --s-grid: rgba(137, 173, 230, 0.1); }
+  :root:not([data-theme="light"]) .swatch-mellow { --s-bg: #1c1917; --s-card: #2e2a27; --s-fg: #f5f5f4; }
+}
+:root[data-theme="dark"] .swatch-pixel { --s-bg: #0b0b0d; --s-fg: #89ade6; --s-grid: rgba(137, 173, 230, 0.1); }
+:root[data-theme="dark"] .swatch-mellow { --s-bg: #1c1917; --s-card: #2e2a27; --s-fg: #f5f5f4; }
+
+.welcome-name {
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.welcome-desc { font-size: 12.5px; line-height: 1.35; color: var(--muted); }
+
+.welcome-go { margin: 0; padding: 12px; }
+
+[data-look="mellow"] .welcome-card { border: 1px solid var(--line); border-radius: 22px; background: var(--card); }
+[data-look="mellow"] .welcome-eyebrow { font-size: 13px; letter-spacing: 0; text-transform: none; }
+[data-look="mellow"] .welcome-title { font-size: 24px; font-weight: 600; letter-spacing: -0.025em; text-transform: none; }
+[data-look="mellow"] .welcome-option { border-width: 1.5px; border-radius: 14px; }
+[data-look="mellow"] .welcome-name { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+[data-look="mellow"] .welcome-go { border-radius: 12px; }

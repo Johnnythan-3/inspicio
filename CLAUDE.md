@@ -31,7 +31,7 @@
 
 ## Design
 
-- **Two looks**, chosen in display settings (`prefs.js`, sliders button bottom right on every page; left of panel when photo open on wide screens). `inspicio.prefs` = look `mellow`|`pixel`, theme `auto`|`light`|`dark` (`data-theme`), motion `full`|`calm` (`data-motion`, = reduced motion). `<html data-look="mellow">` default before JS.
+- **Two looks**, chosen in display settings (`prefs.js`, sliders button bottom right on every page; left of panel when photo open on wide screens). `inspicio.prefs` = look `mellow`|`pixel`, theme `auto`|`light`|`dark` (`data-theme`), motion `full`|`calm` (`data-motion`, = reduced motion). `<html data-look="mellow">` default before JS. **First visit** (no `inspicio.prefs`, main page only): blurred "Which look would you like?" chooser (Original = pixel, Mellow); picking previews live, colors glide (`@property` color tokens + `html.look-shifting`); Continue saves.
 - **Mellow** (default, "quiet gallery"): stone bg `#D6D3D1` (user's pick; dark `#1C1917`), white cards, soft radius, 1px lines, Geist sentence case, underline tabs, sunken segmented controls, soft "i" logo (`.mark-soft`) + photo icon. All rules scoped `[data-look="mellow"]` at end of `styles.css`; tokens `--sunken`, `--raised`, `--on-accent`.
 - **Pixel**: original look (rules above mellow block): square corners, Departure Mono labels (11 px grid), grid bg, ticker, diagonal photos, `pixelReveal`, `decodeValues`, data bits (JS effects gated by `pixelLook()`).
 - Both: one accent `#19448A` (dark `#89ADE6`), Geist + Geist Mono, contrast 4.5:1, light + dark. Narrow: panel below. Every UI change: check both looks.
