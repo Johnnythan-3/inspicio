@@ -2951,6 +2951,8 @@
     return photoFigure;
   }
 
+  const ENTRANCE_ANIMATIONS = new Set(['rise', 'frame-in', 'caption-in', 'photo-in']);
+
   function setMode(next, fromUser) {
     if (!MODES[next]) next = 'inspect';
     const changed = next !== mode;
@@ -2967,7 +2969,11 @@
         if (stageKind() !== stage.dataset.kind) stage.replaceChildren(stageNode());
         panel.replaceChildren(...panelNodes());
         panel.scrollTop = 0;
-        decodeValues(panel);
+        // Same photo, other tool: skip the entrance animations (fade-ins, the decoding numbers),
+        // which would make the photo and panel blink on every tab change.
+        for (const a of viewerView.getAnimations({ subtree: true })) {
+          if (a instanceof CSSAnimation && ENTRANCE_ANIMATIONS.has(a.animationName)) a.finish();
+        }
       }
       return;
     }
