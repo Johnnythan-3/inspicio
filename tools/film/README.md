@@ -26,3 +26,15 @@ average (max about 3), from the 48^3 paper colour table.
 `compare-dng.js` checks the DNG reader and the RAW develop against rolls' Darkroom on a real
 ProRAW: decoded light within 1e-7, the camera matrix and K identical, output about 0.5 code
 values on average (max 3).
+
+Speed and identity of the Film worker (helpers included), in Node with a small Web Worker shim:
+
+```bash
+node tools/film/bench-worker.js "$PWD/public" 1 /tmp/one.rgba    # 1 core: no helpers
+node tools/film/bench-worker.js "$PWD/public" 10 /tmp/many.rgba  # 10 cores: 6 helpers
+cmp /tmp/one.rgba /tmp/many.rgba                                  # must be identical
+```
+
+It develops a synthetic 16 MP frame twice and prints each stage's time. The helpers must give
+the same bytes as one worker; a 16 MP frame took about 8 s alone and 2.3 s with helpers on a
+10-core Mac.

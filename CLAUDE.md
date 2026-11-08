@@ -4,62 +4,62 @@
 
 ## Product
 
-- **Tabs** (`#modes`, copy in `MODES`): Inspect, Wipe, Shot on, Film. Above drop zone; panel top when photo open. Mode in hash. Blue fill slides between choices (`placeFill`). Subtitles stacked (`.line-stack`), no shift.
-- **Zoom** (`zoomable`/`attachZoom`) on every stage: photo (Inspect, Wipe), Shot on card (redrawn at save size when zoomed, `cardWantsHi`), Film (zoomed past preview px: full-detail develop at save size in background, `filmDetail`; slider move cancels it by restarting worker; Save reuses it). Wheel, pinch, double-click, drag, − % +, keys + − 0. Box always shows %, fixed width (fits `1000%`); 100% = photo px, or saved px for card/film.
-- **Inspect:** left full-res preview. Right panel ≤ 340 px, collapsible sections (`inspicio.collapsed`): Camera, Exposure, Date & time, Location (click lat/lon copies; opt-in Mapbox "Show map"; OSM link), Description, Image, File, All tags. No metadata = friendly message.
-- **Wipe** (user confirmed): lists what photo gives away, saves clean copy. JPEG/PNG lossless (copy segments; drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed by exifr; tag left = no download. exifr can't read WebP/GIF.
-- **Shot on:** canvas card (`renderCard`/`cardLayout`), preview replaces photo in stage. Lines editable: title (model only, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces italic, default)/Wide (Michroma)/Digicam (DSEG14), row hidden for Pixel; Shape Original/Square/4:5. Prefs in `inspicio.card`, never text. Sizes % of card width × `tall` (up to 1.5 on tall cards); per-font `k`/`dk`. Digicam: all lines caps, orange `#ff5a1f` with canvas-shadow halation + bloom, spaces → `!`, small line auto `'26 11 01` until edited. Saves JPEG ≤ 3240 px.
-- **Film:** rolls engine (Portra 400 → Endura, Noritsu) ported to `film.js`, runs in `film-worker.js`, measured data in `film-data.js` (937 KB, Film tab only). Matches Swift (`tools/film/` re-checks). JPEG/HEIC = finished photo (`placement: 'photo'`): `photoTransfer` undoes camera tone curve, K at film mid-grey, `photoBalance` neutral grey; note "close, not exact". **HEIC gain map** (iOS 18+, all browsers; user confirmed, subtle): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux gain map via raw libheif C calls; film input × max(1, gain). Not yet: older iPhones (no `tmap`), JPEG. **ProRAW DNG** (LinearRaw + lossless JPEG): `parseDNG`/`decodeDNG` port, file's matrices, BaselineExposure, scene placement, rotate after print; matches Darkroom on IMG_0855. Other RAW: embedded preview. Preview 1.4 MP; Exposure re-develops (input cached), Brightness (0.1 steps) reprints on helpers' kept strips. **Frame** section: square switch, White/Black, size 1–20% of short side (`inspicio.film`); stage via `.film-print` inset, save draws border (framed ≤ 16 MP). Phones: Shot on/Film stage sticky. Save ≤ 16 MP (8 touch). Parallel: ≤ 6 helper copies of film-worker (halation per channel, row strips ± `stripMargin`), bit-identical. 16 MP ~2.3 s.
-- **Saving** (Film, Shot on): dim overlay, step names, predicted bar (`saveProgress`, `SAVE_STEPS`, `inspicio.speed`). Touch: "Save to Photos" = share sheet.
-- **HEIC:** Safari native. Chrome/Firefox: `heif-worker.js` + vendored libheif 1.19.8 pure-JS (LGPL, `vendor/libheif-NOTICE.txt`; WASM rejected, needs CSP `wasm-unsafe-eval`), ~0.8 s/12 MP, becomes q0.95 JPEG blob so all tools work.
-- **RAW:** `loadRawPreview` shows largest embedded JPEG (rotated by RAW orientation if needed). ProRAW, Sony ARW full size; DJI 960 × 540.
-- **Photos app drags:** small preview; "Small copy" notice under 1200 px.
+- **Tabs** (`#modes`, copy in `MODES`): Inspect, Wipe, Shot on, Film. Above drop zone; panel top when photo open. Mode in hash. Blue fill slides (`placeFill`). Subtitles stacked (`.line-stack`).
+- **Zoom** (`zoomable`/`attachZoom`) on every stage: wheel, pinch, double-click, drag, − % +, keys. % box fixed width; 100% = photo px (saved px for card/film). Hit areas extend ~12 px; bigger on touch. `html { touch-action: manipulation }` stops double-tap page zoom.
+- **Inspect:** full-res preview; panel ≤ 340 px, collapsible sections (`inspicio.collapsed`); Location: copy lat/lon, opt-in Mapbox map, OSM link.
+- **Wipe:** lists what photo gives away, saves clean copy. JPEG/PNG lossless (drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed; tag left = no download. Touch: share sheet.
+- **Shot on:** canvas card (`renderCard`/`cardLayout`). Lines: title (model, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces)/Wide (Michroma)/Digicam (DSEG14, orange glow, caps, `'26 11 01` stamp); Shape Original/Square/4:5. Prefs `inspicio.card`, never text. Zoom redraws at save size (`cardWantsHi`). Saves ≤ 3240 px.
+- **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift (`tools/film/`).
+  - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain). Subtle.
+  - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
+  - **Speed:** `film-worker.js` spawns ≤ 6 helper copies (min 2): halation per channel, row strips ± `stripMargin` (49 rows), K from strip samples. Bit-identical to one piece. 16 MP ~2.3 s; preview Exposure ~0.25 s (input cached), Brightness reprints on helpers' kept strips ~50 ms.
+  - Preview 1.4 MP; zooming past it develops full detail (`filmDetail`), slider cancels by restarting worker, Save reuses it. Caption = thin filling bar while developing, width measured to final text (`filmCaptionBar`).
+  - Sliders: Exposure 0.5, Brightness 0.1 steps. **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
+- **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms each), bar = one animation, speed changed per step (`barController`, `SAVE_STEPS` ms/MP, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: Ready → "Save to Photos" (share sheet; web can't write Photos).
+- **Phones:** Shot on/Film stage sticky under top bar (40svh) so changes show while scrolling controls.
+- **HEIC:** Safari native; Chrome/Firefox via vendored libheif 1.19.8 pure-JS (LGPL; WASM needs CSP change) → q0.95 JPEG blob.
+- **RAW:** largest embedded JPEG (`loadRawPreview`). **Photos drags:** small preview notice.
 
 ## Hard rules
 
-- **Everything runs in browser.** Photo never leaves machine: no uploads, no analytics, no backend. Main selling point. Never break.
-- **One opt-in exception:** "Show map" loads Mapbox static image (coords + IP). Never before click; note under button; text credit under map. `MAPBOX_TOKEN` in `app.js` (empty hides button), account `johnnythan`, no card, 5,000/month, no charges possible; over limit map fails, OSM link stays. Map `<img>` `referrerPolicy = 'strict-origin'`.
+- **Everything runs in browser.** Photo never leaves machine: no uploads, no analytics, no backend. Never break.
+- **One opt-in exception:** "Show map" loads Mapbox static image. Never before click; note + credit. `MAPBOX_TOKEN` in `app.js`, account `johnnythan`, free tier, no card. `referrerPolicy = 'strict-origin'`.
 - **No build step.** Plain HTML, CSS, JS.
-- **exifr** (vendored 7.1.3, one patch: ftyp limit 50 → 256 bytes for iOS 18+ HEIC, see `vendor/exifr-NOTICE.txt`) for metadata. No hand-rolled parser (Wipe's segment copier only removes, never reads tags).
-- **Revoke object URLs** on new photo.
-- **Fonts and libraries vendored** in `vendor/` with license. Never CDN at runtime (CSP).
+- **exifr** 7.1.3 (patched: ftyp limit 50 → 256 for iOS 18+ HEIC, `vendor/exifr-NOTICE.txt`) for metadata. No hand-rolled tag parser.
+- **Revoke object URLs** on new photo. **Vendor** fonts/libs with license; never CDN (CSP).
 
 ## Design
 
-- Sleek, one accent, square corners. Logo: pixel "i" breaking out of frame. Geist (text, subtitles; user keeps), Geist Mono (numbers), Departure Mono (headlines, labels; 11 px grid).
-- Colors: accent `#19448A` (dark `#89ADE6`), light bg `#E9F0EE`. Text contrast 4.5:1.
-- Light + dark via `prefers-color-scheme`. Narrow: panel stacks below preview.
+- Sleek, one accent, square corners. Logo: pixel "i" breaking out of frame. Geist (text), Geist Mono (numbers), Departure Mono (headlines, labels; 11 px grid).
+- Accent `#19448A` (dark `#89ADE6`), light bg `#E9F0EE`. Contrast 4.5:1. Light + dark. Narrow: panel below.
 - Human formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`.
-- "Pixel frame" look: grid bg, ticker of made-up tags, 3 diagonal photos in drop zone, `pixelReveal`, `decodeValues`. Pixel trails removed (clutter), don't bring back.
+- Pixel look: grid bg, ticker, diagonal photos, `pixelReveal`, `decodeValues`. No pixel trails.
+- User wants nothing in the UI to jump or resize (fixed-width boxes, measured widths).
 
 ## Repo and deploy
 
-- GitHub `Johnnythan-3/inspicio`, `main`. Cloudflare Workers static assets; push to `main` deploys in 30–90 s.
-- Live: https://inspicio.app (Cloudflare Registrar, auto-renew). 
-- workers.dev subdomain `johnnythan`. Never put owner's email or anything derived from it in URLs, files, commits (noreply address in git config).
+- GitHub `Johnnythan-3/inspicio`, `main`; Cloudflare Workers static assets, push deploys in 30–90 s. Live https://inspicio.app.
+- Never put owner's email or anything derived from it in URLs, files, commits.
 
-## Status (2026-11-07, session 8)
+## Status (2026-11-07, end of session 8)
 
-- User tests in **Firefox** on Mac and Safari on iPhone; photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
-- User confirmed: Wipe, Shot on (rejected Instrument Serif, Caveat, "Shot on" prefix), HEIC, DNG, ARW, gain map, fast Film, iPhone save.
-- **Next ideas:** Film lab chooser (rolls has Noritsu, Frontier, Optical print in `PrintProfile.swift`); gain maps for JPEG; camera RAW via DNG. Rolls → App Store; web ProRAW may compete or funnel (user's call).
-- Small: `www.` redirect, `hello@inspicio.app`. Motion: logo-dot hop, count-ups (Anime.js OK). If asked: tag search, JSON copy.
+- User tests in **Firefox** (Mac) and **Safari** (iPhone); photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
+- Confirmed: Wipe, Shot on, HEIC, DNG, ARW, gain map, fast Film, iPhone Save to Photos.
+- Session 8: zoom everywhere + % box, exifr HEIC fix, full-detail film zoom, gain map, helpers (3.5×), save overlay, Frame, sticky phone stage, caption bar, tap fixes.
+- **Not yet checked by user:** Frame on iPhone; sticky stage; smoother save bar; caption bar; zoom buttons on phone; Safari desktop (nested workers, save, frame ≤ 16 MP).
+- **Next ideas:** Film lab chooser (Frontier, Optical print in rolls `PrintProfile.swift`); JPEG gain maps; Apple `linearthumbnail` aux (maybe scene-linear); camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
 
 ## Files
 
-`public/`: `index.html` (markup, CSP meta), `styles.css`, `app.js` (UI logic), `film*.js` (Film), `heif-worker.js` (HEIC), `_headers`, `privacy.html`/`terms.html` (BC law; inspicio.app@proton.me), `404.html`, `favicon.svg`, `redirect.js`, `vendor/`. `wrangler.jsonc` serves `./public`. `tools/film/` rebuilds film data from rolls (not served).
+`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (Node worker shim; helpers must match 1 core byte for byte).
 
-- CSP `default-src 'none'` (same-origin + Mapbox img). Keep in `index.html`, `privacy.html`, `terms.html`, `_headers`. No inline styles: set vars via `style.setProperty`.
-- Metadata untrusted: `textContent` via `el()`, never `innerHTML`.
+- CSP `default-src 'none'`; keep in HTML files and `_headers`. No inline styles: `style.setProperty`. Metadata via `textContent` only.
 - Run: `python3 -m http.server 8788 --directory public`.
 
 ## Working notes
 
 - Keep this file under 8 KB.
-- Test with real phone/camera JPEG with GPS, no-metadata screenshot, HEIC, RAW.
-- Design choices: user likes picking from a live preview page (scratchpad page + local server, fonts from jsdelivr there only).
-- Firefox fingerprinting protection rounds timestamps: animate with CSS/Web Animations.
-- GitHub push protection flags Mapbox `pk.` token: allowed false positive.
-- Third-party code in Node is blocked: test vendored libs in browser pane.
-- Don't reuse `data-mode` outside tabs (querySelector clash; stacked lines use `data-line`).
-- Browser pane: server via Bash in background (preview_start can't run python in Desktop folder), attach via `.claude/launch.json`. Hidden pane: stub `img.decode` to resolve on `load`, unset `document.startViewTransition`, `finish()` animations. Caches hard: use `127.0.0.1:8788`, reload, swap stylesheet `?t=`. CSP blocks `fetch`: build test files in page, or put a real file in `public/_test.*` with a temporary `_fetch-test.js` worker (workers have no CSP locally), load via `DataTransfer` on `#file-input`; delete `_*` test files before committing.
+- Firefox rounds timestamps: animate with CSS/WAAPI. Mapbox `pk.` token push warning: allowed.
+- Third-party code in Node blocked; our own `film.js` in Node is fine (bench, compare old vs new).
+- Don't reuse `data-mode` outside tabs.
+- Browser pane: server via Bash background, `.claude/launch.json`. Often hidden: timings wrong, animations frozen; stub `img.decode`, unset `startViewTransition`. Stale cache: open `/film.js` (no CSP) and `fetch(f, {cache:'reload'})` each file. Test files: `public/_test.*` + temporary `_fetch-test.js` worker, load via `DataTransfer` on `#file-input`; delete `_*` before commit.
