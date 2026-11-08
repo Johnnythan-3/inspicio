@@ -115,7 +115,9 @@
 *::before,
 *::after { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; font-synthesis: none; }
+/* touch-action: manipulation stops double-tap zooming the page (so tapping + or − quickly zooms
+   the photo, not the page); pinching the page still works. */
+html { -webkit-text-size-adjust: 100%; font-synthesis: none; touch-action: manipulation; }
 
 body {
   margin: 0;
@@ -844,6 +846,34 @@ body.loading .overlay-loading { display: inline-flex; }
 
 .photo figcaption > span { overflow: hidden; text-overflow: ellipsis; }
 
+/* While the film develops, the caption is a thin bar as wide as the finished text (measured into
+   --cap-w), so the box keeps its size. */
+.photo figcaption > span.is-progress {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  width: var(--cap-w, calc(var(--cap-ch, 30) * 1ch));
+  max-width: 100%;
+}
+
+.cap-measure { position: absolute; visibility: hidden; white-space: nowrap; pointer-events: none; }
+
+.cap-bar {
+  display: block;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  background: var(--accent-soft);
+}
+
+.cap-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(var(--p, 0));
+  transform-origin: left center;
+}
+
 @keyframes caption-in {
   from { opacity: 0; transform: translate(-50%, 10px); }
   to { opacity: 1; transform: translateX(-50%); }
@@ -869,6 +899,24 @@ body.loading .overlay-loading { display: inline-flex; }
 }
 
 .zoom-btn { width: 26px; font-size: 16.5px; line-height: 1; }
+
+/* Each zoom control answers taps a little outside itself, so a near miss still counts. */
+.zoom-btn,
+.zoom-level { position: relative; }
+
+.zoom-btn::after,
+.zoom-level::after {
+  content: "";
+  position: absolute;
+  inset: -12px -2px;
+}
+
+.zoom-controls > :last-child::after { right: -14px; }
+
+@media (pointer: coarse) {
+  .zoom-btn { width: 36px; height: 34px; font-size: 19px; }
+  .zoom-level { height: 34px; }
+}
 .zoom-level { width: calc(5ch + 16px); padding: 0; text-align: center; color: var(--muted); } /* fits "1000%", so it never resizes */
 .zoom-btn:hover:not(:disabled),
 .zoom-level:hover { background: var(--accent-soft); color: var(--accent); }

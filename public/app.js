@@ -1976,11 +1976,68 @@
   // The overlay's entrance takes about 0.3 s; heavy work waits most of it out so it stays smooth.
   const settled = () => painted().then(() => new Promise((resolve) => setTimeout(resolve, 220)));
 
+  // A progress bar's fill driven through `steps` at their predicted pace (SAVE_STEPS, plus `base` ms
+  // each). One animation from empty to full that never restarts: each step only changes its speed,
+  // aiming to reach the step's end when the step is predicted to finish, and a step that runs long
+  // slows it to a crawl before the next step's place. So it never jumps or goes back, and since it
+  // runs on the compositor it keeps moving while the page is busy.
+  function barController({ fill, steps, megapixels, base = 120 }) {
+    const durations = steps.map((k) => SAVE_STEPS[k][2] * megapixels * saveSpeed + base);
+    const total = durations.reduce((a, b) => a + b, 0);
+    const starts = [];
+    let sum = 0;
+    for (const d of durations) { starts.push(sum / total); sum += d; }
+    const anim = reduceMotion.matches ? null
+      : fill.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: total, easing: 'linear', fill: 'forwards' });
+    let rate = 1;
+    let index = -1;
+    let done = false;
+    const at = () => (anim ? Math.min(1, (anim.currentTime || 0) / total) : 0);
+    const setRate = (r) => {
+      if (!anim) return;
+      rate = Math.min(12, Math.max(0.02, r));
+      if (anim.updatePlaybackRate) anim.updatePlaybackRate(rate);
+      else anim.playbackRate = rate;
+    };
+    const stepEnd = () => (index + 1 < steps.length ? starts[index + 1] : 1);
+    const watch = setInterval(() => {
+      if (!anim || done || index < 0) return;
+      const room = stepEnd() - 0.008 - at();
+      if (room <= 0) setRate(0.02);
+      else if (room < 0.02 && rate > 0.1) setRate(rate / 2);
+    }, 120);
+    return {
+      starts,
+      total,
+      // Returns the step's index, or -1 if it isn't ahead of the current one.
+      step(name) {
+        const i = steps.indexOf(name);
+        if (done || i <= index) return -1;
+        index = i;
+        if (!anim) { fill.style.setProperty('--p', String(starts[i])); return i; }
+        const target = starts[i] + (stepEnd() - starts[i]) * 0.95;
+        setRate(((target - at()) * total) / durations[i]);
+        return i;
+      },
+      finish(ms = 300) {
+        done = true;
+        clearInterval(watch);
+        fill.style.setProperty('--p', '1');
+        setRate(((1 - at()) * total) / ms);
+      },
+      stop() {
+        done = true;
+        clearInterval(watch);
+        anim?.pause();
+      },
+    };
+  }
+
   // The overlay. The bar is one animation from empty to full that never restarts: each step only
   // changes its speed (aiming to reach the step's end when the step is predicted to finish), and a
   // step that runs long slows it to a crawl before the next notch. So it never jumps or goes back,
   // and since it runs on the compositor it keeps moving while the page is busy.
-  function saveProgress({ eyebrow, steps, megapixels, learn, onCancel }) {
+  function saveProgress({ eyebrow, steps, megapixels, learn }) {
     const durations = steps.map((k) => SAVE_STEPS[k][2] * megapixels * saveSpeed + 120);
     const total = durations.reduce((a, b) => a + b, 0);
     const starts = [];
@@ -2006,24 +2063,7 @@
     let closed = false;
     let cancel = null;
 
-    const anim = reduceMotion.matches ? null
-      : fill.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: total, easing: 'linear', fill: 'forwards' });
-    let rate = 1;
-    const at = () => (anim ? Math.min(1, (anim.currentTime || 0) / total) : 0);
-    const setRate = (r) => {
-      if (!anim) return;
-      rate = Math.min(12, Math.max(0.02, r));
-      if (anim.updatePlaybackRate) anim.updatePlaybackRate(rate);
-      else anim.playbackRate = rate;
-    };
-    const stepEnd = () => (index >= 0 && index < steps.length ? (index + 1 < steps.length ? starts[index + 1] : 1) : 1);
-    // Near the end of a step that's taking longer than predicted: keep halving the speed.
-    const watch = setInterval(() => {
-      if (!anim || index === Infinity || index < 0) return;
-      const room = stepEnd() - 0.008 - at();
-      if (room <= 0) setRate(0.02);
-      else if (room < 0.02 && rate > 0.1) setRate(rate / 2);
-    }, 120);
+    const ctl = barController({ fill, steps, megapixels });
 
     // Step names change at most every 450 ms, so a burst of quick steps doesn't flicker; the
     // latest one shows when its turn comes.
@@ -2053,7 +2093,7 @@
     const close = () => {
       if (closed) return;
       closed = true;
-      clearInterval(watch);
+      ctl.stop();
       clearTimeout(textTimer);
       document.removeEventListener('keydown', onKey, true);
       root.classList.add('is-closing');
@@ -2070,17 +2110,13 @@
 
     const api = {
       step(name) {
-        const i = steps.indexOf(name);
-        if (closed || i <= index) return;
+        if (closed) return;
+        const i = ctl.step(name);
+        if (i < 0) return;
         index = i;
         const [title, sub] = SAVE_STEPS[name];
         text(title, sub);
         bar.setAttribute('aria-valuenow', String(Math.round(starts[i] * 100)));
-        if (!anim) { fill.style.setProperty('--p', String(starts[i])); return; }
-        // Reach 95% of the way to this step's end in the step's predicted time, from wherever the
-        // bar is now (behind catches up, ahead slows down).
-        const target = starts[i] + (stepEnd() - starts[i]) * 0.95;
-        setRate(((target - at()) * total) / durations[i]);
       },
       cancellable(fn) {
         cancel = fn ? () => { cancel = null; fn(); } : null;
@@ -2097,10 +2133,8 @@
         }
         index = Infinity;
         cancel = null;
-        clearInterval(watch);
         bar.setAttribute('aria-valuenow', '100');
-        fill.style.setProperty('--p', '1');
-        setRate(((1 - at()) * total) / 300);
+        ctl.finish();
       },
       done(sub) {
         api.finished();
@@ -2129,8 +2163,7 @@
       fail(message) {
         index = Infinity;
         cancel = null;
-        clearInterval(watch);
-        anim?.pause();
+        ctl.stop();
         text('Couldn’t save', message, true);
         setActions(button('Close', true, close));
       },
@@ -2173,16 +2206,6 @@
   // sliders move; saving develops the full photo. All of it on this device.
   const FILM_PREVIEW_PIXELS = 1.4e6;
   const FILM_SAVE_PIXELS = window.matchMedia('(pointer: coarse)').matches ? 8e6 : 16e6;
-  const FILM_STAGES = {
-    reading: 'Reading the negative',
-    exposing: 'Exposing the film',
-    halation: 'Halation',
-    sharpness: 'Scattering in the emulsion',
-    curves: 'Developing',
-    couplers: 'Couplers',
-    grain: 'Grain',
-    printing: 'Printing',
-  };
 
   let filmWorker = null;
   let filmSeq = 0;
@@ -2334,6 +2357,60 @@
     }
   }
 
+  const FILM_STEPS = ['exposing', 'halation', 'sharpness', 'curves', 'couplers', 'grain', 'printing'];
+
+  // The finished caption, guessed before the first develop, so the bar can take its width.
+  function filmCaptionGuess(f) {
+    if (f.captionText) return f.captionText;
+    const raw = f.raw !== 'no';
+    const full = Math.min(1, Math.sqrt(FILM_SAVE_PIXELS / (f.img.width * f.img.height)));
+    const { width, height } = framedSize(Math.round(f.img.width * full), Math.round(f.img.height * full));
+    return `Portra 400${raw ? ' from RAW' : isHeif(f.file) ? ' with HDR' : ''}  ·  saves at ${width} × ${height}`;
+  }
+
+  // Sizes the caption to `text`'s real width, measured with a hidden copy once it's on the page.
+  function filmCaptionWidth(f, text) {
+    const cap = f.caption;
+    if (!cap) return;
+    cap.style.setProperty('--cap-ch', String(text.length));
+    const measure = () => {
+      if (!cap.isConnected || !cap.parentNode) return false;
+      const probe = el('span', { class: 'cap-measure', 'aria-hidden': 'true' }, text);
+      cap.parentNode.append(probe);
+      const w = probe.getBoundingClientRect().width;
+      probe.remove();
+      if (w > 0) cap.style.setProperty('--cap-w', `${w}px`);
+      return true;
+    };
+    if (!measure()) requestAnimationFrame(measure);
+  }
+
+  // The caption while the film develops: a thin bar that fills, as wide as the finished caption,
+  // so the box keeps its size and nothing in it moves.
+  function filmCaptionBar(f, steps, megapixels, base) {
+    f.capBar?.stop();
+    f.capBar = null;
+    if (!f.caption) return null;
+    const fill = el('span', { class: 'cap-fill' });
+    f.caption.replaceChildren(el('span', { class: 'cap-bar', role: 'progressbar', 'aria-label': 'Developing' }, fill));
+    filmCaptionWidth(f, filmCaptionGuess(f));
+    f.caption.classList.add('is-progress');
+    f.capBar = barController({ fill, steps, megapixels, base });
+    return f.capBar;
+  }
+
+  function filmCaptionDone(f, bar, text) {
+    if (!bar || f.capBar !== bar) return;
+    bar.finish(160);
+    setTimeout(() => {
+      if (f.capBar !== bar || !f.caption) return;
+      f.capBar = null;
+      bar.stop();
+      f.caption.classList.remove('is-progress');
+      f.caption.textContent = text;
+    }, reduceMotion.matches ? 0 : 200);
+  }
+
   async function filmPreview() {
     const f = film;
     if (!f || !f.canvas || !f.img.ok) return;
@@ -2348,9 +2425,10 @@
     f.busy = true;
     f.again = false;
     f.stage?.classList.add('is-developing');
+    const bar = filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS], FILM_PREVIEW_PIXELS / 1e6, 15);
+    bar?.step(f.raw !== 'no' ? 'reading' : 'prepare');
     try {
-      const res = await filmJob(f, FILM_PREVIEW_PIXELS, true,
-        (stage) => { if (f.caption) f.caption.textContent = `${FILM_STAGES[stage] || 'Developing'}…`; });
+      const res = await filmJob(f, FILM_PREVIEW_PIXELS, true, (stage) => bar?.step(stage));
       if (film !== f || !f.canvas) return;
       f.canvas.width = res.width;
       f.canvas.height = res.height;
@@ -2370,10 +2448,10 @@
       // A DNG developed from its sensor data can have a different shape than its preview.
       filmApplyFrame(f);
       f.captionBase = `Portra 400${res.raw ? ' from RAW' : f.hdr ? ' with HDR' : ''}`;
-      f.caption.textContent = '';
       filmCaption(f);
+      filmCaptionDone(f, bar, f.captionText);
     } catch (err) {
-      if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
+      filmCaptionDone(f, bar, 'Couldn’t develop this photo');
       if (f.note) f.note.textContent = String(err.message || err);
     } finally {
       f.busy = false;
@@ -2393,10 +2471,12 @@
     if (f.detail?.settings === settings) return f.detail.promise;
     const detail = { settings, canvas: null, running: true };
     f.detail = detail;
+    const bar = filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS],
+      (f.saveW && f.saveH ? f.saveW * f.saveH : FILM_SAVE_PIXELS) / 1e6, 60);
+    bar?.step(f.raw !== 'no' ? 'reading' : 'prepare');
     const onStage = (stage) => {
-      const text = `${FILM_STAGES[stage] || 'Developing'}…`;
       if (f.saving) f.saveStage?.(stage);
-      if (f.caption && f.detail === detail) f.caption.textContent = `Full detail: ${text}`;
+      if (f.detail === detail) bar?.step(stage);
     };
     detail.promise = filmJob(f, FILM_SAVE_PIXELS, false, onStage).then((res) => {
       const canvas = el('canvas', { class: 'film-canvas film-detail is-ready' });
@@ -2409,7 +2489,7 @@
       detail.running = false;
       if (f.detail !== detail) return;
       if (!detail.canvas) f.detail = null;
-      if (f.caption && f.captionText) f.caption.textContent = f.captionText;
+      filmCaptionDone(f, bar, f.captionText || '');
       filmShowDetail(f);
     });
     return detail.promise;
@@ -2464,7 +2544,8 @@
     if (!f.caption || !f.captionBase || !f.saveW) return;
     const { width, height } = framedSize(f.saveW, f.saveH);
     f.captionText = `${f.captionBase}  ·  saves at ${width} × ${height}`;
-    if (!f.detail?.running || f.detail.canvas) f.caption.textContent = f.captionText;
+    if (!f.capBar) f.caption.textContent = f.captionText;
+    else filmCaptionWidth(f, f.captionText);
   }
 
   // Shows the frame in the stage: the print sits inset in a box of the frame's colour, and the
@@ -2490,7 +2571,8 @@
     f.canvas.width = Math.max(1, Math.round(f.img.width * scale));
     f.canvas.height = Math.max(1, Math.round(f.img.height * scale));
     f.original = el('img', { class: 'film-original', src: currentUrl, alt: '', 'aria-hidden': 'true', draggable: 'false' });
-    f.caption = el('span', null, 'Loading the film…');
+    f.caption = el('span', null, '');
+    f.capBar = null;
     f.stage = el('div', { class: 'film-frame' }, el('div', { class: 'film-print' }, f.canvas, f.original));
     stageZoom?.stop();
     const z = zoomable(f.stage, { ar: f.canvas.width / f.canvas.height, natW: f.img.width,
