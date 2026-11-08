@@ -2584,3 +2584,215 @@ html[data-motion="calm"] .film-icon { animation: none !important; }
 
 /* Room above the panel's tabs for the tallest icon (the 20 px magnifier), so it isn't cut off. */
 .panel { padding-top: 30px; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Phones: a calmer, smaller top bar ---------- */
+
+@media (max-width: 860px) {
+  :root { --topbar-h: 50px; }
+  .brand { gap: 9px; font-size: 16.5px; }
+  .brand-mark { width: 21px; height: 21px; }
+  .local-badge, .btn { height: 26px; }
+  .btn svg { width: 12px; height: 12px; }
+  .local-badge svg { width: 9px; height: 11px; }
+  [data-look="mellow"] .brand { font-size: 16px; }
+}
+
+@media (max-width: 520px) {
+  .local-badge { width: 26px; padding: 0 8px; }
+  .btn { padding: 0 7px; }
+  [data-look="mellow"] .local-badge { width: 26px; padding: 0; }
+}
+
+/* ---------- Phones: Film as a photo editor (app.js buildFilmEditor) ---------- */
+
+/* The page doesn't scroll: the photo takes all the room the tools leave. */
+.viewer.is-editor {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: calc(100dvh - var(--topbar-h));
+  overflow: hidden;
+}
+
+html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
+
+.viewer.is-editor .stage,
+.viewer.is-editor .stage[data-kind="film"] {
+  position: relative;
+  top: auto;
+  min-height: 0;
+  padding: 10px 12px 4px;
+  border-bottom: 0;
+}
+
+/* The photo fits the stage like on a computer, with a short caption strip under it. */
+.viewer.is-editor .photo,
+.viewer.is-editor .stage[data-kind="film"] .photo {
+  --fit-h: 100cqh;
+  --caption-strip: 30px;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding-bottom: var(--caption-strip);
+  container-type: size;
+}
+
+.viewer.is-editor .photo figcaption {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  gap: 0;
+  padding: 2px 10px;
+  font-size: 10px;
+  transform: translateX(-50%);
+  animation: none;
+}
+
+.viewer.is-editor .zoom-controls { display: none; }
+
+.viewer.is-editor .panel {
+  overflow: visible;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+
+.viewer.is-editor .panel .modes { margin: 0 0 10px; }
+
+.film-editor {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.editor-head {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.editor-value {
+  min-width: 4ch;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+/* One fixed height for every tool's control, so the photo never resizes when switching. */
+.editor-controls { display: grid; align-items: center; height: 66px; }
+.editor-pane[hidden] { display: none; }
+
+/* A ruler of ticks under each slider, like a camera dial. */
+.editor-ruler {
+  padding: 12px 2px;
+  background: repeating-linear-gradient(90deg, var(--line-strong) 0 1px, transparent 1px 10px) center / 100% 12px no-repeat;
+}
+
+.editor-pane input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(--accent); }
+.editor-pane input[type="range"]:disabled { opacity: 0.4; }
+
+.editor-frame { display: grid; gap: 8px; }
+.editor-frame-row { display: flex; align-items: center; gap: 12px; }
+.editor-frame-row .seg { flex: 1; }
+.editor-frame-row .seg.is-off { opacity: 0.55; }
+
+.editor-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.editor-switch[aria-checked="true"] .switch { background: var(--accent); }
+.editor-switch[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateX(16px); }
+
+/* Square tool buttons. */
+.editor-tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+
+.tool {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  aspect-ratio: 1;
+  max-height: 72px;
+  padding: 0;
+  border: 2px solid var(--accent);
+  background: transparent;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--accent);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s, color 0.2s, transform 0.15s var(--ease);
+}
+
+.tool svg { display: block; }
+.tool:active { transform: scale(0.96); }
+.tool[aria-pressed="true"],
+.tool.is-held,
+.tool.tool-save { background: var(--accent); color: var(--bg); }
+.tool:disabled { opacity: 0.6; cursor: progress; }
+
+/* The settings button moves to the photo's top corner, clear of the tools. */
+body:has(.viewer.is-editor:not([hidden])) .prefs-btn {
+  top: calc(var(--topbar-h) + 10px);
+  bottom: auto;
+  width: 34px;
+  height: 34px;
+}
+body:has(.viewer.is-editor:not([hidden])) .prefs-btn svg { width: 17px; height: 17px; }
+body:has(.viewer.is-editor:not([hidden])) .prefs-panel { top: calc(var(--topbar-h) + 52px); bottom: auto; }
+
+/* Mellow. */
+[data-look="mellow"] .editor-head { font-size: 13px; letter-spacing: 0; text-transform: none; }
+[data-look="mellow"] .editor-switch { font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+[data-look="mellow"] .editor-switch .switch { border: 0; border-radius: 999px; background: var(--line-strong); }
+[data-look="mellow"] .editor-switch[aria-checked="true"] .switch { background: var(--accent); }
+[data-look="mellow"] .editor-switch[aria-checked="true"] .switch-knob { background: var(--on-accent); }
+
+[data-look="mellow"] .tool {
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--card);
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-transform: none;
+  color: var(--text);
+}
+
+[data-look="mellow"] .tool svg { color: var(--accent); }
+[data-look="mellow"] .tool[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+[data-look="mellow"] .tool.is-held,
+[data-look="mellow"] .tool.tool-save { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+[data-look="mellow"] .tool.is-held svg,
+[data-look="mellow"] .tool.tool-save svg { color: inherit; }
+.tool.film-compare { margin: 0; }

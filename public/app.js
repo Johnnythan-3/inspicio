@@ -2733,8 +2733,174 @@
     button.disabled = false;
   }
 
+  /* ---------- Film on phones: a photo editor ---------- */
+
+  // On narrow screens Film works like a phone photo editor: the photo stays put and fills the
+  // screen, and a row of square tool buttons sits under it. Exposure, Brightness and Frame each
+  // show their control in one fixed-height strip above the row (so the photo never resizes),
+  // Original is held to compare, and Save develops at full size.
+  const TOOL_ICONS = {
+    exposure: ['....#....', '.#.....#.', '...###...', '..#####..', '#.#####.#', '..#####..', '...###...', '.#.....#.', '....#....'],
+    brightness: ['..#####..', '.#..####.', '#...#####', '#...#####', '#...#####', '#...#####', '#...#####', '.#..####.', '..#####..'],
+    frame: ['#########', '#.......#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.......#', '#########'],
+    original: ['.........', '..#####..', '.#.....#.', '#...#...#', '#..###..#', '#...#...#', '.#.....#.', '..#####..', '.........'],
+    save: ['....#....', '....#....', '....#....', '..#.#.#..', '...###...', '....#....', '.........', '#.......#', '#########'],
+  };
+
+  function pixelIcon(rows) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const w = rows[0].length;
+    const h = rows.length;
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.setAttribute('width', String(w * 2));
+    svg.setAttribute('height', String(h * 2));
+    svg.setAttribute('shape-rendering', 'crispEdges');
+    svg.setAttribute('aria-hidden', 'true');
+    let d = '';
+    rows.forEach((row, y) => {
+      for (let x = 0; x < w;) {
+        if (row[x] !== '#') { x++; continue; }
+        const x0 = x;
+        while (row[x] === '#') x++;
+        d += `M${x0} ${y}h${x - x0}v1H${x0}z`;
+      }
+    });
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'currentColor');
+    svg.append(path);
+    return svg;
+  }
+
+  function buildFilmEditor(f, meta) {
+    f.meta = meta;
+    f.sourceNode = null;
+    const name = el('span', { class: 'editor-name' });
+    const value = el('span', { class: 'editor-value' });
+    const head = el('p', { class: 'editor-head', 'aria-live': 'polite' }, name, value);
+
+    const range = (key, min, max, step, label) => {
+      const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
+      input.value = String(f[key]);
+      input.addEventListener('input', () => {
+        f[key] = Number(input.value);
+        show();
+        filmPreview();
+      });
+      input.addEventListener('dblclick', () => {
+        input.value = '0';
+        input.dispatchEvent(new Event('input'));
+      });
+      return input;
+    };
+
+    // Frame: on/off and colour in one row, the width under it.
+    const toggle = el('button', { class: 'editor-switch', type: 'button', role: 'switch', 'aria-checked': String(filmPrefs.frame) },
+      el('span', { class: 'switch', 'aria-hidden': 'true' }, el('span', { class: 'switch-knob' })), 'Frame');
+    const colors = el('div', { class: 'seg', role: 'group', 'aria-label': 'Frame colour' },
+      Object.keys(FRAME_COLORS).map((v) => el('button', {
+        type: 'button', 'data-value': v, 'aria-pressed': String(filmPrefs.frameColor === v),
+      }, v === 'white' ? 'White' : 'Black')));
+    const size = el('input', { type: 'range', min: '1', max: '20', step: '0.5', 'aria-label': 'Frame size' });
+    size.value = String(filmPrefs.frameSize);
+    const frameState = () => {
+      toggle.setAttribute('aria-checked', String(filmPrefs.frame));
+      colors.classList.toggle('is-off', !filmPrefs.frame);
+      size.disabled = !filmPrefs.frame;
+    };
+    toggle.addEventListener('click', () => {
+      filmPrefs.frame = !filmPrefs.frame;
+      frameState();
+      saveFilmPrefs();
+      filmApplyFrame(f);
+      show();
+    });
+    colors.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      filmPrefs.frameColor = b.dataset.value;
+      if (!filmPrefs.frame) filmPrefs.frame = true;
+      for (const other of colors.children) other.setAttribute('aria-pressed', String(other === b));
+      placeFill(colors);
+      frameState();
+      saveFilmPrefs();
+      filmApplyFrame(f);
+      show();
+    });
+    size.addEventListener('input', () => {
+      filmPrefs.frameSize = Number(size.value);
+      filmApplyFrame(f);
+      show();
+    });
+    size.addEventListener('change', saveFilmPrefs);
+    frameState();
+
+    const panes = {
+      exposure: { label: 'Exposure', node: el('div', { class: 'editor-pane editor-ruler' }, range('exposure', -2, 3, 0.5, 'Exposure')),
+        value: () => fmtStops(f.exposure) },
+      brightness: { label: 'Brightness', node: el('div', { class: 'editor-pane editor-ruler' }, range('brightness', -1.5, 1.5, 0.1, 'Brightness')),
+        value: () => fmtStops(f.brightness) },
+      frame: { label: 'Frame', node: el('div', { class: 'editor-pane editor-frame' }, el('div', { class: 'editor-frame-row' }, toggle, colors), size),
+        value: () => (filmPrefs.frame ? `${filmPrefs.frameSize}%` : 'Off') },
+    };
+    let active = f.editorTool && panes[f.editorTool] ? f.editorTool : 'exposure';
+    const controls = el('div', { class: 'editor-controls' }, Object.values(panes).map((p) => p.node));
+    const tools = el('div', { class: 'editor-tools', role: 'toolbar', 'aria-label': 'Film tools' });
+    const toolButton = (key, label) => el('button', { class: 'tool', type: 'button', 'data-tool': key }, pixelIcon(TOOL_ICONS[key]), el('span', null, label));
+
+    function show() {
+      const p = panes[active];
+      name.textContent = p.label;
+      value.textContent = p.value();
+      for (const [key, pane] of Object.entries(panes)) pane.node.hidden = key !== active;
+      for (const b of tools.querySelectorAll('[data-tool]')) {
+        if (panes[b.dataset.tool]) b.setAttribute('aria-pressed', String(b.dataset.tool === active));
+      }
+      if (active === 'frame') requestAnimationFrame(() => placeFill(colors));
+    }
+
+    for (const [key, label] of [['exposure', 'Exposure'], ['brightness', 'Bright'], ['frame', 'Frame']]) {
+      const b = toolButton(key, label);
+      b.addEventListener('click', () => { active = key; f.editorTool = key; show(); });
+      tools.append(b);
+    }
+
+    // Original: shows the photo as it came for as long as it is held.
+    const hold = toolButton('original', 'Original');
+    hold.classList.add('film-compare');
+    hold.setAttribute('aria-label', 'Hold to see the original');
+    const compare = (on) => {
+      f.stage?.classList.toggle('show-original', on);
+      document.documentElement.classList.toggle('is-comparing', on);
+      hold.classList.toggle('is-held', on);
+    };
+    hold.addEventListener('pointerdown', () => compare(true));
+    hold.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    hold.addEventListener('contextmenu', (e) => e.preventDefault());
+    for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) hold.addEventListener(type, () => compare(false));
+    hold.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') compare(true); });
+    hold.addEventListener('keyup', () => compare(false));
+
+    const note = el('p', { class: 'visually-hidden', role: 'status' });
+    f.note = note;
+    const save = toolButton('save', 'Save');
+    save.classList.add('tool-save');
+    save.addEventListener('click', () => saveFilm(save, note));
+    tools.append(hold, save);
+
+    trackFill(colors);
+    show();
+    return [el('div', { class: 'film-editor' }, head, controls, tools, note)];
+  }
+
+  // Phones get the editor in Film; the class switches the page to its fixed, no-scroll layout.
+  const editorWanted = () => Boolean(narrowLayout.matches && current?.img.ok && mode === 'film');
+  const syncEditor = () => viewerView.classList.toggle('is-editor', editorWanted());
+
   function buildFilmPanel(file, meta, img) {
     const f = filmFor(file, img);
+    if (img.ok && narrowLayout.matches) return buildFilmEditor(f, meta);
     const nodes = [el('div', { class: 'summary' },
       el('p', { class: 'summary-eyebrow', title: file.name }, file.name),
       el('h1', { class: 'summary-title' }, 'Portra 400'),
@@ -2966,6 +3132,7 @@
     if (current) {
       document.title = `${current.file.name} · Inspicio`;
       if (changed) {
+        syncEditor();
         if (stageKind() !== stage.dataset.kind) stage.replaceChildren(stageNode());
         panel.replaceChildren(...panelNodes());
         panel.scrollTop = 0;
@@ -3007,6 +3174,14 @@
   });
 
   window.addEventListener('hashchange', () => setMode(location.hash.slice(1)));
+
+  // Turning a phone or resizing the window across the narrow width swaps Film's panel between
+  // the editor and the full panel.
+  narrowLayout.addEventListener('change', () => {
+    if (!current || mode !== 'film') return;
+    syncEditor();
+    panel.replaceChildren(...panelNodes());
+  });
 
   /* ---------- State ---------- */
 
@@ -3099,6 +3274,7 @@
     photoFigure = buildStage(file, img, url);
 
     await withTransition(() => {
+      syncEditor();
       panel.replaceChildren(...panelNodes());
       stage.replaceChildren(stageNode());
       emptyView.hidden = true;

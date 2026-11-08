@@ -17,7 +17,7 @@
   - Preview 1.4 MP; zooming past it develops full detail (`filmDetail`), slider cancels by restarting worker, Save reuses it. Caption = thin filling bar while developing, width measured to final text (`filmCaptionBar`).
   - Sliders: Exposure 0.5, Brightness 0.1 steps. **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms each), bar = one animation, speed changed per step (`barController`, `SAVE_STEPS` ms/MP, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: Ready → "Save to Photos" (share sheet; web can't write Photos).
-- **Phones:** Shot on/Film stage sticky under top bar (40svh) so changes show while scrolling controls.
+- **Phones (≤ 860 px):** top bar 50 px. Shot on stage sticky (40svh). **Film = photo editor** (`buildFilmEditor`, `.viewer.is-editor`): no scroll, photo fills, fixed 66 px control strip, square pixel tool buttons Exposure/Bright/Frame/Original (hold)/Save; settings button moves to photo's top corner.
 - **HEIC:** Safari native; Chrome/Firefox via vendored libheif 1.19.8 pure-JS (LGPL; WASM needs CSP change) → q0.95 JPEG blob.
 - **RAW:** largest embedded JPEG (`loadRawPreview`). **Photos drags:** small preview notice.
 
@@ -43,12 +43,12 @@
 - GitHub `Johnnythan-3/inspicio`, `main`; Cloudflare Workers static assets, push deploys in 30–90 s. Live https://inspicio.app.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
-## Status (2026-11-07, session 9)
+## Status (2026-11-08, session 9)
 
 - User tests in **Firefox** (Mac) and **Safari** (iPhone); photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
-- Confirmed: Wipe, Shot on, HEIC, DNG, ARW, gain map, fast Film, iPhone Save to Photos, Frame on iPhone, sticky stage, save bar, phone zoom, Safari save.
-- Session 9: HDR JPEG gain maps; compare fixes; Mellow + settings + first-visit chooser; one-screen home; **tab hover icons** (user loves them): pixel SVGs in `index.html` (`.mode-icon`, `.ic-*`): magnifier, sponge, camera + phone with flash, CSS film strip (`.film-icon`); 2 px steps; sliding fill = transform only (`--fill-base/x/s`).
-- **Not yet checked by user:** HDR JPEG film; compare fill; Mellow + settings; first-visit chooser; one-screen home; icon motion; fill smoothness; dark mode both looks.
+- Confirmed: all tools, HEIC/DNG/ARW, gain maps (HEIC + JPEG), Save to Photos, Mellow, settings, chooser, icons, sliders, one-screen home.
+- Session 9: **tab hover icons** (user loves them): pixel SVGs in `index.html` (`.mode-icon`, `.ic-*`), CSS film strip (`.film-icon`), 2 px steps; sliding fill = transform only (`--fill-base/x/s`).
+- **Not yet checked by user:** phone Film editor; smaller phone top bar; no-flash tab switch; faster settings exit.
 - User wants features non-techy people notice; skip deep technical ones. **Held off:** Film lab chooser (Frontier/scanners).
 - **Next ideas:** Apple `linearthumbnail` aux; camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
 
