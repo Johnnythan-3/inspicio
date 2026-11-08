@@ -3176,26 +3176,30 @@
       sub: 'Remove the location, date and camera before you share. Done in your browser.',
       dropSub: 'to make a clean copy',
       overlay: 'Drop to wipe',
-      doc: 'Inspicio · Wipe photo metadata',
+      doc: 'Inspicio · Remove photo metadata and location',
     },
     'shot-on': {
       title: ['Show how you', 'shot it.'],
       sub: 'Put the camera and settings under your photo, ready to post. Made in your browser.',
       dropSub: 'to make a card',
       overlay: 'Drop to make a card',
-      doc: 'Inspicio · Shot on card',
+      doc: 'Inspicio · Shot on frame with your camera settings',
     },
     film: {
       title: ['Develop it', 'like film.'],
       sub: 'Kodak Portra 400 from its datasheet: halation, grain and a real print. Made in your browser.',
       dropSub: 'to develop it',
       overlay: 'Drop to develop',
-      doc: 'Inspicio · Film',
+      doc: 'Inspicio · Film filter based on Kodak Portra 400',
     },
   };
 
   const modesNav = $('#modes');
-  let mode = 'inspect';
+  // Each tool also has its own page (remove-metadata.html and so on, made by tools/pages/make-pages.js)
+  // that opens on that tool and explains it below the fold. The explanation fits only its own tool.
+  const homeMode = MODES[document.documentElement.dataset.tool] ? document.documentElement.dataset.tool : 'inspect';
+  const toolAbout = $('#tool-about');
+  let mode = homeMode;
   let current = null; // { file, meta, img } for the open photo
   let photoFigure = null; // the zoomable photo; the Shot on tool shows its card in its place
 
@@ -3226,13 +3230,14 @@
   const ENTRANCE_ANIMATIONS = new Set(['rise', 'frame-in', 'caption-in', 'photo-in']);
 
   function setMode(next, fromUser) {
-    if (!MODES[next]) next = 'inspect';
+    if (!MODES[next]) next = homeMode;
     const changed = next !== mode;
     mode = next;
     const m = MODES[mode];
     for (const b of modesNav.querySelectorAll('.mode')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
     placeFill(modesNav);
-    if (fromUser) history.replaceState(null, '', mode === 'inspect' ? location.pathname + location.search : `#${mode}`);
+    if (fromUser) history.replaceState(null, '', mode === homeMode ? location.pathname + location.search : `#${mode}`);
+    if (toolAbout) toolAbout.hidden = mode !== homeMode;
     $('#overlay-drop').textContent = m.overlay;
 
     if (current) {

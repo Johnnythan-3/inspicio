@@ -757,6 +757,12 @@ body.busy .dropzone-icon { animation: pulse 1.1s var(--ease) infinite; }
 .doc li strong { color: var(--text); font-weight: 600; }
 .doc-links { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); }
 
+/* The write-up below the first screen on each tool's own page (tools/pages/make-pages.js). */
+#app[data-state="viewer"] > .tool-about { display: none; }
+.tool-about > h2:first-child { margin-top: 8px; }
+.doc h3 { margin: 20px 0 4px; font-size: 15px; font-weight: 600; }
+.tool-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
 .error {
   margin: -8px 0 0;
   max-width: 520px;

@@ -1,0 +1,153 @@
+<!doctype html>
+<!-- Made by tools/pages/make-pages.js from index.html. Don't edit by hand. -->
+<html lang="en" data-look="pixel" data-tool="shot-on">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob: data: https://api.mapbox.com; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Add a Shot on frame to your photo with the camera, lens and settings from its EXIF data, ready for Instagram. Free, in your browser, never uploaded.">
+  <title>Inspicio · Shot on frame with your camera settings</title>
+  <script src="redirect.js"></script>
+  <script src="prefs.js"></script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Inspicio">
+  <meta property="og:url" content="https://inspicio.app/shot-on-frame">
+  <meta property="og:title" content="Inspicio · Shot on frame with your camera settings">
+  <meta property="og:description" content="Add a Shot on frame to your photo with the camera, lens and settings from its EXIF data, ready for Instagram. Free, in your browser, never uploaded.">
+  <meta property="og:image" content="https://inspicio.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Inspicio logo above the words: See what your photos say.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://inspicio.app/shot-on-frame">
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <link rel="icon" href="favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preload" href="vendor/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="vendor/DepartureMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="vendor/exifr-7.1.3.full.umd.js" defer></script>
+  <script src="gainmap.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Inspicio home">
+      <svg class="brand-mark" viewBox="0 0 120 120" aria-hidden="true">
+        <g class="mark-pixel">
+          <path d="M46 14H14v92h92V14H74" fill="none" stroke="currentColor" stroke-width="7"/>
+          <rect class="brand-dot" x="53" y="7" width="14" height="14" fill="currentColor"/>
+          <path d="M35 43h14v14H35zM53 43h14v14H53zM53 61h14v14H53zM35 79h14v14H35zM53 79h14v14H53zM71 79h14v14H71z" fill="currentColor"/>
+        </g>
+        <g class="mark-soft">
+          <path d="M44 15H32a17 17 0 0 0-17 17v56a17 17 0 0 0 17 17h56a17 17 0 0 0 17-17V32a17 17 0 0 0-17-17H76" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+          <circle class="brand-dot" cx="60" cy="15" r="8.5" fill="currentColor"/>
+          <rect x="52.5" y="44" width="15" height="44" rx="7.5" fill="currentColor"/>
+        </g>
+      </svg>
+      <span>Inspicio</span>
+    </a>
+    <div class="topbar-right">
+      <p class="local-badge">
+        <svg viewBox="0 0 5 6" aria-hidden="true" shape-rendering="crispEdges"><path d="M1 0h3v1H1zM0 1h1v2H0zM4 1h1v2H4zM0 3h5v1H0zM0 4h2v1H0zM3 4h2v1H3zM0 5h5v1H0z" fill="currentColor"/></svg>
+        <span>Stays on your device</span>
+      </p>
+      <button class="btn" id="open-another" type="button" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>New photo</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="app" data-state="empty">
+    <section class="empty" id="empty-view">
+      <div class="hero-copy">
+        <div class="ticker" id="ticker" aria-hidden="true"></div>
+        <h1 id="hero-title">Show how you<br>shot it.</h1>
+        <p id="hero-sub">Put the camera and settings under your photo, ready to post. Made in your browser.</p>
+      </div>
+
+      <nav class="modes" id="modes" aria-label="Tools">
+        <button class="mode" type="button" data-mode="inspect" aria-pressed="false">Inspect<span class="mode-icon" aria-hidden="true"><svg viewBox="0 0 10 10" width="20" height="20" shape-rendering="crispEdges"><path class="ic-ink" d="M2 0h3v1H2zM1 1h1v1H1zM5 1h1v1H5zM0 2h1v1H0zM6 2h1v1H6zM0 3h1v1H0zM6 3h1v1H6zM0 4h1v1H0zM6 4h1v1H6zM1 5h1v1H1zM5 5h1v1H5zM2 6h3v1H2z"/><path class="ic-shine" d="M2 1h1v1H2zM1 2h1v1H1z"/><path class="ic-glass" d="M3 1h2v1H3zM2 2h4v1H2zM1 3h5v1H1zM1 4h5v1H1zM2 5h3v1H2z"/><path class="ic-wood" d="M6 6h2v1H6zM6 7h3v1H6zM7 8h3v1H7zM8 9h2v1H8z"/></svg></span></button>
+        <button class="mode" type="button" data-mode="wipe" aria-pressed="false">Wipe<span class="mode-icon" aria-hidden="true"><svg viewBox="0 0 10 7" width="20" height="14" shape-rendering="crispEdges"><path class="ic-scour" d="M1 0h8v1H1zM0 1h10v1H0z"/><path class="ic-sponge" d="M0 2h10v1H0zM0 3h1v1H0zM2 3h4v1H2zM7 3h3v1H7zM0 4h4v1H0zM5 4h5v1H5zM0 5h2v1H0zM3 5h5v1H3zM9 5h1v1H9zM1 6h8v1H1z"/><path class="ic-pore" d="M1 3h1v1H1zM6 3h1v1H6zM4 4h1v1H4zM2 5h1v1H2zM8 5h1v1H8z"/></svg></span></button>
+        <button class="mode" type="button" data-mode="shot-on" aria-pressed="true">Shot on<span class="mode-icon" aria-hidden="true"><svg viewBox="0 0 16 7" width="32" height="14" shape-rendering="crispEdges"><path class="ic-flash" d="M6 0h1v1H6zM8 0h1v1H8zM7 1h1v1H7z"/><path class="ic-ink" d="M11 0h5v1H11zM2 1h2v1H2zM11 1h1v1H11zM15 1h1v1H15zM0 2h7v1H0zM8 2h1v1H8zM11 2h1v1H11zM15 2h1v1H15zM0 3h3v1H0zM6 3h3v1H6zM11 3h1v1H11zM15 3h1v1H15zM0 4h2v1H0zM7 4h2v1H7zM11 4h1v1H11zM15 4h1v1H15zM0 5h3v1H0zM6 5h3v1H6zM11 5h1v1H11zM15 5h1v1H15zM0 6h9v1H0zM11 6h5v1H11z"/><path class="ic-screen" d="M12 1h3v1H12zM12 2h3v1H12zM12 3h3v1H12zM12 4h3v1H12zM12 5h3v1H12z"/><path class="ic-steel" d="M7 2h1v1H7zM3 3h3v1H3zM2 4h1v1H2zM6 4h1v1H6zM3 5h3v1H3z"/><path class="ic-lens" d="M3 4h3v1H3z"/></svg></span></button>
+        <button class="mode" type="button" data-mode="film" aria-pressed="false">Film<span class="mode-icon" aria-hidden="true"><span class="film-icon"></span></span></button>
+      </nav>
+
+      <button class="dropzone" id="dropzone" type="button">
+        <span class="dropzone-icon" id="photo-stack" aria-hidden="true">
+          <svg class="stack-photo stack-back" viewBox="0 0 11 9" shape-rendering="crispEdges"><use href="#photo-glyph"/></svg>
+          <svg class="stack-photo stack-mid" viewBox="0 0 11 9" shape-rendering="crispEdges"><use href="#photo-glyph"/></svg>
+          <svg class="stack-photo stack-front" viewBox="0 0 11 9" shape-rendering="crispEdges">
+            <defs>
+              <g id="photo-glyph">
+                <rect class="stack-fill" x="1" y="1" width="9" height="7"/>
+                <path d="M0 0h11v1H0zM0 8h11v1H0zM0 1h1v7H0zM10 1h1v7H10zM3 2h2v2H3zM1 7h9v1H1zM2 6h2v1H2zM5 5h3v2H5zM6 4h1v1H6zM8 6h1v1H8z" fill="currentColor"/>
+              </g>
+            </defs>
+            <use href="#photo-glyph"/>
+          </svg>
+        </span>
+        <svg class="dropzone-soft" viewBox="0 0 48 48" aria-hidden="true">
+          <rect x="6" y="10" width="36" height="28" rx="6" fill="none" stroke="currentColor" stroke-width="2.5"/>
+          <circle cx="17" cy="20" r="3.5" fill="currentColor"/>
+          <path d="M8 34l10-9 7 6 6-5 9 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="dropzone-title">Drop a photo</span>
+        <span class="dropzone-sub" id="dropzone-sub">to make a card</span>
+      </button>
+
+      <ul class="formats" aria-label="Supported formats">
+        <li>JPEG</li><li>HEIC</li><li>PNG</li><li>TIFF</li><li>AVIF</li><li>RAW</li>
+      </ul>
+
+      <p class="error" id="error" role="alert" hidden></p>
+
+      <div class="empty-foot">
+        <p class="empty-note">Nothing is uploaded</p>
+        <nav class="legal-links" aria-label="Legal">
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms</a>
+          <a href="mailto:inspicio.app@proton.me">Contact</a>
+        </nav>
+      </div>
+    </section>
+
+    <section class="viewer" id="viewer-view" hidden>
+      <div class="stage" id="stage"></div>
+      <aside class="panel" id="panel" aria-label="Photo metadata"></aside>
+    </section>
+    <section class="doc tool-about" id="tool-about">
+      <h2>A Shot on frame for your photo</h2>
+      <p class="doc-lead">Put the camera and settings under your photo, the way photographers share their work. Inspicio reads them from the photo itself, so there is nothing to type.</p>
+      <ul>
+        <li><strong>The camera</strong> as the title, such as iPhone 16 Pro.</li>
+        <li><strong>The settings:</strong> focal length (as 35 mm equivalent), aperture, shutter speed and ISO.</li>
+        <li><strong>The lens and the date</strong> in a small line underneath.</li>
+      </ul>
+      <h2>Make it yours</h2>
+      <p>Choose a light, dark or pixel frame, and a serif, wide or digital camera font, with the orange date stamp of an old point-and-shoot. Keep the photo's own shape, or make it square or 4:5 for Instagram. The frame is saved as a sharp image up to 3240 pixels on the long side.</p>
+      <h2>Questions</h2>
+      <h3>Where do the settings come from?</h3>
+      <p>From the photo's EXIF data, which your camera or phone writes into every photo it takes. A screenshot or a photo saved from a social app usually has none left.</p>
+      <h3>Is my photo uploaded?</h3>
+      <p>No. The frame is drawn in your browser and the photo never leaves your device.</p>
+      <nav class="doc-links tool-links" aria-label="More tools">
+        <a href="./">See photo metadata</a>
+        <a href="remove-metadata">Remove photo metadata</a>
+        <a href="film-filter">Film filter</a>
+      </nav>
+    </section>
+  </main>
+
+  <div class="drag-overlay" id="drag-overlay" aria-hidden="true">
+    <div class="drag-overlay-inner">
+      <span class="overlay-drop" id="overlay-drop">Drop to inspect</span>
+      <span class="overlay-loading"><span class="spinner"></span>Opening photo…</span>
+    </div>
+  </div>
+
+  <input type="file" id="file-input" accept="image/*,.heic,.heif,.dng,.arw,.cr2,.cr3,.nef,.nrw,.orf,.rw2,.raf,.pef,.srw,.gpr" hidden>
+</body>
+</html>
