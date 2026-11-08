@@ -92,7 +92,7 @@
   --surface: rgba(214, 211, 209, 0.82);
   --card: #fafaf9;
   --card-hover: #f5f5f4;
-  --stage: #cdc9c6;
+  --stage: #d6d3d1;
   --sunken: rgba(28, 25, 23, 0.07);
   --raised: #ffffff;
   --on-accent: #ffffff;
@@ -146,7 +146,7 @@
     --surface: rgba(28, 25, 23, 0.82);
     --card: #262220;
     --card-hover: #2e2a27;
-    --stage: #141211;
+    --stage: #1c1917;
     --sunken: rgba(255, 255, 255, 0.06);
     --raised: #3a3532;
     --on-accent: #1c1917;
@@ -195,7 +195,7 @@
     --surface: rgba(28, 25, 23, 0.82);
     --card: #262220;
     --card-hover: #2e2a27;
-    --stage: #141211;
+    --stage: #1c1917;
     --sunken: rgba(255, 255, 255, 0.06);
     --raised: #3a3532;
     --on-accent: #1c1917;
