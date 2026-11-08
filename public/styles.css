@@ -2499,7 +2499,7 @@ html[data-motion="calm"] .save-card { animation: none; }
   color: var(--accent);
   opacity: 0;
   transform: translate(-50%, 8px);
-  transition: opacity 0.2s ease, transform 0.4s var(--ease);
+  transition: opacity 0.24s ease, transform 0.48s var(--ease);
   pointer-events: none;
 }
 
@@ -2507,10 +2507,10 @@ html[data-motion="calm"] .save-card { animation: none; }
 
 @media (hover: hover) {
   .mode:hover .mode-icon { opacity: 1; transform: translate(-50%, 0); }
-  .mode[data-mode="inspect"]:hover .mode-icon svg { animation: icon-search 1.4s 0.3s steps(1) infinite; }
-  .mode[data-mode="wipe"]:hover .mode-icon svg { animation: icon-scrub 0.32s 0.3s steps(2) infinite alternate; }
-  .mode[data-mode="shot-on"]:hover .mode-icon svg { animation: icon-snap 1.6s 0.3s steps(1) infinite; }
-  .mode[data-mode="film"]:hover .mode-icon svg { animation: icon-roll 1.4s 0.3s steps(4) infinite alternate; }
+  .mode[data-mode="inspect"]:hover .mode-icon svg { animation: icon-search 1.4s 0.36s steps(1) infinite; }
+  .mode[data-mode="wipe"]:hover .mode-icon svg { animation: icon-scrub 0.32s 0.36s steps(2) infinite alternate; }
+  .mode[data-mode="shot-on"]:hover .mode-icon svg { animation: icon-snap 1.6s 0.36s steps(1) infinite; }
+  .mode[data-mode="film"]:hover .mode-icon svg { animation: icon-roll 1.4s 0.36s steps(4) infinite alternate; }
 }
 
 @keyframes icon-search {
