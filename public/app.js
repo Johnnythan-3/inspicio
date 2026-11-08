@@ -2344,10 +2344,10 @@
       f.saveW = saveW;
       f.saveH = saveH;
       // A DNG developed from its sensor data can have a different shape than its preview.
-      if (f.frame && stageZoom) reshape(f.frame, stageZoom, res.width / res.height, saveW);
-      const size = `${saveW} × ${saveH}`;
-      f.captionText = `Portra 400${res.raw ? ' from RAW' : f.hdr ? ' with HDR' : ''}  ·  saves at ${size}`;
-      f.caption.textContent = f.captionText;
+      filmApplyFrame(f);
+      f.captionBase = `Portra 400${res.raw ? ' from RAW' : f.hdr ? ' with HDR' : ''}`;
+      f.caption.textContent = '';
+      filmCaption(f);
     } catch (err) {
       if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
       if (f.note) f.note.textContent = String(err.message || err);
@@ -2410,6 +2410,54 @@
     }, 350);
   }
 
+  // The Frame option: a plain white or black border around the print, as wide as a share of the
+  // photo's shorter side. A display preference, so it is remembered.
+  const FILM_KEY = 'inspicio.film';
+  const FRAME_COLORS = { white: '#ffffff', black: '#000000' };
+  const filmPrefs = (() => {
+    const prefs = { frame: false, frameColor: 'white', frameSize: 5 };
+    try {
+      const saved = JSON.parse(localStorage.getItem(FILM_KEY) || '{}');
+      if (typeof saved.frame === 'boolean') prefs.frame = saved.frame;
+      if (FRAME_COLORS[saved.frameColor]) prefs.frameColor = saved.frameColor;
+      if (saved.frameSize >= 1 && saved.frameSize <= 20) prefs.frameSize = Number(saved.frameSize);
+    } catch { /* storage blocked or bad value */ }
+    return prefs;
+  })();
+  const saveFilmPrefs = () => {
+    try { localStorage.setItem(FILM_KEY, JSON.stringify(filmPrefs)); } catch { /* fine */ }
+  };
+  const framePx = (w, h) => (filmPrefs.frame ? Math.round((Math.min(w, h) * filmPrefs.frameSize) / 100) : 0);
+  // The saved size with the frame: scaled down as a whole if it would pass Safari's canvas limit.
+  const FRAMED_MAX = 16e6;
+  function framedSize(w, h) {
+    const b = framePx(w, h);
+    const k = Math.min(1, Math.sqrt(FRAMED_MAX / ((w + 2 * b) * (h + 2 * b))));
+    return { b: b * k, k, width: Math.round((w + 2 * b) * k), height: Math.round((h + 2 * b) * k) };
+  }
+
+  function filmCaption(f) {
+    if (!f.caption || !f.captionBase || !f.saveW) return;
+    const { width, height } = framedSize(f.saveW, f.saveH);
+    f.captionText = `${f.captionBase}  ·  saves at ${width} × ${height}`;
+    if (!f.detail?.running || f.detail.canvas) f.caption.textContent = f.captionText;
+  }
+
+  // Shows the frame in the stage: the print sits inset in a box of the frame's colour, and the
+  // zoom frame takes the framed shape.
+  function filmApplyFrame(f) {
+    if (!f.stage || !f.canvas) return;
+    const w = f.canvas.width;
+    const h = f.canvas.height;
+    const b = filmPrefs.frame ? (Math.min(w, h) * filmPrefs.frameSize) / 100 : 0;
+    f.stage.style.setProperty('--fx', String(b / (w + 2 * b)));
+    f.stage.style.setProperty('--fy', String(b / (h + 2 * b)));
+    f.stage.style.setProperty('--frame-color', FRAME_COLORS[filmPrefs.frameColor]);
+    f.stage.classList.toggle('has-frame', b > 0);
+    if (f.frame && stageZoom) reshape(f.frame, stageZoom, (w + 2 * b) / (h + 2 * b), f.saveW || f.img.width);
+    filmCaption(f);
+  }
+
   function buildFilmStage() {
     const f = film;
     f.canvas = el('canvas', { class: 'film-canvas' });
@@ -2419,16 +2467,20 @@
     f.canvas.height = Math.max(1, Math.round(f.img.height * scale));
     f.original = el('img', { class: 'film-original', src: currentUrl, alt: '', 'aria-hidden': 'true', draggable: 'false' });
     f.caption = el('span', null, 'Loading the film…');
-    f.stage = el('div', { class: 'film-frame' }, f.canvas, f.original);
+    f.stage = el('div', { class: 'film-frame' }, el('div', { class: 'film-print' }, f.canvas, f.original));
     stageZoom?.stop();
     const z = zoomable(f.stage, { ar: f.canvas.width / f.canvas.height, natW: f.img.width,
       label: 'The photo developed on Portra 400.',
       pixels: () => Math.max(f.canvas?.width || 1, f.saveW || 0),
-      full: () => f.saveW || f.img.width,
+      full: () => {
+        const w = f.saveW || f.img.width;
+        return w + 2 * framePx(w, f.saveH || f.img.height);
+      },
       onZoom: (scale) => { f.zoomScale = scale; filmWantDetail(f); } });
     f.frame = z.frame;
     stageZoom = z.zoom;
     f.zoomScale = 1;
+    filmApplyFrame(f);
     filmShowDetail(f);
     filmPreview();
     return el('figure', { class: 'photo film-stage' }, z.frame, el('figcaption', null, f.caption, z.controls));
@@ -2488,12 +2540,27 @@
       progress.cancellable(null);
       progress.step('encoding');
       await painted();
-      const blob = await toJpeg(res.canvas, 0.92);
+      // The frame, if on, goes around the developed photo here.
+      let out = res.canvas;
+      const framed = framedSize(res.width, res.height);
+      if (framed.b) {
+        out = document.createElement('canvas');
+        out.width = framed.width;
+        out.height = framed.height;
+        const ctx = out.getContext('2d');
+        ctx.fillStyle = FRAME_COLORS[filmPrefs.frameColor];
+        ctx.fillRect(0, 0, out.width, out.height);
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(res.canvas, framed.b, framed.b, res.width * framed.k, res.height * framed.k);
+      }
+      const { width, height } = out;
+      const blob = await toJpeg(out, 0.92);
+      if (out !== res.canvas) out.width = 0;
       if (!blob) throw new Error('This browser couldn’t save the photo.');
       if (f.url) URL.revokeObjectURL(f.url);
       f.url = URL.createObjectURL(blob);
       const name = `${baseName(f.file.name)}-portra400.jpg`;
-      const size = `${res.width} × ${res.height}, ${fmtBytes(blob.size)}`;
+      const size = `${width} × ${height}, ${fmtBytes(blob.size)}`;
       deliver(progress, blob, f.url, name, `${name} · ${size}`);
       note.textContent = `Saved ${name}, ${size}. Developed on this device.`;
     } catch (err) {
@@ -2562,13 +2629,64 @@
     nodes.push(
       el('div', { class: 'card-controls' },
         slider('Exposure', 'exposure', -2, 3, 0.5, 'Stops on the film. Portra loves extra light: + gives softer, airier colour.'),
-        slider('Brightness', 'brightness', -1.5, 1.5, 0.25, 'Stops at the print, like a lab’s density button.'),
+        slider('Brightness', 'brightness', -1.5, 1.5, 0.1, 'Stops at the print, like a lab’s density button.'),
         compare,
       ),
+      filmFrameControls(f),
       save,
       note,
     );
     return nodes;
+  }
+
+  // The Frame section: off, it is only its title and a square switch; on, it shows the colour
+  // (white or black) and a slider for the frame's width.
+  function filmFrameControls(f) {
+    const toggle = el('button', { class: 'frame-toggle', type: 'button', role: 'switch',
+      'aria-checked': String(filmPrefs.frame) },
+    el('span', { class: 'card-label' }, 'Frame'),
+    el('span', { class: 'switch', 'aria-hidden': 'true' }, el('span', { class: 'switch-knob' })));
+
+    const colors = el('div', { class: 'seg', role: 'group', 'aria-label': 'Frame colour' },
+      Object.keys(FRAME_COLORS).map((value) => el('button', {
+        type: 'button', 'data-value': value, 'aria-pressed': String(filmPrefs.frameColor === value),
+      }, value === 'white' ? 'White' : 'Black')));
+    colors.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      filmPrefs.frameColor = b.dataset.value;
+      for (const other of colors.children) other.setAttribute('aria-pressed', String(other === b));
+      placeFill(colors);
+      saveFilmPrefs();
+      filmApplyFrame(f);
+    });
+    trackFill(colors);
+
+    const sizeValue = el('span', { class: 'film-value' }, `${filmPrefs.frameSize}%`);
+    const size = el('input', { type: 'range', min: '1', max: '20', step: '0.5', 'aria-label': 'Frame size' });
+    size.value = String(filmPrefs.frameSize);
+    size.addEventListener('input', () => {
+      filmPrefs.frameSize = Number(size.value);
+      sizeValue.textContent = `${filmPrefs.frameSize}%`;
+      filmApplyFrame(f);
+    });
+    size.addEventListener('change', saveFilmPrefs);
+
+    const body = el('div', { class: 'frame-body' },
+      el('div', { class: 'card-row' }, el('span', { class: 'card-label' }, 'Colour'), colors),
+      el('label', { class: 'card-row film-slider' }, el('span', { class: 'card-label' }, 'Size', sizeValue), size,
+        el('small', null, 'Width of the border, as a share of the photo’s shorter side.')));
+    body.hidden = !filmPrefs.frame;
+
+    toggle.addEventListener('click', () => {
+      filmPrefs.frame = !filmPrefs.frame;
+      toggle.setAttribute('aria-checked', String(filmPrefs.frame));
+      body.hidden = !filmPrefs.frame;
+      saveFilmPrefs();
+      filmApplyFrame(f);
+      if (filmPrefs.frame) placeFill(colors);
+    });
+    return el('div', { class: 'card-controls film-frame-controls' }, toggle, body);
   }
 
   /* ---------- Sliding fill for tabs and option rows ---------- */

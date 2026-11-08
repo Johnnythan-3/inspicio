@@ -1242,6 +1242,15 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
    "Hold to see the original" is held. */
 .film-frame { line-height: 0; } /* also .zoom-img: zoomed and moved in its .zoom-frame */
 
+/* The print inside the frame box: inset by the frame's width (--fx of the width, --fy of the
+   height, set by filmApplyFrame), so the frame scales with zoom. */
+.film-print {
+  position: absolute;
+  inset: calc(var(--fy, 0) * 100%) calc(var(--fx, 0) * 100%);
+}
+
+.film-frame.has-frame { background: var(--frame-color); }
+
 .film-canvas {
   display: block;
   width: 100%;
@@ -1606,4 +1615,66 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 
 @media (prefers-reduced-motion: reduce) {
   .save-overlay, .save-overlay.is-closing, .save-card { animation: none; }
+}
+
+/* Film's Frame section: a row with a square switch; the options show when it's on. */
+.film-frame-controls { gap: 0; }
+
+.frame-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.frame-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+.switch {
+  box-sizing: border-box;
+  display: block;
+  width: 38px;
+  height: 22px;
+  padding: 3px;
+  border: 2px solid var(--accent);
+  transition: background-color 0.2s;
+}
+
+.switch-knob {
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  transition: transform 0.28s var(--ease), background-color 0.2s;
+}
+
+.frame-toggle[aria-checked="true"] .switch { background: var(--accent); }
+.frame-toggle[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateX(16px); }
+
+.frame-body { display: grid; gap: 14px; margin-top: 14px; animation: rise 0.35s var(--ease) both; }
+.frame-body[hidden] { display: none; }
+
+/* Phones: in Shot on and Film the photo stays at the top while the controls scroll under it, so
+   every change shows at once. */
+@media (max-width: 860px) {
+  .stage[data-kind="shot-on"],
+  .stage[data-kind="film"] {
+    position: sticky;
+    top: var(--topbar-h);
+    z-index: 10;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--stage);
+  }
+
+  .stage[data-kind="shot-on"] .photo,
+  .stage[data-kind="film"] .photo {
+    --fit-h: 40svh;
+    gap: 8px;
+  }
 }

@@ -22,6 +22,9 @@ let PHOTO = null;
 // The last negative, kept so a change to print brightness alone only reprints it.
 let cache = null;
 
+// The preview's light before exposure, kept so a new Exposure skips decoding it again.
+let inputCache = null;
+
 // The open photo's HDR gain map (an iPhone HEIC from iOS 18 on), sent once per photo.
 let gainMap = null;
 
@@ -61,8 +64,10 @@ function gainFactors(map, w, h) {
 
 /* ---------- Helpers: strips in parallel ---------- */
 
-// As a helper: the strips this worker has developed, waiting for the print decision.
+// As a helper: the strips this worker has developed, waiting for the print decision, and the
+// preview's strip, kept so a change of print brightness only reprints it.
 const strips = new Map();
+let kept = null;
 
 function helperMessage(msg) {
   if (msg.kind === 'halo') {
@@ -74,15 +79,18 @@ function helperMessage(msg) {
     const progress = (stage) => self.postMessage({ id: msg.id, stage, partial: true });
     FilmEngine.developStrip(F, rgb, w, rows, { ...opts, progress }, { y0, stats });
     const neg = rgb.slice(core[0] * w * 3, core[1] * w * 3);
-    strips.set(job, neg);
+    if (msg.keep) kept = { job, neg };
+    else strips.set(job, neg);
     const samples = FilmEngine.printSamples(neg, step, from, to, from);
-    // A preview's negative is kept for re-printing, so the coordinator gets a copy.
+    // A preview's negative is also kept by the coordinator (for a lone re-print), so it gets a copy.
     const copy = msg.keep ? neg.slice() : null;
     self.postMessage({ id: msg.id, samples, neg: copy }, copy ? [samples.buffer, copy.buffer] : [samples.buffer]);
   } else if (msg.kind === 'strip-print') {
-    const neg = strips.get(msg.job);
+    const neg = kept && kept.job === msg.job ? kept.neg : strips.get(msg.job);
     strips.delete(msg.job);
-    if (msg.K) {
+    if (!neg) {
+      self.postMessage({ id: msg.id, error: 'gone' });
+    } else if (msg.K) {
       const count = neg.length / 3;
       const rgba = FilmEngine.printWithK(F, neg, count, msg.K, new Uint8ClampedArray(count * 4));
       self.postMessage({ id: msg.id, rgba }, [rgba.buffer]);
@@ -102,8 +110,9 @@ let helperSeq = 0;
 function helperPool() {
   if (pool || poolBroken) return pool;
   const cores = (self.navigator && self.navigator.hardwareConcurrency) || 4;
-  const count = Math.min(6, cores - 1);
-  if (count < 2 || typeof Worker !== 'function') { poolBroken = true; return null; }
+  // At least 2: some browsers report fewer cores than the device has, for privacy.
+  const count = Math.min(6, Math.max(2, cores - 1));
+  if (typeof Worker !== 'function') { poolBroken = true; return null; }
   try {
     pool = Array.from({ length: count }, () => {
       const helper = { worker: new Worker('film-worker.js'), jobs: new Map() };
@@ -143,6 +152,31 @@ function helperCall(helper, msg, transfer = [], onStage = null) {
 // each helper develops a strip of rows with enough rows around it that its own rows come out
 // exactly as in one piece, the print decision is taken from
 // all the strips' samples, and each helper prints its strip. If the helpers fail, it finishes here.
+async function printStrips(helpers, job, K, rows, w, count) {
+  const prints = await Promise.all(helpers.map((helper) => helperCall(helper, { kind: 'strip-print', job, K })));
+  const rgba = new Uint8ClampedArray(count * 4);
+  prints.forEach((p, k) => rgba.set(p.rgba, rows[k][0] * w * 4));
+  return rgba;
+}
+
+// Prints a kept negative again (only the print brightness changed): on the helpers that still
+// hold its strips, otherwise here.
+async function reprint(c, printStops, printOpts) {
+  const count = c.w * c.h;
+  const s = c.strips;
+  if (s && pool === s.helpers && !poolBroken) {
+    try {
+      const K = FilmEngine.printExposuresFromSamples(s.samples, F, printStops, printOpts);
+      return { rgba: await printStrips(s.helpers, s.job, K, s.rows, c.w, count), K };
+    } catch {
+      c.strips = null;
+    }
+  }
+  const rgba = new Uint8ClampedArray(count * 4);
+  const { K } = FilmEngine.printNegative(F, c.density, c.w, c.h, printStops, rgba, printOpts);
+  return { rgba, K };
+}
+
 async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) {
   const count = w * h;
   const helpers = count >= PARALLEL_MIN_PIXELS ? helperPool() : null;
@@ -203,10 +237,8 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
     let at = 0;
     for (const p of parts) { samples.set(p.samples, at); at += p.samples.length; }
     const K = FilmEngine.printExposuresFromSamples(samples, F, printStops, printOpts);
-    const prints = await Promise.all(helpers.map((helper) => helperCall(helper, { kind: 'strip-print', job, K })));
-    const rgba = new Uint8ClampedArray(count * 4);
-    prints.forEach((p, k) => rgba.set(p.rgba, rows[k][0] * w * 4));
-    return { density, rgba, K };
+    const rgba = await printStrips(helpers, job, K, rows, w, count);
+    return { density, rgba, K, strips: keep ? { job, samples, rows, helpers } : null };
   } catch {
     // Finish in one piece; rgb still holds the exposed light, with halation if it got that far.
     poolBroken = true;
@@ -247,6 +279,7 @@ async function developRaw(msg) {
   let h;
   let rgba;
   let K;
+  let strips;
   const progress = (stage) => self.postMessage({ id, stage });
   if (cache && cache.key === negKey) {
     ({ density, w, h } = cache);
@@ -260,15 +293,14 @@ async function developRaw(msg) {
     w = lin.width;
     h = lin.height;
     const rgb = keep ? lin.rgb.slice() : lin.rgb;
-    ({ density, rgba, K } = await developAndPrint(rgb, w, h,
+    ({ density, rgba, K, strips } = await developAndPrint(rgb, w, h,
       { matrix: layers, baselineExposure: m.baselineExposure, exposureStops, preview: keep, progress },
       printStops, { placement: 'scene' }, keep));
-    if (keep) cache = { key: negKey, density, w, h };
+    if (keep) cache = { key: negKey, density, w, h, strips };
   }
   if (!rgba) {
     progress('printing');
-    rgba = new Uint8ClampedArray(w * h * 4);
-    ({ K } = FilmEngine.printNegative(F, density, w, h, printStops, rgba, { placement: 'scene' }));
+    ({ rgba, K } = await reprint(cache, printStops, { placement: 'scene' }));
   }
   const o = FilmEngine.orientRGBA(rgba, w, h, m.orientation);
   const swaps = m.orientation >= 5 && m.orientation <= 8;
@@ -315,31 +347,38 @@ async function handle(data) {
     let density;
     let rgba;
     let K;
+    let strips;
     if (cache && cache.key === negKey && cache.w === w && cache.h === h) {
       density = cache.density;
     } else {
-      const src = new Uint8ClampedArray(pixels);
       const count = w * h;
-      const rgb = new Float32Array(count * 3);
-      // 'photo': a finished photo, decoded through the curve that undoes its tone curve.
-      // Otherwise plain sRGB / P3 decoding to linear light.
-      const table = placement === 'photo' ? (PHOTO ||= FilmEngine.photoTransfer(F)) : DECODE;
-      const boost = map ? gainFactors(map, w, h) : null;
-      for (let i = 0; i < count; i++) {
-        const b = boost ? boost[i] : 1;
-        rgb[i * 3] = table[src[i * 4]] * b;
-        rgb[i * 3 + 1] = table[src[i * 4 + 1]] * b;
-        rgb[i * 3 + 2] = table[src[i * 4 + 2]] * b;
+      const inputKey = `${key}|${primaries}|${placement}|${map ? 'hdr' : ''}|${w}|${h}`;
+      let rgb;
+      if (keep && inputCache?.key === inputKey) {
+        rgb = inputCache.rgb.slice();
+      } else {
+        const src = new Uint8ClampedArray(pixels);
+        rgb = new Float32Array(count * 3);
+        // 'photo': a finished photo, decoded through the curve that undoes its tone curve.
+        // Otherwise plain sRGB / P3 decoding to linear light.
+        const table = placement === 'photo' ? (PHOTO ||= FilmEngine.photoTransfer(F)) : DECODE;
+        const boost = map ? gainFactors(map, w, h) : null;
+        for (let i = 0; i < count; i++) {
+          const b = boost ? boost[i] : 1;
+          rgb[i * 3] = table[src[i * 4]] * b;
+          rgb[i * 3 + 1] = table[src[i * 4 + 1]] * b;
+          rgb[i * 3 + 2] = table[src[i * 4 + 2]] * b;
+        }
+        if (keep) inputCache = { key: inputKey, rgb: rgb.slice() };
       }
-      ({ density, rgba, K } = await developAndPrint(rgb, w, h,
+      ({ density, rgba, K, strips } = await developAndPrint(rgb, w, h,
         { primaries, exposureStops, preview: keep, progress: (stage) => self.postMessage({ id, stage }) },
         printStops, printOpts, keep));
-      if (keep) cache = { key: negKey, density, w, h };
+      if (keep) cache = { key: negKey, density, w, h, strips };
     }
     if (!rgba) {
       self.postMessage({ id, stage: 'printing' });
-      rgba = new Uint8ClampedArray(w * h * 4);
-      ({ K } = FilmEngine.printNegative(F, density, w, h, printStops, rgba, printOpts));
+      ({ rgba, K } = await reprint(cache, printStops, printOpts));
     }
     self.postMessage({ id, done: true, rgba, width: w, height: h, K }, [rgba.buffer]);
   } catch (err) {
