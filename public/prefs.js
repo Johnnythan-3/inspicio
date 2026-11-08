@@ -15,7 +15,7 @@
   const root = document.documentElement;
   const listeners = new Set();
 
-  let prefs = { look: 'mellow', theme: 'auto', motion: 'full' };
+  let prefs = { look: 'pixel', theme: 'auto', motion: 'full' };
   // A first visit (nothing saved yet, and storage works so the answer can be kept) asks which look.
   let firstVisit = false;
   try {
