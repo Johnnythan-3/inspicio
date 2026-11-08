@@ -2494,7 +2494,7 @@ html[data-motion="calm"] .save-card { animation: none; }
 .mode-icon {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 3px);
+  bottom: calc(100% + 5px);
   display: block;
   line-height: 0;
   color: var(--accent);
@@ -2577,4 +2577,4 @@ html[data-motion="calm"] .mode[data-mode="film"]::before,
 html[data-motion="calm"] .mode[data-mode="film"]::after { animation: none !important; }
 
 /* Room above the panel's tabs for the tallest icon (the 20 px magnifier), so it isn't cut off. */
-.panel { padding-top: 28px; }
+.panel { padding-top: 30px; }
