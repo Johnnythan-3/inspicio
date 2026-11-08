@@ -2482,3 +2482,41 @@ html[data-motion="calm"] .save-card { animation: none; }
 [data-look="mellow"] .welcome-option { border-width: 1.5px; border-radius: 14px; }
 [data-look="mellow"] .welcome-name { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 [data-look="mellow"] .welcome-go { border-radius: 12px; }
+
+/* ---------- Film tab: a strip of film (both looks) ---------- */
+
+/* Sprocket holes along the top and bottom edges, in the tab's text color. */
+.mode[data-mode="film"] { position: relative; }
+
+.mode[data-mode="film"]::before,
+.mode[data-mode="film"]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px);
+  background-position: center;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.mode[data-mode="film"]::before { top: 3px; }
+.mode[data-mode="film"]::after { bottom: 3px; }
+
+/* Mellow: a dark strip with light holes; the underline still marks the chosen tab. */
+[data-look="mellow"] .modes .mode[data-mode="film"] {
+  height: 28px;
+  margin: 5px 0;
+  padding: 0 14px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--bg);
+}
+
+[data-look="mellow"] .panel .modes .mode[data-mode="film"] { margin: 5px 2px; padding: 0 8px; }
+[data-look="mellow"] .mode[data-mode="film"]::before,
+[data-look="mellow"] .mode[data-mode="film"]::after { left: 5px; right: 5px; border-radius: 1px; opacity: 0.9; }
+@media (hover: hover) {
+  [data-look="mellow"] .modes .mode[data-mode="film"]:hover { background: color-mix(in srgb, var(--text) 85%, var(--accent)); }
+}
