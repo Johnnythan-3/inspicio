@@ -8,10 +8,10 @@
 - **Zoom** (`zoomable`/`attachZoom`) on every stage: wheel, pinch, double-click, drag, − % +, keys. % box fixed width; 100% = photo px (saved px for card/film). Hit areas extend ~12 px; bigger on touch. `html { touch-action: manipulation }` stops double-tap page zoom.
 - **Inspect:** full-res preview; panel ≤ 340 px, collapsible sections (`inspicio.collapsed`); Location: copy lat/lon, opt-in Mapbox map, OSM link.
 - **Wipe:** lists what photo gives away, saves clean copy. JPEG/PNG lossless (drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed; tag left = no download. Touch: share sheet.
-- **Shot on:** canvas card (`renderCard`/`cardLayout`). Lines: title (model, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces)/Wide (Michroma)/Digicam (DSEG14, orange glow, caps, `'26 11 01` stamp); Shape Original/Square/4:5. Prefs `inspicio.card`, never text. Zoom redraws at save size (`cardWantsHi`). Saves ≤ 3240 px.
+- **Shot on:** canvas card (`renderCard`/`cardLayout`). Lines: title (model, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces)/Wide (Michroma)/Digicam (DSEG14, orange glow, caps, `'26 11 01` stamp); Shape Original/Square/4:5. Prefs `inspicio.card`, never text. Zoom redraws at save size (`cardWantsHi`). ≤ 3240 px.
 - **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift (`tools/film/`).
   - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain). Subtle.
-  - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation (checked vs libheif, r 0.998). Old iOS ≤ 16 JPEGs (headroom only in maker note): none.
+  - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation (checked vs libheif, r 0.998). iOS ≤ 16 JPEGs: none.
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
   - **Speed:** `film-worker.js` spawns ≤ 6 helper copies (min 2): halation per channel, row strips ± `stripMargin` (49 rows), K from strip samples. Bit-identical to one piece. 16 MP ~2.3 s; preview Exposure ~0.25 s (input cached), Brightness reprints on helpers' kept strips ~50 ms.
   - Preview 1.4 MP; zooming past it develops full detail (`filmDetail`), slider cancels by restarting worker, Save reuses it. Caption = thin filling bar while developing, width measured to final text (`filmCaptionBar`).
@@ -41,20 +41,22 @@
 ## Repo and deploy
 
 - GitHub `Johnnythan-3/inspicio`, `main`; Cloudflare Workers static assets, push deploys in 30–90 s. Live https://inspicio.app.
+- Google Search Console: Domain property, Cloudflare TXT (keep); `sitemap.xml` submitted 2026-11-08.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
 ## Status (2026-11-08, session 9)
 
 - User tests in **Firefox** (Mac) and **Safari** (iPhone); photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
-- Confirmed: all tools, HEIC/DNG/ARW, gain maps (HEIC + JPEG), Save to Photos, Mellow, settings, chooser, icons, sliders, one-screen home.
-- Session 9: **tab hover icons** (user loves them): pixel SVGs in `index.html` (`.mode-icon`, `.ic-*`), CSS film strip (`.film-icon`), 2 px steps; sliding fill = transform only (`--fill-base/x/s`).
+- Confirmed: all tools, HEIC/DNG/ARW, gain maps, Save to Photos, Mellow, settings, chooser, icons, sliders.
+- Tab hover icons (user loves): pixel SVGs (`.mode-icon`, `.ic-*`), CSS `.film-icon`; fill = transform only (`--fill-base/x/s`).
+- Share: `og-image.png` 1200×630 + `apple-touch-icon.png` + `favicon.ico`, made once in headless Chrome.
 - **Not yet checked by user:** phone Film + Shot on editors; smaller phone top bar; no-flash tab switch; faster settings exit.
-- User wants features non-techy people notice; skip deep technical ones. **Held off:** Film lab chooser (Frontier/scanners).
+- User wants features non-techy people notice. **Held off:** Film lab chooser (Frontier/scanners).
 - **Next ideas:** Apple `linearthumbnail` aux; camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
 
 ## Files
 
-`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `prefs.js` (display settings, sync in head), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (Node worker shim; helpers must match 1 core byte for byte).
+`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `prefs.js` (display settings, sync in head), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `robots.txt`, `sitemap.xml`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (helpers match 1 core byte for byte).
 
 - CSP `default-src 'none'` + `script-src 'self'` (legal pages too, for `prefs.js`); keep in HTML files and `_headers`. No inline styles: `style.setProperty`. Metadata via `textContent` only.
 - Run: `python3 -m http.server 8788 --directory public`.
@@ -62,7 +64,7 @@
 ## Working notes
 
 - Keep this file under 8 KB.
-- Firefox rounds timestamps: animate with CSS/WAAPI. Mapbox `pk.` token push warning: allowed.
-- Third-party code in Node blocked; our own `film.js` in Node is fine (bench, compare old vs new).
+- Firefox rounds timestamps: use CSS/WAAPI. Mapbox `pk.` push warning: allowed.
+- Third-party code in Node blocked; our `film.js` in Node fine.
 - Don't reuse `data-mode` outside tabs.
-- Browser pane: server via Bash background, `.claude/launch.json`. Often hidden: animations, rAF, ResizeObserver frozen; stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: open `/film.js` (no CSP) and `fetch(f, {cache:'reload'})` each file. Test files: `public/_test.*` + temporary `_fetch-test.js` worker, load via `DataTransfer` on `#file-input`; delete `_*` before commit.
+- Browser pane: server via Bash background, `.claude/launch.json`. Often hidden (animations, rAF, ResizeObserver frozen): stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: on `/film.js` (no CSP) `fetch(f, {cache:'reload'})` each file. Test files: `public/_test.*` + temp `_fetch-test.js` worker, `DataTransfer` on `#file-input`; delete `_*` before commit.
