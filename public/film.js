@@ -79,16 +79,21 @@
     }
   }
 
+  // Column sums kept for a whole row at once (same additions per column, in the same order, as
+  // going down each column; much faster in memory).
   function boxV(src, dst, w, h, r) {
     const norm = 1 / (2 * r + 1);
-    for (let x = 0; x < w; x++) {
-      const first = src[x];
-      const last = src[(h - 1) * w + x];
-      let sum = first * (r + 1);
-      for (let i = 0; i < Math.min(r, h); i++) sum += src[i * w + x];
-      for (let y = 0; y < h; y++) {
-        sum += (y + r < h ? src[(y + r) * w + x] : last) - (y - r - 1 >= 0 ? src[(y - r - 1) * w + x] : first);
-        dst[y * w + x] = sum * norm;
+    const lastRow = (h - 1) * w;
+    const sum = new Float64Array(w);
+    for (let x = 0; x < w; x++) sum[x] = src[x] * (r + 1);
+    for (let i = 0; i < Math.min(r, h); i++) for (let x = 0; x < w; x++) sum[x] += src[i * w + x];
+    for (let y = 0; y < h; y++) {
+      const add = y + r < h ? (y + r) * w : lastRow;
+      const sub = y - r - 1 >= 0 ? (y - r - 1) * w : 0;
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        sum[x] += src[add + x] - src[sub + x];
+        dst[row + x] = sum[x] * norm;
       }
     }
   }
@@ -103,27 +108,39 @@
     }
   }
 
+  // A symmetric kernel k[0..r], rows then columns, with clamped edges. Each output is summed in
+  // the same order as rolls' (centre, then n = 1..r) in double precision, so the result is the
+  // same to the bit; the loops just run along rows, which is several times faster than per pixel.
   function separable(plane, scratch, w, h, k) {
     const r = k.length - 1;
+    const kd = Float64Array.from(k);
+    const acc = new Float64Array(w);
+    const pad = new Float32Array(w + 2 * r); // one row with its edge pixels repeated
     for (let y = 0; y < h; y++) {
       const row = y * w;
-      for (let x = 0; x < w; x++) {
-        let sum = plane[row + x] * k[0];
-        for (let n = 1; n <= r; n++) {
-          sum += (plane[row + Math.min(x + n, w - 1)] + plane[row + Math.max(x - n, 0)]) * k[n];
-        }
-        scratch[row + x] = sum;
+      for (let i = 0; i < r; i++) { pad[i] = plane[row]; pad[r + w + i] = plane[row + w - 1]; }
+      pad.set(plane.subarray(row, row + w), r);
+      const k0 = kd[0];
+      for (let x = 0; x < w; x++) acc[x] = pad[x + r] * k0;
+      for (let n = 1; n <= r; n++) {
+        const kn = kd[n];
+        const a = r + n;
+        const b = r - n;
+        for (let x = 0; x < w; x++) acc[x] += (pad[x + a] + pad[x + b]) * kn;
       }
+      for (let x = 0; x < w; x++) scratch[row + x] = acc[x];
     }
     for (let y = 0; y < h; y++) {
       const row = y * w;
-      for (let x = 0; x < w; x++) {
-        let sum = scratch[row + x] * k[0];
-        for (let n = 1; n <= r; n++) {
-          sum += (scratch[Math.min(y + n, h - 1) * w + x] + scratch[Math.max(y - n, 0) * w + x]) * k[n];
-        }
-        plane[row + x] = sum;
+      const k0 = kd[0];
+      for (let x = 0; x < w; x++) acc[x] = scratch[row + x] * k0;
+      for (let n = 1; n <= r; n++) {
+        const kn = kd[n];
+        const a = Math.min(y + n, h - 1) * w;
+        const b = Math.max(y - n, 0) * w;
+        for (let x = 0; x < w; x++) acc[x] += (scratch[a + x] + scratch[b + x]) * kn;
       }
+      for (let x = 0; x < w; x++) plane[row + x] = acc[x];
     }
   }
 
@@ -322,6 +339,14 @@
   // `minStep` > 1 makes the halation grid coarser than rolls' for a quick preview; the glow is
   // broad, so it looks the same. Saves use rolls' own grid.
   function halation(rgb, w, h, F, minStep = 1) {
+    const plan = halationPlan(rgb, w, h, F, minStep);
+    const halos = plan.jobs.map((j) => convolveFFT(j.small, plan.dw, plan.dh, j.values, j.radius, j.key));
+    halationApply(rgb, w, h, plan, halos);
+  }
+
+  // Halation in two halves, so the convolutions (most of its time) can run elsewhere in parallel:
+  // the plan holds each channel's frame averaged down to the halation grid and its kernel.
+  function halationPlan(rgb, w, h, F, minStep = 1) {
     const H = F.halation;
     const n = H.refractiveIndex;
     const t = H.baseThickness;
@@ -331,7 +356,7 @@
     const cell = micronsPerPixel * step;
     const dw = Math.ceil(w / step);
     const dh = Math.ceil(h / step);
-    const small = new Float32Array(dw * dh);
+    const jobs = [];
     for (let c = 0; c < 3; c++) {
       const k = H.strength[c] || 0;
       if (!(k > 0)) continue;
@@ -339,6 +364,7 @@
       const kern = kernels.get(kernKey) || halationKernel(k, n, t, cell);
       if (!kern) continue;
       kernels.set(kernKey, kern);
+      const small = new Float32Array(dw * dh);
       for (let dy = 0; dy < dh; dy++) {
         const y0 = dy * step;
         const y1 = Math.min(y0 + step, h);
@@ -351,25 +377,49 @@
           small[dy * dw + dx] = cnt > 0 ? sum / cnt : 0;
         }
       }
-      const halo = convolveFFT(small, dw, dh, kern.values, kern.radius, kernKey);
+      jobs.push({ c, small, values: kern.values, radius: kern.radius, key: kernKey });
+    }
+    return { step, dw, dh, jobs };
+  }
+
+  // Adds each channel's convolved glow (`halos`, in the plan's order) back at full size.
+  function halationApply(rgb, w, h, plan, halos) {
+    const { step, dw, dh } = plan;
+    let cols = null; // the upsampling's per-column indices and weights, the same for every channel
+    plan.jobs.forEach(({ c }, jobIndex) => {
+      const halo = halos[jobIndex];
       const inv = 1 / step;
+      cols ||= (() => {
+        const xs0 = new Int32Array(w);
+        const xs1 = new Int32Array(w);
+        const wxs = new Float64Array(w);
+        for (let x = 0; x < w; x++) {
+          const fx = (x + 0.5) * inv - 0.5;
+          xs0[x] = Math.min(Math.max(Math.floor(fx), 0), dw - 1);
+          xs1[x] = Math.min(xs0[x] + 1, dw - 1);
+          wxs[x] = Math.min(Math.max(fx - xs0[x], 0), 1);
+        }
+        return { xs0, xs1, wxs };
+      })();
+      const { xs0, xs1, wxs } = cols;
       for (let y = 0; y < h; y++) {
         const fy = (y + 0.5) * inv - 0.5;
         const y0 = Math.min(Math.max(Math.floor(fy), 0), dh - 1);
         const y1 = Math.min(y0 + 1, dh - 1);
         const wy = Math.min(Math.max(fy - y0, 0), 1);
+        const r0 = y0 * dw;
+        const r1 = y1 * dw;
         for (let x = 0; x < w; x++) {
-          const fx = (x + 0.5) * inv - 0.5;
-          const x0 = Math.min(Math.max(Math.floor(fx), 0), dw - 1);
-          const x1 = Math.min(x0 + 1, dw - 1);
-          const wx = Math.min(Math.max(fx - x0, 0), 1);
-          const top = halo[y0 * dw + x0] * (1 - wx) + halo[y0 * dw + x1] * wx;
-          const bot = halo[y1 * dw + x0] * (1 - wx) + halo[y1 * dw + x1] * wx;
+          const x0 = xs0[x];
+          const x1 = xs1[x];
+          const wx = wxs[x];
+          const top = halo[r0 + x0] * (1 - wx) + halo[r0 + x1] * wx;
+          const bot = halo[r1 + x0] * (1 - wx) + halo[r1 + x1] * wx;
           const i = (y * w + x) * 3 + c;
           rgb[i] = Math.max(0, rgb[i] + top * (1 - wy) + bot * wy);
         }
       }
-    }
+    });
   }
 
   /* ---------- MTF (MTF.swift) ---------- */
@@ -445,15 +495,7 @@
       r[i] = rRow[k] + (rRow[k + 1] - rRow[k]) * t;
       b[i] = bRow[k] + (bRow[k + 1] - bRow[k]) * t;
     }
-    const invSpan = (samples - 1) / (hi - lo);
-    return (g) => {
-      const t = (g - lo) * invSpan;
-      if (t <= 0) return [r[0], b[0]];
-      if (t >= samples - 1) return [r[samples - 1], b[samples - 1]];
-      const i = t | 0;
-      const f = t - i;
-      return [r[i] + (r[i + 1] - r[i]) * f, b[i] + (b[i + 1] - b[i]) * f];
-    };
+    return { r, b, lo, invSpan: (samples - 1) / (hi - lo), samples };
   }
 
   function couplers(d, w, h, F) {
@@ -469,12 +511,22 @@
       return p;
     });
     const ref = neutralReference(F.neg);
+    const { r: refR, b: refB, lo: refLo, invSpan, samples } = ref;
     const exc = [0, 0, 0];
     for (let i = 0; i < count; i++) {
       const l0 = planes[0][i];
       const l1 = planes[1][i];
       const l2 = planes[2][i];
-      const [nr, nb] = ref(l1);
+      // The neutral (grey) red and blue densities for this green density.
+      let nr;
+      let nb;
+      const t = (l1 - refLo) * invSpan;
+      if (t <= 0) { nr = refR[0]; nb = refB[0]; } else if (t >= samples - 1) { nr = refR[samples - 1]; nb = refB[samples - 1]; } else {
+        const k = t | 0;
+        const f = t - k;
+        nr = refR[k] + (refR[k + 1] - refR[k]) * f;
+        nb = refB[k] + (refB[k + 1] - refB[k]) * f;
+      }
       exc[0] = l0 - nr; exc[1] = 0; exc[2] = l2 - nb;
       for (let c = 0; c < 3; c++) {
         const j = i * 3 + c;
@@ -517,37 +569,72 @@
     return top + ((c + (d - c) * u) - top) * v;
   }
 
-  function grain(d, w, h, F, referenceDensity, seedBase = 0x5eed) {
+  function grainSetup(F, w, seedBase = 0x5eed) {
     const G = F.grain;
     const rawCell = G.size / (F.frameWidthMm * 1000) * w;
-    const cell = Math.max(1, rawCell);
-    const refD = Math.max(referenceDensity, 0.01);
-    const selwyn = Math.min(1, rawCell);
-    const field = new Float32Array(w * h);
-    const inv = 1 / cell;
-    const inv2 = inv * 2;
+    const inv = 1 / Math.max(1, rawCell);
     const w2 = Math.min(Math.max(G.roughness, 0), 1) * 0.5;
-    const w1 = 1 - w2;
-    for (let c = 0; c < 3; c++) {
-      const amp = (G.amplitude[c] || 0) * selwyn;
-      if (!(amp > 0)) continue;
+    const channels = [0, 1, 2].map((c) => {
+      const amp = (G.amplitude[c] || 0) * Math.min(1, rawCell);
       const seed = (seedBase + Math.imul(c, 0x9e3779b9)) >>> 0;
-      const seed2 = (seed + 0x68bc21eb) >>> 0;
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          let v = w1 * valueNoise(x * inv, y * inv, seed);
-          if (w2 > 0) v += w2 * valueNoise(x * inv2, y * inv2, seed2);
-          field[y * w + x] = v;
-        }
-      }
-      // normalizeToUnitRMS
-      const stride = Math.max(1, Math.floor(field.length / 200000));
+      return { amp, seed, seed2: (seed + 0x68bc21eb) >>> 0 };
+    });
+    return { G, inv, inv2: inv * 2, w1: 1 - w2, w2, channels };
+  }
+
+  function grainValue(g, ch, x, y) {
+    let v = g.w1 * valueNoise(x * g.inv, y * g.inv, ch.seed);
+    if (g.w2 > 0) v += g.w2 * valueNoise(x * g.inv2, y * g.inv2, ch.seed2);
+    return v;
+  }
+
+  // The grain field's mean and scale per channel (normalizeToUnitRMS), from the same samples of
+  // the whole frame as rolls takes, so a strip of the frame gets the same grain as the whole.
+  function grainStats(F, w, h) {
+    const g = grainSetup(F, w);
+    const count = w * h;
+    const stride = Math.max(1, Math.floor(count / 200000));
+    return g.channels.map((ch) => {
+      if (!(ch.amp > 0)) return null;
       let sum = 0;
       let sumSq = 0;
       let n = 0;
-      for (let i = 0; i < field.length; i += stride) { sum += field[i]; sumSq += field[i] * field[i]; n++; }
+      for (let i = 0; i < count; i += stride) {
+        const v = Math.fround(grainValue(g, ch, i % w, Math.floor(i / w)));
+        sum += v; sumSq += v * v; n++;
+      }
       const mean = sum / n;
-      const scale = 1 / Math.sqrt(Math.max(sumSq / n - mean * mean, 1e-12));
+      return { mean, scale: 1 / Math.sqrt(Math.max(sumSq / n - mean * mean, 1e-12)) };
+    });
+  }
+
+  // `y0` is the first row's place in the frame and `stats` the whole frame's, for a strip.
+  function grain(d, w, h, F, referenceDensity, y0 = 0, stats = null) {
+    const g = grainSetup(F, w);
+    const { G } = g;
+    const refD = Math.max(referenceDensity, 0.01);
+    const field = new Float32Array(w * h);
+    for (let c = 0; c < 3; c++) {
+      const ch = g.channels[c];
+      const amp = ch.amp;
+      if (!(amp > 0)) continue;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) field[y * w + x] = grainValue(g, ch, x, y + y0);
+      }
+      let mean;
+      let scale;
+      if (stats) {
+        ({ mean, scale } = stats[c]);
+      } else {
+        // normalizeToUnitRMS
+        const stride = Math.max(1, Math.floor(field.length / 200000));
+        let sum = 0;
+        let sumSq = 0;
+        let n = 0;
+        for (let i = 0; i < field.length; i += stride) { sum += field[i]; sumSq += field[i] * field[i]; n++; }
+        mean = sum / n;
+        scale = 1 / Math.sqrt(Math.max(sumSq / n - mean * mean, 1e-12));
+      }
       for (let i = 0, count = w * h; i < count; i++) {
         const j = i * 3 + c;
         const sigma = amp * Math.pow(Math.max(d[j], 0) / refD, G.exponent);
@@ -564,14 +651,32 @@
   //   'photo' - for a finished photo, where the photographer already chose the brightness and
   //             the white balance: the film's own mid-grey at the rated exposure prints mid-grey
   //             (an enlarger set once for the roll), and the colour is printed faithfully.
+  // The negative's pixels the print decision looks at: every `step`-th of the frame, in order.
+  // `from`/`to` (pixel indices in the frame) and `offset` (the frame index of d's first pixel)
+  // take them from a strip.
+  const printStep = (count) => Math.max(1, Math.floor(count / 120000));
+  function printSamples(d, step, from, to, offset = 0) {
+    const first = Math.ceil(from / step) * step;
+    const out = new Float32Array(Math.max(0, Math.ceil((to - first) / step)) * 3);
+    let k = 0;
+    for (let i = first; i < to; i += step) {
+      const j = (i - offset) * 3;
+      out[k++] = d[j]; out[k++] = d[j + 1]; out[k++] = d[j + 2];
+    }
+    return out.subarray(0, k);
+  }
+
   function printExposures(d, count, F, printStops, opts = {}) {
-    const step = Math.max(1, Math.floor(count / 120000));
+    return printExposuresFromSamples(printSamples(d, printStep(count), 0, count), F, printStops, opts);
+  }
+
+  function printExposuresFromSamples(samples, F, printStops, opts = {}) {
     const sums = [0, 0, 0];
     const luma = [];
-    for (let i = 0; i < count; i += step) {
-      const r = d[i * 3];
-      const g = d[i * 3 + 1];
-      const b = d[i * 3 + 2];
+    for (let i = 0; i < samples.length; i += 3) {
+      const r = samples[i];
+      const g = samples[i + 1];
+      const b = samples[i + 2];
       sums[0] += r; sums[1] += g; sums[2] += b;
       luma.push(Math.fround((r + g + b) / 3));
     }
@@ -1091,10 +1196,22 @@
       rgb[j + 1] = Math.max(m[3] * r + m[4] * g + m[5] * b, 1e-9);
       rgb[j + 2] = Math.max(m[6] * r + m[7] * g + m[8] * b, 1e-9);
     }
-    const spatial = opts.spatial !== false;
-    if (spatial) {
+    if (opts.exposeOnly) return rgb;
+    if (opts.spatial !== false) {
       report('halation');
       halation(rgb, w, h, F, opts.preview ? 2 : 1);
+    }
+    return opts.halationOnly ? rgb : developStrip(F, rgb, w, h, opts);
+  }
+
+  // Everything after halation: each pixel only needs its neighbours within stripMargin rows, so
+  // this can run on strips of the frame in parallel. `strip`: { y0, stats } for a strip that
+  // starts at row y0 of the frame, with the frame's grain statistics.
+  function developStrip(F, rgb, w, h, opts = {}, strip = null) {
+    const report = opts.progress || (() => {});
+    const count = w * h;
+    const spatial = opts.spatial !== false;
+    if (spatial) {
       report('sharpness');
       mtf(rgb, w, h, F);
     }
@@ -1108,9 +1225,24 @@
       report('couplers');
       couplers(rgb, w, h, F);
       report('grain');
-      if (opts.grain !== false) grain(rgb, w, h, F, F.reference[1]);
+      if (opts.grain !== false) grain(rgb, w, h, F, F.reference[1], strip ? strip.y0 : 0, strip ? strip.stats : null);
     }
     return rgb;
+  }
+
+  // Rows a strip needs above and below the rows it keeps: the sharpness kernel's reach plus the
+  // couplers' blur.
+  function stripMargin(F, w) {
+    let reach = 0;
+    for (let c = 0; c < 3; c++) reach = Math.max(reach, (mtfHalfKernel(F, c, w) || [0]).length - 1);
+    const sigma = F.couplers.radius / (F.frameWidthMm * 1000) * w;
+    for (const size of boxSizes(sigma)) reach += (size - 1) >> 1;
+    return reach + 2;
+  }
+
+  function printWithK(F, d, count, K, rgba) {
+    printInto(d, count, K, F, rgba, true);
+    return rgba;
   }
 
   // Prints a negative. With `rgba` (a Uint8ClampedArray of w * h * 4) it writes display bytes
@@ -1201,6 +1333,7 @@
   }
 
   const api = { prepare, develop, developNegative, printNegative, photoTransfer,
+    developStrip, stripMargin, halationPlan, halationApply, convolveFFT, grainStats, printStep, printSamples, printExposuresFromSamples, printWithK,
     parseDNG, dngSupported, decodeDNG, cameraToLayers, orientRGBA };
   root.FilmEngine = api;
   if (typeof module !== 'undefined') module.exports = api;
