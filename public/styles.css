@@ -2486,7 +2486,7 @@ html[data-motion="calm"] .save-card { animation: none; }
 /* ---------- Tab icons (both looks) ---------- */
 
 /* Hovering a tab raises a small pixel icon above its word: a magnifying glass that searches, a
-   scrub brush that scrubs, a camera beside a phone, and a film reel that rolls side to side.
+   sponge that scrubs, a camera beside a phone, and a film reel that rolls side to side.
    Moves are in whole icon pixels (2 px), so the pixels stay sharp. */
 .mode { position: relative; }
 
@@ -2504,6 +2504,19 @@ html[data-motion="calm"] .save-card { animation: none; }
 }
 
 .mode-icon svg { display: block; overflow: visible; }
+
+/* Icon colors: ink follows the text color; the rest are the objects' own colors. */
+.ic-ink { fill: var(--text); }
+.ic-glass { fill: #b9dcf7; }
+.ic-shine { fill: #ffffff; }
+.ic-wood { fill: #a86a32; }
+.ic-scour { fill: #3d8b40; }
+.ic-sponge { fill: #f2c12e; }
+.ic-pore { fill: #c4921a; }
+.ic-steel { fill: #9aa3ad; }
+.ic-lens { fill: var(--accent); }
+.ic-screen { fill: #9fc6ea; }
+.ic-reel { fill: #8b939c; }
 
 @media (hover: hover) {
   .mode:hover .mode-icon { opacity: 1; transform: translate(-50%, 0); }
