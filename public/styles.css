@@ -2625,7 +2625,8 @@ html[data-motion="calm"] .film-icon { animation: none !important; }
 html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 
 .viewer.is-editor .stage,
-.viewer.is-editor .stage[data-kind="film"] {
+.viewer.is-editor .stage[data-kind="film"],
+.viewer.is-editor .stage[data-kind="shot-on"] {
   position: relative;
   top: auto;
   min-height: 0;
@@ -2635,7 +2636,8 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 
 /* The photo fits the stage like on a computer, with a short caption strip under it. */
 .viewer.is-editor .photo,
-.viewer.is-editor .stage[data-kind="film"] .photo {
+.viewer.is-editor .stage[data-kind="film"] .photo,
+.viewer.is-editor .stage[data-kind="shot-on"] .photo {
   --fit-h: 100cqh;
   --caption-strip: 30px;
   display: grid;
@@ -2666,7 +2668,7 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 
 .viewer.is-editor .panel .modes { margin: 0 0 10px; }
 
-.film-editor {
+.tool-editor {
   display: grid;
   gap: 6px;
   width: 100%;
@@ -2696,7 +2698,7 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 }
 
 /* One fixed height for every tool's control, so the photo never resizes when switching. */
-.editor-controls { display: grid; align-items: center; height: 66px; }
+.editor-controls { display: grid; align-items: center; height: 70px; }
 .editor-pane[hidden] { display: none; }
 
 /* A ruler of ticks under each slider, like a camera dial. */
@@ -2708,7 +2710,11 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 .editor-pane input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(--accent); }
 .editor-pane input[type="range"]:disabled { opacity: 0.4; }
 
-.editor-frame { display: grid; gap: 8px; }
+.editor-stack { display: grid; gap: 6px; }
+[data-look="mellow"] .editor-pane .seg button { height: 26px; }
+.editor-stack > input[type="text"] { box-sizing: border-box; width: 100%; height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); background: var(--bg); font: 14px var(--font); color: var(--text); }
+.editor-stack > input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+[data-look="mellow"] .editor-stack > input[type="text"] { border-radius: var(--radius-sm); background: var(--card); }
 .editor-frame-row { display: flex; align-items: center; gap: 12px; }
 .editor-frame-row .seg { flex: 1; }
 .editor-frame-row .seg.is-off { opacity: 0.55; }
@@ -2759,7 +2765,8 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 .tool[aria-pressed="true"],
 .tool.is-held,
 .tool.tool-save { background: var(--accent); color: var(--bg); }
-.tool:disabled { opacity: 0.6; cursor: progress; }
+.tool:disabled { opacity: 0.35; cursor: default; }
+.tool.tool-save:disabled { opacity: 0.6; cursor: progress; }
 
 /* The settings button moves to the photo's top corner, clear of the tools. */
 body:has(.viewer.is-editor:not([hidden])) .prefs-btn {
