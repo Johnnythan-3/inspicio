@@ -2855,12 +2855,19 @@
   /* ---------- Sliding fill for tabs and option rows ---------- */
 
   // Moves a group's blue fill (its ::before, see styles.css) under the pressed button. The first
-  // placement happens without animation; after that the fill slides.
-  function placeFill(group) {
+  // placement happens without animation; after that the fill slides. The fill keeps one base width
+  // and only its transform changes (move and stretch), which the browser animates off the main
+  // thread, so the slide stays smooth even while the page is busy switching tools. The base is
+  // re-measured when the group resizes (`resized`), so the stretch stays near 1.
+  function placeFill(group, resized = false) {
     const on = group.querySelector('[aria-pressed="true"]');
     if (!on || !on.offsetWidth) return;
+    if (resized || !group.dataset.fillBase || !group.classList.contains('has-fill')) {
+      group.dataset.fillBase = String(on.offsetWidth);
+      group.style.setProperty('--fill-base', `${on.offsetWidth}px`);
+    }
     group.style.setProperty('--fill-x', `${on.offsetLeft}px`);
-    group.style.setProperty('--fill-w', `${on.offsetWidth}px`);
+    group.style.setProperty('--fill-s', String(on.offsetWidth / Number(group.dataset.fillBase)));
     if (!group.classList.contains('has-fill')) {
       getComputedStyle(group, '::before').transform; // apply the position before transitions start
       group.classList.add('has-fill');
@@ -2868,7 +2875,7 @@
   }
 
   // Widths change when fonts load, the window resizes, or the tabs move into the panel.
-  const fillObserver = new ResizeObserver((entries) => entries.forEach((e) => placeFill(e.target)));
+  const fillObserver = new ResizeObserver((entries) => entries.forEach((e) => placeFill(e.target, true)));
   const trackFill = (group) => {
     fillObserver.observe(group);
     placeFill(group);
@@ -2876,7 +2883,7 @@
   };
   // A new look changes the tabs' fonts and padding; move the fills once it has applied.
   window.inspicioPrefs?.onChange(() => requestAnimationFrame(() => {
-    for (const group of document.querySelectorAll('.modes, .seg')) placeFill(group);
+    for (const group of document.querySelectorAll('.modes, .seg')) placeFill(group, true);
   }));
 
   /* ---------- Modes ---------- */

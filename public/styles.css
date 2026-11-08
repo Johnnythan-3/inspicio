@@ -1370,8 +1370,9 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 .seg button[aria-pressed="true"] { color: var(--bg); }
 
 /* The blue fill behind the chosen tab or option is one block that slides to the new choice.
-   app.js sets --fill-x and --fill-w from the chosen button and adds .has-fill once they're set;
-   until then the button fills itself, so nothing ever shows white text on no fill. */
+   app.js sets --fill-base, --fill-x and --fill-s (stretch) from the chosen button and adds .has-fill;
+   only the transform animates, on the compositor, so the slide is smooth. Until .has-fill
+   the button fills itself, so nothing ever shows white text on no fill. */
 .modes,
 .seg { position: relative; isolation: isolate; }
 
@@ -1383,12 +1384,14 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
   top: 0;
   bottom: 0;
   left: 0;
-  width: var(--fill-w, 0);
+  width: var(--fill-base, 0);
   background: var(--accent);
-  transform: translateX(var(--fill-x, 0));
+  transform: translateX(var(--fill-x, 0)) scaleX(var(--fill-s, 1));
+  transform-origin: 0 50%;
+  will-change: transform;
 }
 
-.has-fill::before { transition: transform 0.38s var(--ease), width 0.38s var(--ease); }
+.has-fill::before { transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1); }
 .modes:not(.has-fill) .mode[aria-pressed="true"],
 .seg:not(.has-fill) button[aria-pressed="true"] { background: var(--accent); }
 .seg button:focus-visible { position: relative; outline-offset: 2px; }
