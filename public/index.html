@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob: data: https://api.mapbox.com; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="Drop in a photo and see all of its metadata. Everything runs in your browser. Your photo is never uploaded.">
-  <title>Inspicio · See what your photos say</title>
+  <meta name="description" content="View and remove photo metadata: EXIF, location, camera and date. Add a Shot on card or a film look. Free, and your photo is never uploaded.">
+  <title>Inspicio · See and remove photo metadata, free in your browser</title>
   <script src="redirect.js"></script>
   <script src="prefs.js"></script>
   <meta property="og:type" content="website">
@@ -19,6 +19,33 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Inspicio logo above the words: See what your photos say.">
   <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "WebSite", "name": "Inspicio", "url": "https://inspicio.app/" },
+      {
+        "@type": "WebApplication",
+        "name": "Inspicio",
+        "url": "https://inspicio.app/",
+        "image": "https://inspicio.app/og-image.png",
+        "description": "View and remove photo metadata in your browser. Add a Shot on card or develop the photo like film. Your photo is never uploaded.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "EXIF and metadata viewer: camera, lens, settings, date and GPS location",
+          "Remove metadata and location from a photo before sharing",
+          "Shot on card with camera and settings under the photo",
+          "Film look based on Kodak Portra 400, with halation and grain",
+          "Reads JPEG, HEIC, PNG, TIFF, AVIF, ProRAW DNG and camera RAW"
+        ]
+      }
+    ]
+  }
+  </script>
   <link rel="canonical" href="https://inspicio.app/">
   <link rel="icon" href="favicon.ico" sizes="32x32">
   <link rel="icon" href="favicon.svg?v=2" type="image/svg+xml">
@@ -64,7 +91,7 @@
       <div class="hero-copy">
         <div class="ticker" id="ticker" aria-hidden="true"></div>
         <h1 id="hero-title">See what your<br>photos say.</h1>
-        <p id="hero-sub">Every hidden tag, read here in your browser.</p>
+        <p id="hero-sub">Camera, settings, date and location: every hidden tag, read in your browser.</p>
       </div>
 
       <nav class="modes" id="modes" aria-label="Tools">

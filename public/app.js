@@ -3166,10 +3166,10 @@
   const MODES = {
     inspect: {
       title: ['See what your', 'photos say.'],
-      sub: 'Every hidden tag, read here in your browser.',
+      sub: 'Camera, settings, date and location: every hidden tag, read in your browser.',
       dropSub: 'or click to choose one',
       overlay: 'Drop to inspect',
-      doc: 'Inspicio · See what your photos say',
+      doc: 'Inspicio · See and remove photo metadata, free in your browser',
     },
     wipe: {
       title: ['Wipe what your', 'photos say.'],
