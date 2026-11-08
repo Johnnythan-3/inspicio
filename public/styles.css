@@ -1501,3 +1501,109 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
   .btn span { display: none; }
   .btn { padding: 0 9px; }
 }
+
+/* Saving: the screen dims and a card in the middle says what is being added, with a bar that runs
+   at the predicted pace (saveProgress in app.js). Notches mark where each step starts. */
+.save-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 14, 22, 0.48);
+  animation: save-dim 0.25s ease both;
+}
+
+.save-overlay.is-closing { animation: save-undim 0.2s ease both; }
+
+.save-card {
+  box-sizing: border-box;
+  width: min(440px, 100%);
+  padding: 22px 22px 18px;
+  border: 2px solid var(--accent);
+  background: var(--bg);
+  box-shadow: var(--shadow-photo);
+  animation: save-rise 0.4s var(--ease) both;
+}
+
+.save-card:focus { outline: none; }
+
+.save-eyebrow {
+  margin: 0 0 12px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.save-step {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.save-detail {
+  min-height: 2.8em;
+  margin: 6px 0 18px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.save-bar {
+  position: relative;
+  height: 12px;
+  padding: 2px;
+  border: 2px solid var(--accent);
+}
+
+.save-fill {
+  --p: 0;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(var(--p));
+  transform-origin: left center;
+}
+
+.save-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(2px + (100% - 4px) * var(--x));
+  width: 2px;
+  background: var(--bg);
+  opacity: 0.75;
+}
+
+.save-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 34px;
+  margin-top: 16px;
+}
+
+.save-actions .map-link { width: auto; margin: 0; padding: 8px 14px; }
+.save-actions .map-link.wipe-save { padding: 8px 14px; }
+
+/* Ready to share (phones and tablets): Save to Photos across the top, the others under it. */
+.save-actions.is-ready { flex-wrap: wrap; }
+.save-actions.is-ready .map-link { flex: 1 1 0; }
+.save-actions.is-ready .map-link.wipe-save { flex-basis: 100%; order: -1; padding: 13px 14px; }
+
+@keyframes save-dim { from { opacity: 0; } to { opacity: 1; } }
+@keyframes save-undim { from { opacity: 1; } to { opacity: 0; } }
+@keyframes save-rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+@media (prefers-color-scheme: dark) {
+  .save-overlay { background: rgba(0, 0, 0, 0.62); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .save-overlay, .save-overlay.is-closing, .save-card { animation: none; }
+}

@@ -71,7 +71,8 @@ function helperMessage(msg) {
   } else if (msg.kind === 'strip') {
     const { job, w, rows, y0, core, opts, stats, step, from, to } = msg;
     const rgb = new Float32Array(msg.rgb);
-    FilmEngine.developStrip(F, rgb, w, rows, opts, { y0, stats });
+    const progress = (stage) => self.postMessage({ id: msg.id, stage, partial: true });
+    FilmEngine.developStrip(F, rgb, w, rows, { ...opts, progress }, { y0, stats });
     const neg = rgb.slice(core[0] * w * 3, core[1] * w * 3);
     strips.set(job, neg);
     const samples = FilmEngine.printSamples(neg, step, from, to, from);
@@ -108,6 +109,7 @@ function helperPool() {
       const helper = { worker: new Worker('film-worker.js'), jobs: new Map() };
       helper.worker.onmessage = (e) => {
         const job = helper.jobs.get(e.data.id);
+        if (job && e.data.partial) { job.onStage?.(e.data.stage); return; }
         helper.jobs.delete(e.data.id);
         if (!job) return;
         if (e.data.error) job.reject(new Error(e.data.error));
@@ -128,10 +130,10 @@ function helperPool() {
   return pool;
 }
 
-function helperCall(helper, msg, transfer = []) {
+function helperCall(helper, msg, transfer = [], onStage = null) {
   const id = ++helperSeq;
   return new Promise((resolve, reject) => {
-    helper.jobs.set(id, { resolve, reject });
+    helper.jobs.set(id, { resolve, reject, onStage });
     helper.worker.postMessage({ id, ...msg }, transfer);
   });
 }
@@ -175,14 +177,21 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
       FilmEngine.halationApply(rgb, w, h, plan, halos);
       haloDone = true;
     }
+    // The strips' stages, as the first helper reaches each one.
+    const order = ['sharpness', 'curves', 'couplers', 'grain'];
+    let reached = 0;
     devOpts.progress?.('sharpness');
+    const onStage = (stage) => {
+      const i = order.indexOf(stage);
+      if (i > reached) { reached = i; devOpts.progress?.(stage); }
+    };
     const parts = await Promise.all(helpers.map((helper, k) => {
       const [a, b] = rows[k];
       const s0 = Math.max(0, a - margin);
       const s1 = Math.min(h, b + margin);
       const strip = rgb.slice(s0 * w * 3, s1 * w * 3);
       return helperCall(helper, { kind: 'strip', job, rgb: strip.buffer, w, rows: s1 - s0, y0: s0,
-        core: [a - s0, b - s0], opts, stats, step, from: a * w, to: b * w, keep }, [strip.buffer]);
+        core: [a - s0, b - s0], opts, stats, step, from: a * w, to: b * w, keep }, [strip.buffer], onStage);
     }));
     let density = null;
     if (keep) {

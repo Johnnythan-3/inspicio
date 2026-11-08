@@ -1520,6 +1520,15 @@
 
     const save = el('a', { class: 'map-link wipe-save', href: cleanUrl, download: copy.name },
       icon('file'), 'Save clean copy');
+    // On a phone or tablet, the share sheet (Save Image puts it in Photos) instead of Files.
+    save.addEventListener('click', (e) => {
+      const shared = shareableFile(copy.blob, copy.name);
+      if (!shared) return;
+      e.preventDefault();
+      navigator.share({ files: [shared] }).catch((err) => {
+        if (!err || err.name !== 'AbortError') downloadUrl(cleanUrl, copy.name);
+      });
+    });
     const how = copy.lossless
       ? 'Same picture, same quality. Only the hidden data is gone. Rotation and colors are kept.'
       : `Saved as a new ${copy.blob.type === 'image/png' ? 'PNG' : 'JPEG'}, ${copy.width} × ${copy.height}`
@@ -1823,24 +1832,31 @@
   async function saveCard(button, note) {
     if (!current?.img.ok || !card) return;
     button.disabled = true;
+    const aspect = cardCanvas?.width ? cardCanvas.height / cardCanvas.width : 1.3;
+    const pixels = (cardSaveW || 2400) ** 2 * aspect;
+    const progress = saveProgress({ eyebrow: 'Shot on card', steps: ['card', 'encoding'], megapixels: pixels / 1e6, learn: false });
+    progress.step('card');
     try {
       await loadCardFonts();
+      await painted();
       const canvas = document.createElement('canvas');
       renderCard(canvas, current.img, cardOpts(), true);
       const { width, height } = canvas;
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      progress.step('encoding');
+      await painted();
+      const blob = await toJpeg(canvas, 0.92);
       canvas.width = 0;
       if (!blob) throw new Error('could not save');
       if (cardUrl) URL.revokeObjectURL(cardUrl);
       cardUrl = URL.createObjectURL(blob);
       const name = `${baseName(current.file.name)}-shot-on.jpg`;
-      const a = el('a', { href: cardUrl, download: name, hidden: true });
-      document.body.append(a);
-      a.click();
-      a.remove();
-      note.textContent = `Saved ${name}, ${width} × ${height}, ${fmtBytes(blob.size)}. Made on this device.`;
+      const size = `${width} × ${height}, ${fmtBytes(blob.size)}`;
+      deliver(progress, blob, cardUrl, name, `${name} · ${size}`);
+      note.textContent = `Saved ${name}, ${size}. Made on this device.`;
     } catch {
-      note.textContent = 'Couldn’t save the card. This browser may not have enough memory for a photo this large.';
+      const msg = 'Couldn’t save the card. This browser may not have enough memory for a photo this large.';
+      progress.fail(msg);
+      note.textContent = msg;
     }
     button.disabled = false;
   }
@@ -1921,6 +1937,210 @@
     );
     return nodes;
   }
+
+  /* ---------- Saving: a dimmed screen with what is being added and a predicted progress bar ---------- */
+
+  // Each step's name, what it adds, and about how long it takes per megapixel (ms) on a 10-core
+  // Mac. Each full save teaches the page this device's speed (SPEED_KEY), so the bar's pace fits.
+  const SAVE_STEPS = {
+    prepare: ['Loading the photo', 'Reading its pixels at full size.', 12],
+    reading: ['Reading the sensor data', 'The RAW file’s own light, before any of the camera’s processing.', 40],
+    exposing: ['Exposing the film', 'The light lands on Portra’s three colour layers.', 3],
+    halation: ['Adding halation', 'The red glow around bright lights, from light bouncing off the film base.', 24],
+    sharpness: ['Scattering light', 'Light spreads a little in the emulsion: the soft edges of real film.', 54],
+    curves: ['Developing the negative', 'Kodak’s measured curves turn the light into density.', 4],
+    couplers: ['Adding couplers', 'The developer’s chemistry: crisper edges and purer colours.', 10],
+    grain: ['Adding grain', 'Grain that follows the density, like clumps of real silver.', 24],
+    printing: ['Printing', 'On Kodak Endura paper, the way a Noritsu lab prints.', 14],
+    card: ['Drawing the card', 'The photo and its lines at full size.', 25],
+    encoding: ['Saving the JPEG', 'Compressing it, on this device.', 30],
+  };
+  const SPEED_KEY = 'inspicio.speed';
+  let saveSpeed = (() => {
+    try {
+      const v = Number(localStorage.getItem(SPEED_KEY));
+      if (v > 0.2 && v < 10) return v;
+    } catch { /* storage blocked; guess */ }
+    const cores = navigator.hardwareConcurrency || 4;
+    return cores >= 7 ? 1 : cores >= 4 ? 1.8 : 3;
+  })();
+
+  // Waits until the browser has painted (or a moment, in a hidden tab), so the overlay shows
+  // before work that blocks the page.
+  const painted = () => new Promise((resolve) => {
+    let done = false;
+    const go = () => { if (!done) { done = true; resolve(); } };
+    requestAnimationFrame(() => setTimeout(go, 0));
+    setTimeout(go, 80);
+  });
+
+  // The overlay. The bar runs through each step at its predicted pace, slows down near the step's
+  // end if the step takes longer, and jumps ahead smoothly when the next step starts. It is
+  // animated on the compositor, so it keeps moving while the page is busy encoding.
+  function saveProgress({ eyebrow, steps, megapixels, learn, onCancel }) {
+    const durations = steps.map((k) => SAVE_STEPS[k][2] * megapixels * saveSpeed + 120);
+    const total = durations.reduce((a, b) => a + b, 0);
+    const starts = [];
+    let sum = 0;
+    for (const d of durations) { starts.push(sum / total); sum += d; }
+
+    const label = el('strong', { class: 'save-step', 'aria-live': 'polite' }, '');
+    const detail = el('p', { class: 'save-detail' }, '');
+    const fill = el('div', { class: 'save-fill' });
+    const ticks = starts.slice(1).map((x) => el('span', { class: 'save-tick', vars: { '--x': String(x) } }));
+    const bar = el('div', { class: 'save-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100',
+      'aria-valuenow': '0', 'aria-label': 'Progress' }, fill, ...ticks);
+    const actions = el('div', { class: 'save-actions' });
+    const card = el('div', { class: 'save-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': eyebrow, tabindex: '-1' },
+      el('p', { class: 'save-eyebrow' }, eyebrow), label, detail, bar, actions);
+    const root = el('div', { class: 'save-overlay' }, card);
+    const opener = document.activeElement;
+    document.body.append(root);
+    card.focus({ preventScroll: true });
+
+    const t0 = performance.now();
+    let index = -1;
+    let closed = false;
+    let cancel = null;
+
+    const shown = () => {
+      const m = /matrix\(([^,]+)/.exec(getComputedStyle(fill).transform);
+      return m ? Number(m[1]) : 0;
+    };
+    const go = (to, duration, easing) => {
+      const from = shown();
+      for (const a of fill.getAnimations()) a.cancel();
+      fill.style.setProperty('--p', String(to));
+      if (reduceMotion.matches || duration <= 0) return null;
+      return fill.animate([{ transform: `scaleX(${from})` }, { transform: `scaleX(${to})` }], { duration, easing });
+    };
+    const text = (title, sub) => {
+      label.textContent = title;
+      detail.textContent = sub;
+      if (!reduceMotion.matches) {
+        for (const n of [label, detail]) n.animate([{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
+      }
+    };
+    const setActions = (...nodes) => actions.replaceChildren(...nodes.filter(Boolean));
+    const button = (labelText, primary, onClick) => {
+      const b = el('button', { class: `map-link${primary ? ' wipe-save' : ''}`, type: 'button' }, labelText);
+      b.addEventListener('click', onClick);
+      return b;
+    };
+
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener('keydown', onKey, true);
+      root.classList.add('is-closing');
+      setTimeout(() => root.remove(), reduceMotion.matches ? 0 : 200);
+      if (opener && opener.isConnected) opener.focus?.({ preventScroll: true });
+    };
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (cancel) cancel();
+      else if (index === Infinity) close();
+    };
+    document.addEventListener('keydown', onKey, true);
+
+    const api = {
+      step(name) {
+        const i = steps.indexOf(name);
+        if (closed || i <= index) return;
+        index = i;
+        const [title, sub] = SAVE_STEPS[name];
+        text(title, sub);
+        bar.setAttribute('aria-valuenow', String(Math.round(starts[i] * 100)));
+        const end = i + 1 < steps.length ? starts[i + 1] : 1;
+        const range = end - starts[i];
+        const anim = go(starts[i] + range * 0.85, durations[i] * 0.85, 'linear');
+        if (anim) {
+          anim.onfinish = () => {
+            if (index === i && !closed) go(starts[i] + range * 0.97, durations[i] * 2.5, 'cubic-bezier(0, 0, 0.2, 1)');
+          };
+        }
+      },
+      cancellable(fn) {
+        cancel = fn ? () => { cancel = null; fn(); } : null;
+        setActions(cancel && button('Cancel', false, () => cancel && cancel()));
+      },
+      // The work is done: learn this device's speed, then fill the bar.
+      finished() {
+        if (learn) {
+          const ratio = (performance.now() - t0) / total;
+          if (ratio > 0.1 && ratio < 10) {
+            saveSpeed = Math.min(8, Math.max(0.25, 0.6 * saveSpeed + 0.4 * saveSpeed * ratio));
+            try { localStorage.setItem(SPEED_KEY, saveSpeed.toFixed(3)); } catch { /* fine */ }
+          }
+        }
+        index = Infinity;
+        cancel = null;
+        bar.setAttribute('aria-valuenow', '100');
+        go(1, 260, 'ease-out');
+      },
+      done(sub) {
+        api.finished();
+        text('Saved', sub);
+        setActions();
+        setTimeout(close, reduceMotion.matches ? 1600 : 1100);
+      },
+      // On a phone or tablet: the share sheet, where Save Image puts the photo in Photos.
+      ready(file, url, sub) {
+        api.finished();
+        text('Ready', `${sub}. Save Image in the share sheet puts it in Photos.`);
+        const download = el('a', { class: 'map-link', href: url, download: file.name }, 'Download');
+        setActions(
+          button('Close', false, close),
+          download,
+          button('Save to Photos', true, () => {
+            navigator.share({ files: [file] }).then(close, (err) => {
+              if (err && err.name === 'AbortError') return;
+              detail.textContent = 'The share sheet didn’t open. Use Download instead.';
+            });
+          }),
+        );
+        actions.classList.add('is-ready');
+        actions.lastChild.focus({ preventScroll: true });
+      },
+      fail(message) {
+        index = Infinity;
+        cancel = null;
+        for (const a of fill.getAnimations()) a.cancel();
+        text('Couldn’t save', message);
+        setActions(button('Close', true, close));
+      },
+      close,
+    };
+    return api;
+  }
+
+  // A file the person can be handed through the share sheet: on phones and tablets, where it is
+  // the way into Photos.
+  function shareableFile(blob, name) {
+    if (!window.matchMedia('(pointer: coarse)').matches || typeof navigator.canShare !== 'function') return null;
+    const file = new File([blob], name, { type: blob.type });
+    try { return navigator.canShare({ files: [file] }) ? file : null; } catch { return null; }
+  }
+
+  function downloadUrl(url, name) {
+    const a = el('a', { href: url, download: name, hidden: true });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  }
+
+  // Hands a saved image over: the share sheet on a phone or tablet, otherwise a download.
+  function deliver(progress, blob, url, name, sub) {
+    const file = shareableFile(blob, name);
+    if (file) progress.ready(file, url, sub);
+    else {
+      downloadUrl(url, name);
+      progress.done(sub);
+    }
+  }
+
+  const toJpeg = (canvas, quality) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
 
   /* ---------- Film: develop the photo like Kodak Portra 400 ---------- */
 
@@ -2122,6 +2342,7 @@
         [saveW, saveH] = [Math.round(f.img.width * full), Math.round(f.img.height * full)];
       }
       f.saveW = saveW;
+      f.saveH = saveH;
       // A DNG developed from its sensor data can have a different shape than its preview.
       if (f.frame && stageZoom) reshape(f.frame, stageZoom, res.width / res.height, saveW);
       const size = `${saveW} × ${saveH}`;
@@ -2150,7 +2371,7 @@
     f.detail = detail;
     const onStage = (stage) => {
       const text = `${FILM_STAGES[stage] || 'Developing'}…`;
-      if (f.saving && f.note) f.note.textContent = text;
+      if (f.saving) f.saveStage?.(stage);
       if (f.caption && f.detail === detail) f.caption.textContent = `Full detail: ${text}`;
     };
     detail.promise = filmJob(f, FILM_SAVE_PIXELS, false, onStage).then((res) => {
@@ -2247,23 +2468,44 @@
     if (!f?.img.ok || f.saving) return;
     f.saving = true;
     button.disabled = true;
+    // Already developed at full detail (zoomed in) for these settings: only the JPEG is left.
+    const ready = Boolean(f.detail?.canvas) && f.detail.settings === filmSettings(f);
+    const pixels = f.saveW && f.saveH ? f.saveW * f.saveH : Math.min(FILM_SAVE_PIXELS, f.img.width * f.img.height);
+    const steps = ready ? ['encoding']
+      : [f.raw !== 'no' ? 'reading' : 'prepare', 'exposing', 'halation', 'sharpness', 'curves', 'couplers', 'grain', 'printing', 'encoding'];
+    let cancelled = false;
+    const progress = saveProgress({ eyebrow: 'Developing · Portra 400', steps, megapixels: pixels / 1e6, learn: !ready });
+    progress.cancellable(ready ? null : () => {
+      cancelled = true;
+      if (f.detail?.running) filmRestartWorker();
+    });
+    f.saveStage = (stage) => progress.step(stage);
+    progress.step(steps[0]);
     try {
-      note.textContent = 'Developing at full size…';
+      await painted();
       const res = await filmDetail(f);
-      note.textContent = 'Saving…';
-      const blob = await new Promise((resolve) => res.canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      if (cancelled) throw new Error('cancelled');
+      progress.cancellable(null);
+      progress.step('encoding');
+      await painted();
+      const blob = await toJpeg(res.canvas, 0.92);
       if (!blob) throw new Error('This browser couldn’t save the photo.');
       if (f.url) URL.revokeObjectURL(f.url);
       f.url = URL.createObjectURL(blob);
       const name = `${baseName(f.file.name)}-portra400.jpg`;
-      const a = el('a', { href: f.url, download: name, hidden: true });
-      document.body.append(a);
-      a.click();
-      a.remove();
-      note.textContent = `Saved ${name}, ${res.width} × ${res.height}, ${fmtBytes(blob.size)}. Developed on this device.`;
+      const size = `${res.width} × ${res.height}, ${fmtBytes(blob.size)}`;
+      deliver(progress, blob, f.url, name, `${name} · ${size}`);
+      note.textContent = `Saved ${name}, ${size}. Developed on this device.`;
     } catch (err) {
-      note.textContent = `Couldn’t save: ${String(err.message || err)}`;
+      if (cancelled || err.message === 'cancelled') {
+        progress.close();
+        note.textContent = 'Save cancelled.';
+      } else {
+        progress.fail(String(err.message || err));
+        note.textContent = `Couldn’t save: ${String(err.message || err)}`;
+      }
     }
+    f.saveStage = null;
     f.saving = false;
     button.disabled = false;
   }
