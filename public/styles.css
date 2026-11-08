@@ -1195,7 +1195,7 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 .wipe-status .spinner { width: 14px; height: 14px; }
 
 .wipe-save { margin: 0 0 10px; padding: 12px; background: var(--accent); color: var(--bg); }
-.map-link.wipe-save:hover { background: color-mix(in srgb, var(--accent) 82%, var(--text)); color: var(--bg); }
+@media (hover: hover) { .map-link.wipe-save:hover { background: color-mix(in srgb, var(--accent) 82%, var(--text)); color: var(--bg); } }
 .wipe-result { margin: 0 6px; }
 .wipe-result dd { overflow-wrap: anywhere; }
 .map-link:disabled { opacity: 0.6; cursor: progress; }
@@ -1393,7 +1393,9 @@ html.is-comparing, html.is-comparing * { user-select: none; -webkit-user-select:
 
 .map-credit a { color: var(--muted); }
 .map-credit a:hover { color: var(--accent); }
-.map-link:hover { background: var(--accent); color: var(--bg); }
+/* Hover only where there is a mouse: on touch screens :hover sticks after a tap. */
+@media (hover: hover) { .map-link:hover { background: var(--accent); color: var(--bg); } }
+.film-compare.is-held { background: var(--accent); color: var(--bg); }
 .map-link:active { transform: scale(0.98); }
 
 /* Raw tags */

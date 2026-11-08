@@ -2767,6 +2767,7 @@
     const show = (on) => {
       f.stage?.classList.toggle('show-original', on);
       document.documentElement.classList.toggle('is-comparing', on);
+      compare.classList.toggle('is-held', on);
     };
     compare.addEventListener('pointerdown', () => show(true));
     // A long press on iOS would otherwise select text and open the callout menu.
