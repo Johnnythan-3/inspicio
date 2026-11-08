@@ -2294,7 +2294,7 @@ html[data-motion="calm"] .save-card { animation: none; }
     height: calc(100dvh - var(--topbar-h));
     min-height: 0;
     padding-top: clamp(16px, 4vh, 48px);
-    padding-bottom: 14px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
     gap: clamp(12px, 2.6vh, 28px);
   }
 
