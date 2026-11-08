@@ -133,17 +133,30 @@
       panel.append(row);
     }
 
+    // Closing plays the opening motion backwards, then hides the panel.
+    let isOpen = false;
+    let closeTimer = 0;
     const open = (on) => {
-      panel.hidden = !on;
+      isOpen = on;
       button.setAttribute('aria-expanded', String(on));
-      if (on) panel.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+      clearTimeout(closeTimer);
+      if (on) {
+        panel.classList.remove('is-closing');
+        panel.hidden = false;
+        panel.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+      } else {
+        panel.classList.add('is-closing');
+        const hide = () => { if (!isOpen) { panel.hidden = true; panel.classList.remove('is-closing'); } };
+        panel.addEventListener('animationend', hide, { once: true });
+        closeTimer = setTimeout(hide, 400);
+      }
     };
-    button.addEventListener('click', () => open(panel.hidden));
+    button.addEventListener('click', () => open(!isOpen));
     document.addEventListener('pointerdown', (e) => {
-      if (!panel.hidden && !panel.contains(e.target) && !button.contains(e.target)) open(false);
+      if (isOpen && !panel.contains(e.target) && !button.contains(e.target)) open(false);
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !panel.hidden) {
+      if (e.key === 'Escape' && isOpen) {
         open(false);
         button.focus();
       }

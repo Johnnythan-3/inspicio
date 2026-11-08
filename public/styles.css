@@ -1918,6 +1918,9 @@ html[data-motion="calm"] .save-card { animation: none; }
 }
 
 .prefs-panel[hidden] { display: none; }
+/* Closing: the opening rise, played backwards (the mirrored curve of --ease). */
+.prefs-panel.is-closing { pointer-events: none; animation: rise-out 0.25s cubic-bezier(0.64, 0, 0.78, 0) both; }
+@keyframes rise-out { to { opacity: 0; transform: translateY(10px); } }
 
 .prefs-title {
   margin: 0;
