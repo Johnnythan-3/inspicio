@@ -1,0 +1,5 @@
+# Found a security problem in Inspicio? Please tell us before telling anyone else.
+Contact: mailto:inspicio.app@proton.me
+Expires: 2027-11-01T00:00:00Z
+Preferred-Languages: en
+Canonical: https://inspicio.app/.well-known/security.txt

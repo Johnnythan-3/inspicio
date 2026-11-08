@@ -13,7 +13,7 @@
   - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain). Subtle.
   - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation. iOS ≤ 16 JPEGs: none.
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
-  - **Speed:** `film-worker.js` spawns ≤ 6 helper copies (min 2): halation per channel, row strips ± `stripMargin` (49 rows), K from strip samples. Bit-identical to one piece. 16 MP ~2.3 s; Exposure ~0.25 s, Brightness ~50 ms (kept strips).
+  - **Speed:** `film-worker.js` spawns ≤ 6 helper copies (min 2): halation per channel, row strips ± `stripMargin` (49 rows), K from strip samples. Bit-identical. 16 MP ~2.3 s; Exposure ~0.25 s, Brightness ~50 ms (kept strips).
   - Preview 1.4 MP; zooming past it develops full detail (`filmDetail`), slider cancels by restarting worker, Save reuses it. Caption = thin filling bar while developing, width measured to final text (`filmCaptionBar`).
   - Sliders: Exposure 0.5, Brightness 0.1 steps. **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms each), bar = one animation, speed changed per step (`barController`, `SAVE_STEPS` ms/MP, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: Ready → "Save to Photos" (share sheet; web can't write Photos).
@@ -35,13 +35,13 @@
 - **Mellow** ("quiet gallery"): stone `#D6D3D1` (dark `#1C1917`), white cards, soft radius, Geist sentence case, underline tabs, sunken segments, soft logo (`.mark-soft`). All rules scoped `[data-look="mellow"]` at end of `styles.css`; tokens `--sunken`, `--raised`, `--on-accent`.
 - **Pixel** (default): original look (rules above mellow block): square corners, Departure Mono labels (11 px grid), grid bg, ticker, diagonal photos, `pixelReveal`, `decodeValues`, data bits (JS effects gated by `pixelLook()`).
 - Both: one accent `#19448A` (dark `#89ADE6`), Geist + Geist Mono, contrast 4.5:1, light + dark. Narrow: panel below. Every UI change: check both looks.
-- Human formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`.
+- Formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`.
 - User wants nothing in the UI to jump or resize (fixed-width boxes, measured widths).
 
 ## Repo and deploy
 
 - GitHub `Johnnythan-3/inspicio`, `main`; Cloudflare Workers static assets, push deploys in 30–90 s. Live https://inspicio.app.
-- Search Console: Domain property, Cloudflare TXT (keep); `sitemap.xml` submitted 2026-11-08.
+- Search Console: Domain property, Cloudflare TXT (keep); `sitemap.xml` submitted 2026-11-08. `security.txt` expires 2027-11-01: renew.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
 ## Status (2026-11-08, session 9)
@@ -66,6 +66,6 @@
 
 - Keep this file under 8 KB.
 - Firefox rounds timestamps: use CSS/WAAPI. Mapbox `pk.` push warning: allowed.
-- Third-party code in Node blocked; our `film.js` in Node fine.
+- No third-party code in Node; our `film.js` OK.
 - Don't reuse `data-mode` outside tabs.
 - Browser pane: server via Bash background, `.claude/launch.json`. Often hidden (animations, rAF, ResizeObserver frozen): stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: on `/film.js` (no CSP) `fetch(f, {cache:'reload'})` each file. Test files: `public/_test.*` + temp `_fetch-test.js` worker, `DataTransfer` on `#file-input`; delete `_*` before commit.
