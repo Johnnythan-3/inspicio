@@ -2496,27 +2496,25 @@ html[data-motion="calm"] .save-card { animation: none; }
   right: 4px;
   height: 3px;
   background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px);
-  background-position: center;
-  opacity: 0.8;
+  opacity: 0.55;
   pointer-events: none;
 }
 
 .mode[data-mode="film"]::before { top: 3px; }
 .mode[data-mode="film"]::after { bottom: 3px; }
 
-/* Mellow: a dark strip with light holes; the underline still marks the chosen tab. */
-[data-look="mellow"] .modes .mode[data-mode="film"] {
-  height: 28px;
-  margin: 5px 0;
-  padding: 0 14px;
-  border-radius: 4px;
-  background: var(--text);
-  color: var(--bg);
-}
-
-[data-look="mellow"] .panel .modes .mode[data-mode="film"] { margin: 5px 2px; padding: 0 8px; }
+/* Mellow: only the rows of holes, softer, clear of the underline. */
 [data-look="mellow"] .mode[data-mode="film"]::before,
-[data-look="mellow"] .mode[data-mode="film"]::after { left: 5px; right: 5px; border-radius: 1px; opacity: 0.9; }
-@media (hover: hover) {
-  [data-look="mellow"] .modes .mode[data-mode="film"]:hover { background: color-mix(in srgb, var(--text) 85%, var(--accent)); }
+[data-look="mellow"] .mode[data-mode="film"]::after { height: 2.5px; border-radius: 1px; opacity: 0.45; }
+[data-look="mellow"] .mode[data-mode="film"]::before { top: 6px; }
+[data-look="mellow"] .mode[data-mode="film"]::after { bottom: 7px; }
+
+/* The rows are cut to a whole number of holes (4 px hole, 4 px gap) and centred, so each row
+   starts and ends on a full hole. */
+.mode[data-mode="film"]::before,
+.mode[data-mode="film"]::after {
+  right: auto;
+  left: 50%;
+  width: calc(round(down, 100% - 8px, 8px) - 4px);
+  transform: translateX(-50%);
 }
