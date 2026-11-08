@@ -1314,10 +1314,11 @@
     ]);
   }
 
-  // Keeps the picture data, the JFIF header, the color profile and Adobe's color-transform flag.
-  // Drops EXIF, XMP, IPTC, comments, maker data and every image stored after the main one (iPhone
-  // HDR gain maps and depth maps are separate JPEGs appended to the file, each with its own EXIF).
-  function stripJpeg(b, orientation) {
+  // Keeps the picture data, the JFIF header, the color profile (unless `profile` is false) and
+  // Adobe's color-transform flag. Drops EXIF, XMP, IPTC, comments, maker data and every image
+  // stored after the main one (iPhone HDR gain maps and depth maps are separate JPEGs appended to
+  // the file, each with its own EXIF).
+  function stripJpeg(b, orientation, profile = true) {
     const parts = [b.subarray(0, 2)];
     let rotated = !(orientation > 1 && orientation <= 8);
     let p = 2;
@@ -1333,7 +1334,7 @@
       const end = p + 2 + ((b[p + 2] << 8) | b[p + 3]);
       if (end > b.length) throw new Error('JPEG ends early');
       const keep = m === 0xE0 ? ascii(b, p + 4, 'JFIF\0')
-        : m === 0xE2 ? ascii(b, p + 4, 'ICC_PROFILE\0')
+        : m === 0xE2 ? profile && ascii(b, p + 4, 'ICC_PROFILE\0')
           : m === 0xEE ? ascii(b, p + 4, 'Adobe')
             : !(m >= 0xE1 && m <= 0xEF) && m !== 0xFE;
       if (keep && !rotated && m !== 0xE0) {
@@ -2288,7 +2289,7 @@
         // A DNG is developed from its sensor data when the worker can read it ('maybe' until
         // it has tried); everything else, and a DNG it can't read, from the finished picture.
         raw: /\.dng$/i.test(file.name) ? 'maybe' : 'no', rawGen: -1,
-        // An iPhone HEIC's HDR gain map, read once when the film is first developed.
+        // The photo's HDR gain map (iPhone HEIC, HDR JPEG), read once when first developed.
         gain: null, gainGen: -1, hdr: false };
     }
     return film;
@@ -2298,7 +2299,9 @@
   // brighter each part of the photo is in its HDR version, which is the highlight detail the
   // finished picture had to give up.
   function filmGainMap(f) {
-    f.gain ||= (isHeif(f.file) ? f.file.arrayBuffer().then((buffer) => decodeHeif(buffer, 'gainmap')) : Promise.resolve(null))
+    const heif = isHeif(f.file);
+    f.gain ||= (heif ? f.file.arrayBuffer().then((buffer) => decodeHeif(buffer, 'gainmap'))
+      : RAW_EXT.test(f.file.name) ? Promise.resolve(null) : jpegGainMap(f.file))
       .then((r) => (r && !r.none ? { data: r.gain, width: r.width, height: r.height, meta: r.meta } : null))
       .catch(() => null)
       .then((map) => {
@@ -2309,6 +2312,45 @@
         return map;
       });
     return f.gain;
+  }
+
+  // A JPEG's HDR gain map (iPhone, Android Ultra HDR, Lightroom), as grey values from 0 to 255,
+  // turned upright like the photo. The gain map is decoded without its color profile: its values
+  // are gains, not colors. Null when there is none.
+  async function jpegGainMap(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) return null;
+    const found = findJpegGainMap(bytes);
+    if (!found) return null;
+    let orientation = 1;
+    try { orientation = (await window.exifr.orientation(file)) || 1; } catch { orientation = 1; }
+    const bitmap = await createImageBitmap(new Blob(stripJpeg(found.jpeg, undefined, false), { type: 'image/jpeg' }));
+    const sw = bitmap.width;
+    const sh = bitmap.height;
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const rgba = ctx.getImageData(0, 0, sw, sh).data;
+    canvas.width = 0;
+    // EXIF orientation: 5 to 8 swap width and height. For each upright pixel, where it is stored.
+    const swap = orientation >= 5 && orientation <= 8;
+    const width = swap ? sh : sw;
+    const height = swap ? sw : sh;
+    const from = [null,
+      (x, y) => [x, y], (x, y) => [sw - 1 - x, y], (x, y) => [sw - 1 - x, sh - 1 - y], (x, y) => [x, sh - 1 - y],
+      (x, y) => [y, x], (x, y) => [y, sh - 1 - x], (x, y) => [sw - 1 - y, sh - 1 - x], (x, y) => [sw - 1 - y, x],
+    ][orientation] || ((x, y) => [x, y]);
+    const gain = new Uint8Array(width * height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const [u, v] = from(x, y);
+        gain[y * width + x] = rgba[(v * sw + u) * 4];
+      }
+    }
+    return { gain, width, height, meta: found.meta };
   }
 
   const fmtStops = (v) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`);
@@ -2608,7 +2650,9 @@
     }
     if (f.hdr) {
       return [`${model || 'Photo'} · HDR photo`,
-        'Your iPhone already processed this photo, so the film goes on top of Apple’s look. Its HDR gain map gives the film back the highlights. Close, not exact.'];
+        apple
+          ? 'Your iPhone already processed this photo, so the film goes on top of Apple’s look. Its HDR gain map gives the film back the highlights. Close, not exact.'
+          : 'The camera already processed this photo, so the film goes on top of its look. Its HDR gain map gives the film back the highlights. Close, not exact.'];
     }
     return [`${model || 'Photo'} · finished photo`, apple
       ? 'Your iPhone already processed this photo, so the film goes on top of Apple’s look. Close, not exact.'
@@ -2720,8 +2764,14 @@
     };
 
     const compare = el('button', { class: 'map-link film-compare', type: 'button' }, 'Hold to see the original');
-    const show = (on) => f.stage?.classList.toggle('show-original', on);
+    const show = (on) => {
+      f.stage?.classList.toggle('show-original', on);
+      document.documentElement.classList.toggle('is-comparing', on);
+    };
     compare.addEventListener('pointerdown', () => show(true));
+    // A long press on iOS would otherwise select text and open the callout menu.
+    compare.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    compare.addEventListener('contextmenu', (e) => e.preventDefault());
     for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) compare.addEventListener(type, () => show(false));
     compare.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') show(true); });
     compare.addEventListener('keyup', () => show(false));

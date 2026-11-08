@@ -11,6 +11,7 @@
 - **Shot on:** canvas card (`renderCard`/`cardLayout`). Lines: title (model, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces)/Wide (Michroma)/Digicam (DSEG14, orange glow, caps, `'26 11 01` stamp); Shape Original/Square/4:5. Prefs `inspicio.card`, never text. Zoom redraws at save size (`cardWantsHi`). Saves ≤ 3240 px.
 - **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift (`tools/film/`).
   - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain). Subtle.
+  - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation (checked vs libheif, r 0.998). Old iOS ≤ 16 JPEGs (headroom only in maker note): none.
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
   - **Speed:** `film-worker.js` spawns ≤ 6 helper copies (min 2): halation per channel, row strips ± `stripMargin` (49 rows), K from strip samples. Bit-identical to one piece. 16 MP ~2.3 s; preview Exposure ~0.25 s (input cached), Brightness reprints on helpers' kept strips ~50 ms.
   - Preview 1.4 MP; zooming past it develops full detail (`filmDetail`), slider cancels by restarting worker, Save reuses it. Caption = thin filling bar while developing, width measured to final text (`filmCaptionBar`).
@@ -41,17 +42,18 @@
 - GitHub `Johnnythan-3/inspicio`, `main`; Cloudflare Workers static assets, push deploys in 30–90 s. Live https://inspicio.app.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
-## Status (2026-11-07, end of session 8)
+## Status (2026-11-07, session 9)
 
 - User tests in **Firefox** (Mac) and **Safari** (iPhone); photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
-- Confirmed: Wipe, Shot on, HEIC, DNG, ARW, gain map, fast Film, iPhone Save to Photos.
-- Session 8: zoom everywhere + % box, exifr HEIC fix, full-detail film zoom, gain map, helpers (3.5×), save overlay, Frame, sticky phone stage, caption bar, tap fixes.
-- **Not yet checked by user:** Frame on iPhone; sticky stage; smoother save bar; caption bar; zoom buttons on phone; Safari desktop (nested workers, save, frame ≤ 16 MP).
-- **Next ideas:** Film lab chooser (Frontier, Optical print in rolls `PrintProfile.swift`); JPEG gain maps; Apple `linearthumbnail` aux (maybe scene-linear); camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
+- Confirmed: Wipe, Shot on, HEIC, DNG, ARW, gain map, fast Film, iPhone Save to Photos, Frame on iPhone, sticky stage, save bar, phone zoom, Safari save.
+- Session 9: HDR JPEG gain maps; hold-to-compare no longer selects text on iPhone long press.
+- **Not yet checked by user:** hold-to-compare on iPhone; HDR JPEG film.
+- User wants features non-techy people notice; skip deep technical ones. **Held off:** Film lab chooser (Frontier/scanners).
+- **Next ideas:** Apple `linearthumbnail` aux; camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
 
 ## Files
 
-`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (Node worker shim; helpers must match 1 core byte for byte).
+`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (Node worker shim; helpers must match 1 core byte for byte).
 
 - CSP `default-src 'none'`; keep in HTML files and `_headers`. No inline styles: `style.setProperty`. Metadata via `textContent` only.
 - Run: `python3 -m http.server 8788 --directory public`.

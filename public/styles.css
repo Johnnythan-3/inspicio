@@ -1313,6 +1313,8 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
   object-fit: fill;
   transition: opacity 0.3s;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   pointer-events: none;
 }
 
@@ -1337,7 +1339,16 @@ button.map-link:focus-visible { outline: 2px solid var(--accent); outline-offset
 .film-value { font-family: var(--mono); font-size: 12px; letter-spacing: 0; color: var(--text); }
 .film-slider input[type="range"] { width: 100%; margin: 2px 0; accent-color: var(--accent); }
 .film-slider small { font-size: 12px; line-height: 1.4; color: var(--muted); }
-.film-compare { margin: 2px 0 0; user-select: none; touch-action: none; }
+.film-compare {
+  margin: 2px 0 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* While the button is held, nothing on the page can be selected (iOS long-press selects nearby text). */
+html.is-comparing, html.is-comparing * { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 
 .card-row input::placeholder { color: var(--faint); }
 .card-row input:focus { outline: 2px solid var(--accent); outline-offset: -2px; }

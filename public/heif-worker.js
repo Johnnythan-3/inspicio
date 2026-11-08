@@ -5,7 +5,7 @@
    browser. Nothing here makes a network request. */
 'use strict';
 
-importScripts('vendor/libheif-1.19.8.js');
+importScripts('vendor/libheif-1.19.8.js', 'gainmap.js');
 
 let lib = null;
 const heifLib = () => (lib ||= typeof self.libheif === 'function' ? self.libheif() : self.libheif);
@@ -19,32 +19,7 @@ const CHANNEL_Y = 0;
 const APPLE_GAIN_MAP = 'urn:com:apple:photo:2020:aux:hdrgainmap';
 const TMAP = 0x746d6170; // 'tmap'
 
-// ISO 21496-1 gain map metadata, as stored in a 'tmap' item: the base and alternate (HDR)
-// headrooms in stops, and per channel the gain range in stops, its gamma and two small offsets.
-// Returns null for anything this can't use.
-function parseGainMapMetadata(b) {
-  const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
-  if (b.length < 6 || b[0] !== 0 || v.getUint16(1) !== 0) return null;
-  const flags = b[5];
-  if (flags & 0x04) return null; // the HDR rendition is the base image; not an iPhone layout
-  const channels = flags & 0x80 ? 3 : 1;
-  const common = flags & 0x08; // one denominator for every value
-  if (b.length < 6 + (common ? 12 + channels * 20 : 16 + channels * 40)) return null;
-  let p = 6;
-  const u32 = () => { const x = v.getUint32(p); p += 4; return x; };
-  const s32 = () => { const x = v.getInt32(p); p += 4; return x; };
-  const d0 = common ? u32() : 0;
-  const frac = (n) => { const d = common ? d0 : u32(); return d ? n / d : NaN; };
-  const baseHeadroom = frac(u32());
-  const alternateHeadroom = frac(u32());
-  const ch = [];
-  for (let c = 0; c < channels; c++) {
-    ch.push({ min: frac(s32()), max: frac(s32()), gamma: frac(u32()), baseOffset: frac(s32()), altOffset: frac(s32()) });
-  }
-  const values = [baseHeadroom, alternateHeadroom, ...ch.flatMap((x) => Object.values(x))];
-  if (!values.every(Number.isFinite) || alternateHeadroom <= baseHeadroom || ch.some((x) => x.gamma <= 0)) return null;
-  return { baseHeadroom, alternateHeadroom, channels: ch };
-}
+// parseGainMapMetadata (ISO 21496-1, as stored in a 'tmap' item) is in gainmap.js.
 
 // An iPhone photo's HDR gain map (iOS 18 on): Apple's gain map image, an auxiliary image of the
 // primary, with its ISO 21496-1 metadata in the 'tmap' item. Returns null when there is none.

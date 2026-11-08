@@ -25,21 +25,29 @@ let cache = null;
 // The preview's light before exposure, kept so a new Exposure skips decoding it again.
 let inputCache = null;
 
-// The open photo's HDR gain map (an iPhone HEIC from iOS 18 on), sent once per photo.
+// The open photo's HDR gain map (an iPhone HEIC from iOS 18 on, or an HDR JPEG), sent once per
+// photo.
 let gainMap = null;
 
 // How much brighter each pixel is in the photo's HDR version than in the picture itself, from
-// its gain map (ISO 21496-1: a gain in stops between min and max, after a gamma), for a w × h
-// picture. Only gains above 1 are kept: the film gets the highlights back that the picture had to
-// clip or squeeze, and the rest of the picture stays as it is. Null if the map doesn't fit.
+// its gain map, for a w × h picture. ISO 21496-1 (and Adobe's XMP form): a gain in stops between
+// min and max, after a gamma. Apple's older form: 1 + (headroom − 1) × the map's value, which is
+// stored with the sRGB curve. Only gains above 1 are kept: the film gets the highlights back that
+// the picture had to clip or squeeze, and the rest of the picture stays as it is. Null if the map
+// doesn't fit.
 function gainFactors(map, w, h) {
   const { data, width: gw, height: gh, meta } = map;
   if (Math.abs(gw / gh - w / h) > 0.02 * (w / h)) return null;
-  const c = meta.channels[0];
   const lut = new Float32Array(256);
   for (let v = 0; v < 256; v++) {
-    const stops = c.min + (c.max - c.min) * Math.pow(v / 255, 1 / c.gamma);
-    lut[v] = Math.max(1, Math.pow(2, stops));
+    const x = v / 255;
+    if (meta.appleHeadroom) {
+      const linear = x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+      lut[v] = 1 + (meta.appleHeadroom - 1) * linear;
+    } else {
+      const c = meta.channels[0];
+      lut[v] = Math.max(1, Math.pow(2, c.min + (c.max - c.min) * Math.pow(x, 1 / c.gamma)));
+    }
   }
   const out = new Float32Array(w * h);
   const sx = gw / w;
