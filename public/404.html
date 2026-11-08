@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-look="mellow">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Not found · Inspicio</title>
   <script src="/redirect.js"></script>
+  <script src="/prefs.js"></script>
   <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -13,9 +14,16 @@
   <header class="topbar">
     <a class="brand" href="/">
       <svg class="brand-mark" viewBox="0 0 120 120" aria-hidden="true">
-        <path d="M46 14H14v92h92V14H74" fill="none" stroke="currentColor" stroke-width="7"/>
-        <rect class="brand-dot" x="53" y="7" width="14" height="14" fill="currentColor"/>
-        <path d="M35 43h14v14H35zM53 43h14v14H53zM53 61h14v14H53zM35 79h14v14H35zM53 79h14v14H53zM71 79h14v14H71z" fill="currentColor"/>
+        <g class="mark-pixel">
+          <path d="M46 14H14v92h92V14H74" fill="none" stroke="currentColor" stroke-width="7"/>
+          <rect class="brand-dot" x="53" y="7" width="14" height="14" fill="currentColor"/>
+          <path d="M35 43h14v14H35zM53 43h14v14H53zM53 61h14v14H53zM35 79h14v14H35zM53 79h14v14H53zM71 79h14v14H71z" fill="currentColor"/>
+        </g>
+        <g class="mark-soft">
+          <path d="M44 15H32a17 17 0 0 0-17 17v56a17 17 0 0 0 17 17h56a17 17 0 0 0 17-17V32a17 17 0 0 0-17-17H76" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+          <circle class="brand-dot" cx="60" cy="15" r="8.5" fill="currentColor"/>
+          <rect x="52.5" y="44" width="15" height="44" rx="7.5" fill="currentColor"/>
+        </g>
       </svg>
       <span>Inspicio</span>
     </a>

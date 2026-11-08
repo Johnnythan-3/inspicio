@@ -14,7 +14,13 @@
   const stage = $('#stage');
   const errorBox = $('#error');
 
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  // Less motion when the system asks for it or Motion is set to Calm in the display settings.
+  const reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const reduceMotion = { get matches() { return reduceQuery.matches || window.inspicioPrefs?.get('motion') === 'calm'; } };
+  // The pixel effects (reveal, decoding numbers, data bits) belong to the Pixel look only.
+  const pixelLook = () => window.inspicioPrefs?.get('look') === 'pixel';
+  const isDark = () => (window.inspicioPrefs ? window.inspicioPrefs.isDark()
+    : window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   let currentUrl = null;
   let loadToken = 0;
@@ -435,7 +441,7 @@
       + 'Your photo stays here.');
 
     button.addEventListener('click', () => {
-      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const dark = isDark();
       const style = dark ? 'dark-v11' : 'streets-v12';
       const pinColor = dark ? '89ade6' : '19448a';
       const lo = lon.toFixed(6);
@@ -898,7 +904,7 @@
   const REVEAL_STEP = 85; // ms per later step
 
   function pixelReveal(frame, img) {
-    if (reduceMotion.matches || !img.probe) return;
+    if (reduceMotion.matches || !pixelLook() || !img.probe) return;
     const source = img.probe;
     const canvas = el('canvas', { class: 'pixel-reveal', 'aria-hidden': 'true' });
     const ctx = canvas.getContext('2d');
@@ -1198,7 +1204,7 @@
 
   function decodeValues(root) {
     stopDecode?.();
-    if (reduceMotion.matches) return;
+    if (reduceMotion.matches || !pixelLook()) return;
 
     const view = root.getBoundingClientRect();
     const top = Math.max(view.top, 0);
@@ -2868,6 +2874,10 @@
     placeFill(group);
     return group;
   };
+  // A new look changes the tabs' fonts and padding; move the fills once it has applied.
+  window.inspicioPrefs?.onChange(() => requestAnimationFrame(() => {
+    for (const group of document.querySelectorAll('.modes, .seg')) placeFill(group);
+  }));
 
   /* ---------- Modes ---------- */
 
@@ -3181,7 +3191,7 @@
   let bitTimer = null;
   const bits = new Set();
 
-  const stackActive = () => !emptyView.hidden && !reduceMotion.matches
+  const stackActive = () => !emptyView.hidden && !reduceMotion.matches && pixelLook()
     && (dropzone.matches(':hover') || document.body.classList.contains('dragging'));
 
   function startBits() {

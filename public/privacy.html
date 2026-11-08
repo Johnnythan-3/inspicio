@@ -1,22 +1,30 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-look="mellow">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="How Inspicio handles your data: your photos never leave your device.">
   <title>Privacy policy · Inspicio</title>
   <link rel="icon" href="favicon.svg?v=2" type="image/svg+xml">
+  <script src="prefs.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="./" aria-label="Inspicio home">
       <svg class="brand-mark" viewBox="0 0 120 120" aria-hidden="true">
-        <path d="M46 14H14v92h92V14H74" fill="none" stroke="currentColor" stroke-width="7"/>
-        <rect class="brand-dot" x="53" y="7" width="14" height="14" fill="currentColor"/>
-        <path d="M35 43h14v14H35zM53 43h14v14H53zM53 61h14v14H53zM35 79h14v14H35zM53 79h14v14H53zM71 79h14v14H71z" fill="currentColor"/>
+        <g class="mark-pixel">
+          <path d="M46 14H14v92h92V14H74" fill="none" stroke="currentColor" stroke-width="7"/>
+          <rect class="brand-dot" x="53" y="7" width="14" height="14" fill="currentColor"/>
+          <path d="M35 43h14v14H35zM53 43h14v14H53zM53 61h14v14H53zM35 79h14v14H35zM53 79h14v14H53zM71 79h14v14H71z" fill="currentColor"/>
+        </g>
+        <g class="mark-soft">
+          <path d="M44 15H32a17 17 0 0 0-17 17v56a17 17 0 0 0 17 17h56a17 17 0 0 0 17-17V32a17 17 0 0 0-17-17H76" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+          <circle class="brand-dot" cx="60" cy="15" r="8.5" fill="currentColor"/>
+          <rect x="52.5" y="44" width="15" height="44" rx="7.5" fill="currentColor"/>
+        </g>
       </svg>
       <span>Inspicio</span>
     </a>
@@ -44,7 +52,7 @@
 
       <h2>No cookies, analytics or ads</h2>
       <p>Inspicio uses no cookies, analytics, tracking or advertising, and no third party tracks you across websites through it. Because we don’t track you, Do Not Track signals don’t change anything here.</p>
-      <p>Your browser’s local storage keeps only which metadata sections you collapsed, so they stay collapsed next time. It never stores anything from your photos. You can clear it in your browser settings at any time.</p>
+      <p>Your browser’s local storage keeps only your settings: the display settings (look, theme, motion), which metadata sections you collapsed, and your Shot on and Film options, so they stay the same next time. It never stores anything from your photos. You can clear it in your browser settings at any time.</p>
 
       <h2>If you email us</h2>
       <p>Emails to our address are handled by Proton Mail under its <a href="https://proton.me/legal/privacy" rel="noopener">privacy policy</a>. We use your email address and message only to reply to you, and delete them when they are no longer needed.</p>

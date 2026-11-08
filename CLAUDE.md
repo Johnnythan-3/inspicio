@@ -31,10 +31,11 @@
 
 ## Design
 
-- Sleek, one accent, square corners. Logo: pixel "i" breaking out of frame. Geist (text), Geist Mono (numbers), Departure Mono (headlines, labels; 11 px grid).
-- Accent `#19448A` (dark `#89ADE6`), light bg `#E9F0EE`. Contrast 4.5:1. Light + dark. Narrow: panel below.
+- **Two looks**, chosen in display settings (`prefs.js`, sliders button bottom right on every page; left of panel when photo open on wide screens). `inspicio.prefs` = look `mellow`|`pixel`, theme `auto`|`light`|`dark` (`data-theme`), motion `full`|`calm` (`data-motion`, = reduced motion). `<html data-look="mellow">` default before JS.
+- **Mellow** (default, "quiet gallery"): stone bg `#D6D3D1` (user's pick; dark `#1C1917`), white cards, soft radius, 1px lines, Geist sentence case, underline tabs, sunken segmented controls, soft "i" logo (`.mark-soft`) + photo icon. All rules scoped `[data-look="mellow"]` at end of `styles.css`; tokens `--sunken`, `--raised`, `--on-accent`.
+- **Pixel**: original look (rules above mellow block): square corners, Departure Mono labels (11 px grid), grid bg, ticker, diagonal photos, `pixelReveal`, `decodeValues`, data bits (JS effects gated by `pixelLook()`).
+- Both: one accent `#19448A` (dark `#89ADE6`), Geist + Geist Mono, contrast 4.5:1, light + dark. Narrow: panel below. Every UI change: check both looks.
 - Human formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`.
-- Pixel look: grid bg, ticker, diagonal photos, `pixelReveal`, `decodeValues`. No pixel trails.
 - User wants nothing in the UI to jump or resize (fixed-width boxes, measured widths).
 
 ## Repo and deploy
@@ -46,16 +47,16 @@
 
 - User tests in **Firefox** (Mac) and **Safari** (iPhone); photos: iPhone 16 HEIC, iPhone 15 Pro ProRAW, Sony A7C II ARW.
 - Confirmed: Wipe, Shot on, HEIC, DNG, ARW, gain map, fast Film, iPhone Save to Photos, Frame on iPhone, sticky stage, save bar, phone zoom, Safari save.
-- Session 9: HDR JPEG gain maps; hold-to-compare no longer selects text on iPhone long press.
-- **Not yet checked by user:** hold-to-compare on iPhone; HDR JPEG film.
+- Session 9: HDR JPEG gain maps; hold-to-compare fixes (no text selection, no sticky fill); Mellow look + display settings.
+- **Not yet checked by user:** HDR JPEG film; sticky-fill fix; Mellow look on iPhone + desktop; settings button.
 - User wants features non-techy people notice; skip deep technical ones. **Held off:** Film lab chooser (Frontier/scanners).
 - **Next ideas:** Apple `linearthumbnail` aux; camera RAW via DNG. Small: `www.` redirect, `hello@inspicio.app`.
 
 ## Files
 
-`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (Node worker shim; helpers must match 1 core byte for byte).
+`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `prefs.js` (display settings, sync in head), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (Node worker shim; helpers must match 1 core byte for byte).
 
-- CSP `default-src 'none'`; keep in HTML files and `_headers`. No inline styles: `style.setProperty`. Metadata via `textContent` only.
+- CSP `default-src 'none'` + `script-src 'self'` (legal pages too, for `prefs.js`); keep in HTML files and `_headers`. No inline styles: `style.setProperty`. Metadata via `textContent` only.
 - Run: `python3 -m http.server 8788 --directory public`.
 
 ## Working notes
