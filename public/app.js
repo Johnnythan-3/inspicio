@@ -1838,7 +1838,7 @@
     progress.step('card');
     try {
       await loadCardFonts();
-      await painted();
+      await settled();
       const canvas = document.createElement('canvas');
       renderCard(canvas, current.img, cardOpts(), true);
       const { width, height } = canvas;
@@ -1973,10 +1973,13 @@
     requestAnimationFrame(() => setTimeout(go, 0));
     setTimeout(go, 80);
   });
+  // The overlay's entrance takes about 0.3 s; heavy work waits most of it out so it stays smooth.
+  const settled = () => painted().then(() => new Promise((resolve) => setTimeout(resolve, 220)));
 
-  // The overlay. The bar runs through each step at its predicted pace, slows down near the step's
-  // end if the step takes longer, and jumps ahead smoothly when the next step starts. It is
-  // animated on the compositor, so it keeps moving while the page is busy encoding.
+  // The overlay. The bar is one animation from empty to full that never restarts: each step only
+  // changes its speed (aiming to reach the step's end when the step is predicted to finish), and a
+  // step that runs long slows it to a crawl before the next notch. So it never jumps or goes back,
+  // and since it runs on the compositor it keeps moving while the page is busy.
   function saveProgress({ eyebrow, steps, megapixels, learn, onCancel }) {
     const durations = steps.map((k) => SAVE_STEPS[k][2] * megapixels * saveSpeed + 120);
     const total = durations.reduce((a, b) => a + b, 0);
@@ -2003,23 +2006,42 @@
     let closed = false;
     let cancel = null;
 
-    const shown = () => {
-      const m = /matrix\(([^,]+)/.exec(getComputedStyle(fill).transform);
-      return m ? Number(m[1]) : 0;
+    const anim = reduceMotion.matches ? null
+      : fill.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: total, easing: 'linear', fill: 'forwards' });
+    let rate = 1;
+    const at = () => (anim ? Math.min(1, (anim.currentTime || 0) / total) : 0);
+    const setRate = (r) => {
+      if (!anim) return;
+      rate = Math.min(12, Math.max(0.02, r));
+      if (anim.updatePlaybackRate) anim.updatePlaybackRate(rate);
+      else anim.playbackRate = rate;
     };
-    const go = (to, duration, easing) => {
-      const from = shown();
-      for (const a of fill.getAnimations()) a.cancel();
-      fill.style.setProperty('--p', String(to));
-      if (reduceMotion.matches || duration <= 0) return null;
-      return fill.animate([{ transform: `scaleX(${from})` }, { transform: `scaleX(${to})` }], { duration, easing });
-    };
-    const text = (title, sub) => {
+    const stepEnd = () => (index >= 0 && index < steps.length ? (index + 1 < steps.length ? starts[index + 1] : 1) : 1);
+    // Near the end of a step that's taking longer than predicted: keep halving the speed.
+    const watch = setInterval(() => {
+      if (!anim || index === Infinity || index < 0) return;
+      const room = stepEnd() - 0.008 - at();
+      if (room <= 0) setRate(0.02);
+      else if (room < 0.02 && rate > 0.1) setRate(rate / 2);
+    }, 120);
+
+    // Step names change at most every 450 ms, so a burst of quick steps doesn't flicker; the
+    // latest one shows when its turn comes.
+    let textAt = 0;
+    let textTimer = 0;
+    const showText = (title, sub) => {
       label.textContent = title;
       detail.textContent = sub;
+      textAt = performance.now();
       if (!reduceMotion.matches) {
-        for (const n of [label, detail]) n.animate([{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
+        for (const n of [label, detail]) n.animate([{ opacity: 0.25 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' });
       }
+    };
+    const text = (title, sub, now) => {
+      clearTimeout(textTimer);
+      const wait = now ? 0 : 450 - (performance.now() - textAt);
+      if (wait <= 0) showText(title, sub);
+      else textTimer = setTimeout(() => showText(title, sub), wait);
     };
     const setActions = (...nodes) => actions.replaceChildren(...nodes.filter(Boolean));
     const button = (labelText, primary, onClick) => {
@@ -2031,6 +2053,8 @@
     const close = () => {
       if (closed) return;
       closed = true;
+      clearInterval(watch);
+      clearTimeout(textTimer);
       document.removeEventListener('keydown', onKey, true);
       root.classList.add('is-closing');
       setTimeout(() => root.remove(), reduceMotion.matches ? 0 : 200);
@@ -2052,14 +2076,11 @@
         const [title, sub] = SAVE_STEPS[name];
         text(title, sub);
         bar.setAttribute('aria-valuenow', String(Math.round(starts[i] * 100)));
-        const end = i + 1 < steps.length ? starts[i + 1] : 1;
-        const range = end - starts[i];
-        const anim = go(starts[i] + range * 0.85, durations[i] * 0.85, 'linear');
-        if (anim) {
-          anim.onfinish = () => {
-            if (index === i && !closed) go(starts[i] + range * 0.97, durations[i] * 2.5, 'cubic-bezier(0, 0, 0.2, 1)');
-          };
-        }
+        if (!anim) { fill.style.setProperty('--p', String(starts[i])); return; }
+        // Reach 95% of the way to this step's end in the step's predicted time, from wherever the
+        // bar is now (behind catches up, ahead slows down).
+        const target = starts[i] + (stepEnd() - starts[i]) * 0.95;
+        setRate(((target - at()) * total) / durations[i]);
       },
       cancellable(fn) {
         cancel = fn ? () => { cancel = null; fn(); } : null;
@@ -2076,19 +2097,21 @@
         }
         index = Infinity;
         cancel = null;
+        clearInterval(watch);
         bar.setAttribute('aria-valuenow', '100');
-        go(1, 260, 'ease-out');
+        fill.style.setProperty('--p', '1');
+        setRate(((1 - at()) * total) / 300);
       },
       done(sub) {
         api.finished();
-        text('Saved', sub);
+        text('Saved', sub, true);
         setActions();
         setTimeout(close, reduceMotion.matches ? 1600 : 1100);
       },
       // On a phone or tablet: the share sheet, where Save Image puts the photo in Photos.
       ready(file, url, sub) {
         api.finished();
-        text('Ready', `${sub}. Save Image in the share sheet puts it in Photos.`);
+        text('Ready', `${sub}. Save Image in the share sheet puts it in Photos.`, true);
         const download = el('a', { class: 'map-link', href: url, download: file.name }, 'Download');
         setActions(
           button('Close', false, close),
@@ -2106,8 +2129,9 @@
       fail(message) {
         index = Infinity;
         cancel = null;
-        for (const a of fill.getAnimations()) a.cancel();
-        text('Couldn’t save', message);
+        clearInterval(watch);
+        anim?.pause();
+        text('Couldn’t save', message, true);
         setActions(button('Close', true, close));
       },
       close,
@@ -2534,7 +2558,7 @@
     f.saveStage = (stage) => progress.step(stage);
     progress.step(steps[0]);
     try {
-      await painted();
+      await settled();
       const res = await filmDetail(f);
       if (cancelled) throw new Error('cancelled');
       progress.cancellable(null);
