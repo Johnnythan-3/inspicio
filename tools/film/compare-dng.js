@@ -3,7 +3,7 @@ const [,, site, out, dngPath] = process.argv;
 globalThis.self = globalThis;
 require(site + '/film-data.js');
 const E = require(site + '/film.js');
-const F = E.prepare(self.FILM_DATA);
+const F = E.prepare(self.FILM_DATA, { calibrated: false });
 const ref = JSON.parse(fs.readFileSync(`${out}/ref-dng.json`));
 const bytes = new Uint8Array(fs.readFileSync(dngPath));
 let t = Date.now();

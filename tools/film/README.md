@@ -19,6 +19,9 @@ node tools/film/compare.js "$PWD/public" "$W/out"
 node tools/film/compare-dng.js "$PWD/public" "$W/out" "$DNG"
 ```
 
+The comparisons use rolls' data as baked (`prepare(data, { calibrated: false })`). The app
+adds a small calibration to real Portra 400 on top (`PORTRA_FIT`, see `portra/README.md`).
+
 `compare.js` should report negative densities within about 1e-6 of Swift (2.6e-3 worst on the
 wide frame) and the matching print exposure K. Output differs by about 0.3 code values on
 average (max about 3), from the 48^3 paper colour table.

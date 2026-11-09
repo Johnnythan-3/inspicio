@@ -27,14 +27,30 @@
     return new Uint8Array(Buffer.from(b64, 'base64')); // Node, for tests
   }
 
-  function prepare(data) {
+  /* Calibration to real Portra 400 (not in rolls). Measured against public ColorChecker frames
+     of real Portra 400 (five scans, timed on the grey patch), rolls' film rendered blues, greens
+     and cyans 1.3-2x too saturated and reds 12-18 L* too dark. Each matrix mixes the three
+     layers' exposures a little (rows sum to 1, so greys stay grey), fitted by least CIEDE2000
+     difference to the scans: mean 10.1 -> 7.5 for ProRAW, 7.6 -> 7.2 for finished photos (the
+     scans differ from each other by about 7). Finished photos get a lighter one because
+     photoTransfer already flattens their contrast, and with it their colour. */
+  const PORTRA_FIT = {
+    raw: [0.8842, -0.0386, 0.1544, 0.1305, 0.7299, 0.1396, 0.1209, 0.0603, 0.8188],
+    photo: [1.051, -0.0831, 0.0321, 0.0788, 0.8945, 0.0267, 0.0595, -0.0122, 0.9527],
+  };
+
+  // opts.calibrated: false gives rolls' data as baked (for the Swift comparisons).
+  function prepare(data, opts = {}) {
     const curve = (c) => ({
       xMin: c.xMin, xMax: c.xMax,
       rows: [Float32Array.from(c.R), Float32Array.from(c.G), Float32Array.from(c.B)],
     });
     const bytes = decodeBase64(data.lutB64);
+    const fit = opts.calibrated === false ? null : PORTRA_FIT;
     return {
       ...data,
+      layers: fit ? { sRGB: mul3(fit.photo, data.layers.sRGB), displayP3: mul3(fit.photo, data.layers.displayP3) } : data.layers,
+      rawFit: fit ? fit.raw : null,
       neg: curve(data.characteristic),
       paper: curve(data.paperCurve),
       lutTable: new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2),
@@ -1145,7 +1161,8 @@
       ? [m.analogBalance[0], 0, 0, 0, m.analogBalance[1], 0, 0, 0, m.analogBalance[2]]
       : [1, 0, 0, 0, 1, 0, 0, 0, 1];
     const toXYZ = normalized(inv3(mul3(ab, cm)), D50);
-    return { toXYZ, layers: normalized(mul3(F.filmMatrix, toXYZ), [1, 1, 1]) };
+    const layers = normalized(mul3(F.filmMatrix, toXYZ), [1, 1, 1]);
+    return { toXYZ, layers: F.rawFit ? mul3(F.rawFit, layers) : layers };
   }
 
   // Rotate/flip RGBA bytes by an EXIF orientation (Darkroom.encode).

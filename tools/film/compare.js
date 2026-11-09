@@ -3,7 +3,7 @@ const [,, site, out] = process.argv;
 globalThis.self = globalThis;
 require(site + '/film-data.js');
 const E = require(site + '/film.js');
-const F = E.prepare(self.FILM_DATA);
+const F = E.prepare(self.FILM_DATA, { calibrated: false });
 const f32 = (n) => new Float32Array(fs.readFileSync(`${out}/${n}`).buffer.slice(0));
 const W = 384, H = 256;
 for (const tag of ['flat', 'full']) {
