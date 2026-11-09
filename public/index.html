@@ -23,7 +23,7 @@
   {
     "@context": "https://schema.org",
     "@graph": [
-      { "@type": "WebSite", "name": "Inspicio", "url": "https://inspicio.app/" },
+      { "@type": "WebSite", "@id": "https://inspicio.app/#website", "name": "Inspicio", "url": "https://inspicio.app/" },
       {
         "@type": "WebApplication",
         "name": "Inspicio",
@@ -133,8 +133,8 @@
       <div class="empty-foot">
         <p class="empty-note">Nothing is uploaded</p>
         <nav class="legal-links" aria-label="Legal">
-          <a href="privacy.html">Privacy</a>
-          <a href="terms.html">Terms</a>
+          <a href="privacy">Privacy</a>
+          <a href="terms">Terms</a>
           <a href="mailto:inspicio.app@proton.me">Contact</a>
         </nav>
       </div>
@@ -143,6 +143,30 @@
     <section class="viewer" id="viewer-view" hidden>
       <div class="stage" id="stage"></div>
       <aside class="panel" id="panel" aria-label="Photo metadata"></aside>
+    </section>
+    <section class="doc tool-about" id="tool-about">
+      <h2>See the hidden details in a photo</h2>
+      <p class="doc-lead">Every photo from a phone or camera carries hidden details, called EXIF metadata. Inspicio reads them and shows them in plain words, with nothing to install.</p>
+      <ul>
+        <li><strong>Camera and lens.</strong> The make, model and lens, with the shutter speed, aperture, ISO and focal length.</li>
+        <li><strong>Date and time.</strong> When the photo was taken, down to the second.</li>
+        <li><strong>Location.</strong> Where the photo was taken, if the phone saved it. Copy the coordinates or open the place on a map.</li>
+        <li><strong>The file.</strong> Its size, resolution and color profile, and the apps it went through.</li>
+      </ul>
+      <h2>How it works</h2>
+      <p>Drop a photo or choose one, and every detail appears next to it. Zoom in to see the photo at full size. It reads JPEG, HEIC from an iPhone, PNG, TIFF, AVIF, ProRAW DNG and the RAW files of most cameras.</p>
+      <h2>Questions</h2>
+      <h3>Is my photo uploaded?</h3>
+      <p>No. Everything runs in your browser, and the photo never leaves your phone or computer. The map is the one exception: it loads only when you click Show map, and only then does Mapbox receive the location.</p>
+      <h3>Why is there no location?</h3>
+      <p>The phone saves it only when location is turned on for the camera, and many apps remove it when a photo is shared.</p>
+      <h3>Can I remove what it finds?</h3>
+      <p>Yes. <a href="remove-metadata">Remove photo metadata</a> saves a clean copy without the location, date and camera details.</p>
+      <nav class="doc-links tool-links" aria-label="More tools">
+        <a href="remove-metadata">Remove photo metadata</a>
+        <a href="shot-on-frame">Shot on frame</a>
+        <a href="film-filter">Film filter</a>
+      </nav>
     </section>
   </main>
 

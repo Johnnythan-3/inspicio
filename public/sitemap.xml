@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://inspicio.app/</loc></url>
-  <url><loc>https://inspicio.app/remove-metadata</loc></url>
-  <url><loc>https://inspicio.app/shot-on-frame</loc></url>
-  <url><loc>https://inspicio.app/film-filter</loc></url>
-  <url><loc>https://inspicio.app/privacy</loc></url>
-  <url><loc>https://inspicio.app/terms</loc></url>
+  <url><loc>https://inspicio.app/</loc><lastmod>2026-11-08</lastmod></url>
+  <url><loc>https://inspicio.app/remove-metadata</loc><lastmod>2026-11-08</lastmod></url>
+  <url><loc>https://inspicio.app/shot-on-frame</loc><lastmod>2026-11-08</lastmod></url>
+  <url><loc>https://inspicio.app/film-filter</loc><lastmod>2026-11-08</lastmod></url>
+  <url><loc>https://inspicio.app/privacy</loc><lastmod>2026-11-08</lastmod></url>
+  <url><loc>https://inspicio.app/terms</loc><lastmod>2026-11-08</lastmod></url>
 </urlset>

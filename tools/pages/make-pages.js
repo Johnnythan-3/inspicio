@@ -6,8 +6,9 @@
 //   node tools/pages/make-pages.js          write the pages
 //   node tools/pages/make-pages.js --check  only report whether they are up to date
 //
-// Each page is index.html with its own title, description and address, the tool already chosen
-// (data-tool on <html>, read by app.js), and a short write-up below the first screen.
+// Each page is index.html with its own title, description, address and structured data, the tool
+// already chosen (data-tool on <html>, read by app.js), and its own write-up below the first screen
+// in place of the home page's.
 
 const fs = require('fs');
 const path = require('path');
@@ -108,6 +109,38 @@ function replaceOnce(html, from, to, page) {
   return html.replace(from, to);
 }
 
+// What the page is for search engines: the tool as a free web app, and its place under the home page.
+function structuredData(page) {
+  const name = OTHER_LINKS[page.tool][1];
+  const data = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebApplication',
+        name,
+        url: page.url,
+        image: `${SITE}/og-image.png`,
+        description: page.description,
+        applicationCategory: 'MultimediaApplication',
+        operatingSystem: 'Any',
+        browserRequirements: 'Requires JavaScript',
+        isAccessibleForFree: true,
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+        isPartOf: { '@id': `${SITE}/#website` },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Inspicio', item: `${SITE}/` },
+          { '@type': 'ListItem', position: 2, name, item: page.url },
+        ],
+      },
+    ],
+  };
+  const json = JSON.stringify(data, null, 2).replace(/</g, '\\u003c').replace(/^/gm, '  ');
+  return `  <script type="application/ld+json">\n${json}\n  </script>\n`;
+}
+
 function makePage(index, modes, page) {
   const m = modes[page.tool];
   const title = escapeHtml(m.doc);
@@ -121,8 +154,8 @@ function makePage(index, modes, page) {
   html = r(html, /<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="${title}">`);
   html = r(html, /<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${description}">`);
   html = r(html, /<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${page.url}">`);
-  // The structured data describes the whole site, so it stays on the home page only.
-  html = r(html, /  <script type="application\/ld\+json">[\s\S]*?<\/script>\n/, '');
+  // The home page's structured data describes the whole site; each tool page describes itself instead.
+  html = r(html, /  <script type="application\/ld\+json">[\s\S]*?<\/script>\n/, () => structuredData(page));
   html = r(html, /<h1 id="hero-title">[^<]*<br>[^<]*<\/h1>/, `<h1 id="hero-title">${escapeHtml(m.title[0])}<br>${escapeHtml(m.title[1])}</h1>`);
   html = r(html, /<p id="hero-sub">[^<]*<\/p>/, `<p id="hero-sub">${escapeHtml(m.sub)}</p>`);
   html = r(html, /(<span class="dropzone-sub" id="dropzone-sub">)[^<]*(<\/span>)/, `$1${escapeHtml(m.dropSub)}$2`);
@@ -133,13 +166,13 @@ function makePage(index, modes, page) {
     .filter(([tool]) => tool !== page.tool)
     .map(([, [href, label]]) => `<a href="${href}">${label}</a>`)
     .join('\n        ');
-  const about = `    <section class="doc tool-about" id="tool-about">${page.about}
+  const about = `<section class="doc tool-about" id="tool-about">${page.about}
       <nav class="doc-links tool-links" aria-label="More tools">
         ${links}
       </nav>
-    </section>
-  </main>`;
-  html = r(html, '  </main>', about);
+    </section>`;
+  // Replaces the home page's own write-up (the Inspect tool) with this tool's.
+  html = r(html, /<section class="doc tool-about" id="tool-about">[\s\S]*?<\/section>/, () => about);
   // The note goes after the doctype: anything before it would put the page in quirks mode.
   return r(html, '<!doctype html>\n', "<!doctype html>\n<!-- Made by tools/pages/make-pages.js from index.html. Don't edit by hand. -->\n");
 }

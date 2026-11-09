@@ -59,7 +59,7 @@
 `public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `prefs.js` (display settings, sync in head), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (helpers match 1 core byte for byte).
 
 - CSP `default-src 'none'` + `script-src 'self'` (legal pages too, for `prefs.js`); keep in HTML files and `_headers`. No inline styles: `style.setProperty`. Metadata via `textContent` only.
-- **Tool pages** `remove-metadata`/`shot-on-frame`/`film-filter.html` made from `index.html` + MODES by `node tools/pages/make-pages.js` (rerun after edits; `--check`). `data-tool` = page's tool; write-up `#tool-about`.
+- **Tool pages** `remove-metadata`/`shot-on-frame`/`film-filter.html` made from `index.html` + MODES by `node tools/pages/make-pages.js` (rerun after edits; `--check`). `data-tool` = page's tool; write-up `#tool-about` (home: Inspect, hand-written; pages swap it + own JSON-LD). Internal links clean (`privacy`, not `.html`). Bump sitemap `lastmod` on page edits.
 - Run: `python3 -m http.server 8788 --directory public`.
 
 ## Working notes
