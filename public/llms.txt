@@ -1,0 +1,20 @@
+# Inspicio
+
+> Inspicio is a free photo toolbox that runs entirely in the browser. It shows the hidden metadata in a photo (camera, settings, date and GPS location), removes it before sharing, adds a "Shot on" frame with the camera details, and develops photos like Kodak Portra 400 film. Photos are never uploaded: there is no server processing, no account and no analytics.
+
+Inspicio works on phones and computers, including Safari on iPhone. It reads JPEG, HEIC (iPhone), PNG, TIFF, AVIF, Apple ProRAW DNG and the RAW files of most cameras. It is free and needs no sign-up.
+
+The only time anything leaves the device is when the user clicks "Show map" on a photo with a location: the map image then comes from Mapbox, which receives the coordinates.
+
+## Tools
+
+- [See photo metadata (EXIF viewer)](https://inspicio.app/): Shows camera, lens, shutter speed, aperture, ISO, focal length, date and time, GPS location (copy the coordinates or open a map), resolution, color profile and editing software.
+- [Remove photo metadata](https://inspicio.app/remove-metadata): Lists what a photo gives away, then saves a clean copy without EXIF, XMP, IPTC, GPS location, date or camera details. JPEG and PNG are cleaned losslessly, keeping every pixel, the color profile and the rotation. Other formats, such as HEIC, are saved as a high quality JPEG. On iPhone the clean copy can be saved straight back to Photos.
+- [Shot on frame](https://inspicio.app/shot-on-frame): Adds a frame under the photo with the camera model, settings (35 mm equivalent focal length, aperture, shutter speed, ISO), lens and date, read from the photo's EXIF data. Light, dark or pixel style; serif, wide or digital camera font; original, square or 4:5 shape for Instagram.
+- [Film filter](https://inspicio.app/film-filter): Develops a photo like Kodak Portra 400 printed on Kodak Endura paper, modeled from Kodak's datasheets, with halation and grain. Exposure and brightness controls and an optional white or black border. Works best with RAW, ProRAW and HDR photos; normal JPEG and HEIC photos come close.
+
+## About
+
+- [Privacy policy](https://inspicio.app/privacy): What Inspicio does and does not collect. Photos stay on the device.
+- [Terms of use](https://inspicio.app/terms)
+- Contact: inspicio.app@proton.me
