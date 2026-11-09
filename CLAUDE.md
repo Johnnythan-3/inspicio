@@ -10,7 +10,7 @@
 - **Wipe:** saves clean copy. JPEG/PNG lossless (drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed; tag left = no download. Touch: share sheet.
 - **Shot on:** canvas card (`renderCard`/`cardLayout`). Lines: title (model, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces)/Wide (Michroma)/Digicam (DSEG14, orange `'26 11 01` stamp); Shape Original/Square/4:5. Prefs `inspicio.card`, never text. Zoom redraws at save size (`cardWantsHi`). ≤ 3240 px.
 - **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift with `calibrated: false`; `PORTRA_FIT` 3×3s tune colour to real Portra scans.
-  - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain). Subtle.
+  - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain).
   - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation. iOS ≤ 16 JPEGs: none.
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
   - **Speed:** `film-worker.js` spawns 2–6 helpers (row strips ± `stripMargin` 49). Bit-identical. 16 MP ~2.3 s.
@@ -36,7 +36,7 @@
 - **Pixel** (default, rules above mellow): square corners, Departure Mono (11 px grid), grid bg, ticker, `pixelReveal`, `decodeValues` (JS effects gated by `pixelLook()`).
 - Both: one accent `#19448A` (dark `#89ADE6`), Geist + Geist Mono, contrast 4.5:1, light + dark. Narrow: panel below. Every UI change: check both looks.
 - Formats: `1/250 s`, `f/2.8`, `ISO 400`, `24 mm`.
-- User wants nothing in the UI to jump or resize (fixed-width boxes, measured widths).
+- User wants nothing in the UI to jump or resize (fixed widths).
 
 ## Repo and deploy
 
@@ -49,11 +49,11 @@
 - User tests **Firefox** (Mac), **Safari** (iPhone); iPhone 16 HEIC, 15 Pro ProRAW, Sony A7C II ARW.
 - Confirmed: all tools, formats, gain maps, Save to Photos, both looks, settings, chooser.
 - Sessions 10–11: OG/icons, tool pages, robots, sitemap, security.txt, write-ups, JSON-LD, cache, `llms.txt`.
-- Session 12: Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 10.1 → 7.45). Never ship DxO-derived data or third-party scans. Left: ProRAW purple/red a bit dark, bluish green +15°, no underexposure desaturation.
+- Session 12: Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 10.1 → 7.45). Never ship DxO-derived data or third-party scans. Left: purple/red a bit dark, bluish green +15°, no underexposure desaturation.
 - Cloudflare: AI Crawl Control all allowed, Bot Preference Sync off (keep). Skip Markdown for Agents, Bot Fight Mode, AI Labyrinth, Turnstile.
 - **User to do:** Always Use HTTPS (`http://` serves 200); `www` DNS + redirect; resubmit sitemap; Bing Webmaster import from Search Console.
 - **Not yet checked by user:** Film calibration on own photos/phone; phone Film + Shot on editors; smaller top bar; no-flash tab switch; faster settings exit; write-ups.
-- User wants features non-techy people notice. **Held off:** Film lab chooser.
+- User wants features non-techy people notice. Held off: Film lab chooser.
 - **Next ideas:** offline mode (service worker); "HEIC to JPG" + "remove location on iPhone" pages; per-tool OG images; Apple `linearthumbnail`; camera RAW via DNG; `hello@inspicio.app`.
 
 ## Files
