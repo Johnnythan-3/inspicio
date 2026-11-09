@@ -5,11 +5,11 @@
 ## Product
 
 - **Tabs** (`#modes`, copy in `MODES`): Inspect, Wipe, Shot on, Film. Mode in hash or page (`data-tool`). Fill slides (`placeFill`).
-- **Zoom** (`zoomable`/`attachZoom`) every stage: wheel, pinch, double-click, drag, buttons, keys. 100% = photo px (saved px for card/film). `touch-action: manipulation` stops double-tap page zoom.
+- **Zoom** (`zoomable`/`attachZoom`) every stage: wheel, pinch, double-click, drag, keys. 100% = photo px (saved px for card/film). `touch-action: manipulation` stops double-tap page zoom.
 - **Inspect:** full-res preview; panel ≤ 340 px, collapsible sections (`inspicio.collapsed`); Location: copy lat/lon, opt-in Mapbox map, OSM link.
 - **Wipe:** saves clean copy. JPEG/PNG lossless (drop EXIF/XMP/IPTC/COM/MPF, appended images; keep JFIF, ICC, Adobe, Orientation-only EXIF). Else canvas redraw to JPEG (Safari cap 16 MP). Copy re-parsed; tag left = no download. Touch: share sheet.
 - **Shot on:** canvas card (`renderCard`/`cardLayout`). Lines: title (model, no "Shot on"), settings (35 mm equiv), small line (lens · date). Style Light/Dark/Pixel; Font Serif (Fraunces)/Wide (Michroma)/Digicam (DSEG14, orange `'26 11 01` stamp); Shape Original/Square/4:5. Prefs `inspicio.card`, never text. Zoom redraws at save size (`cardWantsHi`). ≤ 3240 px.
-- **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift with `calibrated: false` (`tools/film/`); `PORTRA_FIT` 3×3s tune colour to real Portra chart scans (`tools/film/portra/`).
+- **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift with `calibrated: false`; `PORTRA_FIT` 3×3s tune colour to real Portra scans.
   - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain). Subtle.
   - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation. iOS ≤ 16 JPEGs: none.
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
@@ -19,7 +19,7 @@
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms), one bar animation, speed per step (`barController`, `SAVE_STEPS`, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: "Save to Photos".
 - **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, 70 px control strip.
 - **HEIC:** Safari native; else vendored libheif 1.19.8 pure-JS (LGPL; WASM needs CSP change) → q0.95 JPEG.
-- **RAW:** largest embedded JPEG (`loadRawPreview`). **Photos drags:** small preview notice.
+- **RAW:** largest embedded JPEG (`loadRawPreview`). Photos drags: preview notice.
 
 ## Hard rules
 
@@ -31,7 +31,7 @@
 
 ## Design
 
-- **Two looks**, chosen in display settings (`prefs.js`, sliders button bottom right; left of panel when photo open). `inspicio.prefs` = look `pixel`|`mellow`, theme `auto`|`light`|`dark` (`data-theme`), motion `full`|`calm` (`data-motion`, = reduced motion). `<html data-look="pixel">` default before JS. **First visit** (no `inspicio.prefs`, main page): look chooser, colors glide (`@property` + `html.look-shifting`).
+- **Two looks**, chosen in display settings (`prefs.js`, sliders button bottom right). `inspicio.prefs` = look `pixel`|`mellow`, theme `auto`|`light`|`dark` (`data-theme`), motion `full`|`calm` (`data-motion`, = reduced motion). `<html data-look="pixel">` default before JS. **First visit** (no `inspicio.prefs`, main page): look chooser, colors glide (`@property` + `html.look-shifting`).
 - **Mellow**: stone `#D6D3D1` (dark `#1C1917`), white cards, soft radius, Geist sentence case, soft logo. Rules scoped `[data-look="mellow"]` at end of `styles.css`.
 - **Pixel** (default, rules above mellow): square corners, Departure Mono (11 px grid), grid bg, ticker, `pixelReveal`, `decodeValues` (JS effects gated by `pixelLook()`).
 - Both: one accent `#19448A` (dark `#89ADE6`), Geist + Geist Mono, contrast 4.5:1, light + dark. Narrow: panel below. Every UI change: check both looks.
@@ -44,20 +44,21 @@
 - Search Console: Domain property, Cloudflare TXT (keep). `security.txt` expires 2027-11-01: renew.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
-## Status (2026-11-09, session 11)
+## Status (2026-11-09, session 12)
 
 - User tests **Firefox** (Mac), **Safari** (iPhone); iPhone 16 HEIC, 15 Pro ProRAW, Sony A7C II ARW.
-- Confirmed: all tools, formats, gain maps, Save to Photos, both looks, settings, chooser, tab hover icons.
-- Sessions 10–11: OG/icons, tool pages, robots, sitemap, security.txt; home write-up, JSON-LD per page, cache (`vendor/` 30 d, icons 7 d), `llms.txt`.
-- Cloudflare: AI Crawl Control all allowed, Bot Preference Sync off (keep both). Skip Markdown for Agents (Pro), Bot Fight Mode, AI Labyrinth, Turnstile. User has MFA.
-- **User to do:** Always Use HTTPS (`http://` serves 200); `www` DNS + redirect; resubmit sitemap; Bing Webmaster import from Search Console (Bing: 0 crawls in 7 days).
-- **Not yet checked by user:** phone Film + Shot on editors; smaller top bar; no-flash tab switch; faster settings exit; home + tool page write-ups (may edit copy).
+- Confirmed: all tools, formats, gain maps, Save to Photos, both looks, settings, chooser.
+- Sessions 10–11: OG/icons, tool pages, robots, sitemap, security.txt, write-ups, JSON-LD, cache, `llms.txt`.
+- Session 12: Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 10.1 → 7.45). Never ship DxO-derived data or third-party scans. Left: ProRAW purple/red a bit dark, bluish green +15°, no underexposure desaturation.
+- Cloudflare: AI Crawl Control all allowed, Bot Preference Sync off (keep). Skip Markdown for Agents, Bot Fight Mode, AI Labyrinth, Turnstile.
+- **User to do:** Always Use HTTPS (`http://` serves 200); `www` DNS + redirect; resubmit sitemap; Bing Webmaster import from Search Console.
+- **Not yet checked by user:** Film calibration on own photos/phone; phone Film + Shot on editors; smaller top bar; no-flash tab switch; faster settings exit; write-ups.
 - User wants features non-techy people notice. **Held off:** Film lab chooser.
 - **Next ideas:** offline mode (service worker); "HEIC to JPG" page; "remove location on iPhone" page; per-tool OG images; Apple `linearthumbnail`; camera RAW via DNG; `hello@inspicio.app`.
 
 ## Files
 
-`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `prefs.js` (display settings, sync in head), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `llms.txt` (AI summary; update with tools), `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (helpers match 1 core byte for byte).
+`public/`: `index.html` (CSP meta), `styles.css`, `app.js`, `film.js`/`film-worker.js`/`film-data.js`, `heif-worker.js`, `gainmap.js` (shared with HEIC worker), `prefs.js` (display settings, sync in head), `_headers`, `privacy.html`/`terms.html`, `404.html`, `redirect.js`, `llms.txt` (AI summary; update with tools), `vendor/`. `tools/film/`: data rebuild, Swift compare, `bench-worker.js` (helpers byte-identical), `portra/fit.js check|raw|photo`.
 
 - CSP `default-src 'none'` + `script-src 'self'` (legal pages too, for `prefs.js`); keep in HTML files and `_headers`. No inline styles: `style.setProperty`. Metadata via `textContent` only.
 - **Tool pages** `remove-metadata`/`shot-on-frame`/`film-filter.html` made from `index.html` + MODES by `node tools/pages/make-pages.js` (rerun after edits; `--check`). `data-tool` = page's tool; write-up `#tool-about` (home: Inspect, hand-written; pages swap it + own JSON-LD). Internal links clean (`privacy`, not `.html`). Bump sitemap `lastmod` on page edits.
@@ -69,4 +70,4 @@
 - Firefox rounds timestamps: use CSS/WAAPI. Mapbox `pk.` push warning: allowed.
 - No third-party code in Node; our `film.js` OK.
 - Don't reuse `data-mode` outside tabs.
-- Browser pane (`.claude/launch.json`) often hidden (animations, rAF, ResizeObserver frozen): stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: from `/film.js` tab (no CSP) `fetch(f, {cache:'reload'})`. Test files `public/_test.*`, `DataTransfer` on `#file-input`; delete `_*` before commit.
+- Browser pane (`.claude/launch.json`) often hidden (animations, rAF, ResizeObserver frozen): stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: from `/film.js` tab (no CSP) `fetch(f, {cache:'reload'})`. Test files `public/_test.*` (CSP blocks `fetch`: load via `Image` + canvas `toBlob`), `DataTransfer` on `#file-input`; delete `_test*` before commit. Local: no clean URLs. `_compare/` = local before/after, git-ignored.
