@@ -54,7 +54,7 @@
 - **User to do:** Always Use HTTPS (`http://` serves 200); `www` DNS + redirect; resubmit sitemap; Bing Webmaster import from Search Console.
 - **Not yet checked by user:** Film calibration on own photos/phone; phone Film + Shot on editors; smaller top bar; no-flash tab switch; faster settings exit; write-ups.
 - User wants features non-techy people notice. **Held off:** Film lab chooser.
-- **Next ideas:** offline mode (service worker); "HEIC to JPG" page; "remove location on iPhone" page; per-tool OG images; Apple `linearthumbnail`; camera RAW via DNG; `hello@inspicio.app`.
+- **Next ideas:** offline mode (service worker); "HEIC to JPG" + "remove location on iPhone" pages; per-tool OG images; Apple `linearthumbnail`; camera RAW via DNG; `hello@inspicio.app`.
 
 ## Files
 
@@ -70,4 +70,4 @@
 - Firefox rounds timestamps: use CSS/WAAPI. Mapbox `pk.` push warning: allowed.
 - No third-party code in Node; our `film.js` OK.
 - Don't reuse `data-mode` outside tabs.
-- Browser pane (`.claude/launch.json`) often hidden (animations, rAF, ResizeObserver frozen): stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: from `/film.js` tab (no CSP) `fetch(f, {cache:'reload'})`. Test files `public/_test.*` (CSP blocks `fetch`: load via `Image` + canvas `toBlob`), `DataTransfer` on `#file-input`; delete `_test*` before commit. Local: no clean URLs. `_compare/` = local before/after, git-ignored.
+- Browser pane (`.claude/launch.json`) often hidden (animations, rAF, ResizeObserver frozen): stub `img.decode`, unset `startViewTransition`; finish via `getAnimations()`. Stale cache: from `/film.js` tab (no CSP) `fetch(f, {cache:'reload'})`. Test files `public/_test.*` (CSP blocks `fetch`: load via `Image` + canvas `toBlob`), `DataTransfer` on `#file-input`; delete `_test*` before commit. Local: no clean URLs. `_compare/`: local, git-ignored.
