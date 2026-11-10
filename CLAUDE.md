@@ -14,7 +14,7 @@
   - **HDR JPEG**: `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; no ICC, EXIF-turned. iOS ≤ 16 JPEGs: none.
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; night: `HIGHLIGHT_GUARD`, `HIGHLIGHT_ROLL` (`K[3]`); Brightness starts −0.2.
   - **Speed:** `film-worker.js` spawns 2–6 helpers (row strips ± `stripMargin` 49). Bit-identical. 16 MP ~2.3 s.
-  - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`, negative kept), Save reuses it. Caption bar (`filmCaptionBar`): photo's first develop and zoom detail only; slider moves: none.
+  - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`, negative kept), Save reuses it. Caption bar (`filmCaptionBar`): first develop + zoom detail only, not on slider moves.
   - **Strength** 0–100%, default 30 (`filmPrefs.look`, `FilmEngine.look`): engine alone: ΔE 3 on a finished photo, so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`; grain × `GRAIN_TASTE` 0.8). 30% = ΔE 7.8. 0% bit-identical to calibrated.
   - Sliders: Exposure 0.5, Brightness 0.1, Highlights ±5 (`HIGHLIGHT_LIFT`, `K[4]`). **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms), one bar animation, speed per step (`barController`, `SAVE_STEPS`, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: "Save to Photos".
