@@ -2291,9 +2291,16 @@
   let film = null; // the open photo's film settings and preview state
   let filmKeySeq = 0;
 
+  // Where Brightness starts for a photo developed from sensor data (the user's pick: the lab's
+  // print of a RAW frame runs a little bright). A finished picture starts at 0.
+  const FILM_RAW_BRIGHTNESS = -0.2;
+
   function filmFor(file, img) {
     if (film?.file !== file) {
-      film = { file, img, key: ++filmKeySeq, exposure: 0, brightness: 0, source: null,
+      const brightness = /\.dng$/i.test(file.name) ? FILM_RAW_BRIGHTNESS : 0;
+      film = { file, img, key: ++filmKeySeq, exposure: 0, brightness, source: null,
+        // Where a double-click puts each slider back.
+        rest: { exposure: 0, brightness },
         canvas: null, caption: null, original: null, busy: false, again: false, saving: false,
         // A DNG is developed from its sensor data when the worker can read it ('maybe' until
         // it has tried); everything else, and a DNG it can't read, from the finished picture.
@@ -2384,6 +2391,13 @@
         if (err.message === 'cancelled') throw err;
         if (err.message === 'need-file') { f.rawGen = -1; continue; }
         f.raw = 'no';
+        // Not sensor data after all: Brightness goes back to 0 unless it has been moved.
+        if (f.brightness === f.rest.brightness && f.brightness !== 0) {
+          f.brightness = 0;
+          settings.printStops = 0;
+        }
+        f.rest.brightness = 0;
+        f.syncSliders?.();
         filmShowSource(f);
       }
     }
@@ -2865,6 +2879,8 @@
     const refresh = () => shell?.show();
 
     // `pref`: the value is a remembered preference (filmPrefs) with its own double-click reset.
+    // `syncs`: puts the photo's own sliders back in step when the app moves a value itself.
+    const syncs = [];
     const range = (key, min, max, step, label, pref = null) => {
       const target = pref ? filmPrefs : f;
       const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
@@ -2875,13 +2891,15 @@
         filmPreview();
       });
       if (pref) input.addEventListener('change', saveFilmPrefs);
+      else syncs.push(() => { input.value = String(f[key]); });
       input.addEventListener('dblclick', () => {
-        input.value = String(pref ? pref.reset : 0);
+        input.value = String(pref ? pref.reset : f.rest[key]);
         input.dispatchEvent(new Event('input'));
         input.dispatchEvent(new Event('change'));
       });
       return input;
     };
+    f.syncSliders = () => { syncs.forEach((sync) => sync()); refresh(); };
 
     // Frame: on/off and colour in one row, the width under it.
     const toggle = el('button', { class: 'editor-switch', type: 'button', role: 'switch', 'aria-checked': String(filmPrefs.frame) },
@@ -3073,6 +3091,8 @@
 
     // `pref`: the value is a remembered preference (filmPrefs), shown as a percentage, with its
     // own double-click reset.
+    const syncs = [];
+    f.syncSliders = () => syncs.forEach((sync) => sync());
     const slider = (label, key, min, max, step, help, pref = null) => {
       const target = pref ? filmPrefs : f;
       const fmt = pref ? fmtPercent : fmtStops;
@@ -3085,8 +3105,9 @@
         filmPreview();
       });
       if (pref) input.addEventListener('change', saveFilmPrefs);
+      else syncs.push(() => { input.value = String(f[key]); value.textContent = fmt(f[key]); });
       input.addEventListener('dblclick', () => {
-        input.value = String(pref ? pref.reset : 0);
+        input.value = String(pref ? pref.reset : f.rest[key]);
         input.dispatchEvent(new Event('input'));
         input.dispatchEvent(new Event('change'));
       });

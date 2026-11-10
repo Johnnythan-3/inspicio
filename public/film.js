@@ -47,6 +47,13 @@
      them. */
   const HIGHLIGHT_GUARD = [[0.90, 0.42], [0.75, 0.30]];
 
+  /* What is still brighter than that rolls off instead of clipping, the way negative film holds
+     its highlights: the print's highlight protection (printInto) is raised until the frame's
+     brightest part (`share` of the frame is darker) lands `target` log exposure above mid-grey,
+     just inside paper white, and no further than `most`. Lamps and screens beyond that still
+     print white. A frame whose highlights already fit keeps the profile's own protection. */
+  const HIGHLIGHT_ROLL = { share: 0.98, target: 0.36, most: 1.6 };
+
   // opts.calibrated: false gives rolls' data as baked (for the Swift comparisons).
   function prepare(data, opts = {}) {
     const curve = (c) => ({
@@ -60,6 +67,7 @@
       layers: fit ? { sRGB: mul3(fit.photo, data.layers.sRGB), displayP3: mul3(fit.photo, data.layers.displayP3) } : data.layers,
       rawFit: fit ? fit.raw : null,
       highlightGuard: fit ? HIGHLIGHT_GUARD : null,
+      highlightRoll: fit ? HIGHLIGHT_ROLL : null,
       neg: curve(data.characteristic),
       paper: curve(data.paperCurve),
       lutTable: new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2),
@@ -729,7 +737,15 @@
       }
     }
     const t = F.paperCurve.midtoneLogH + F.printProfile.exposureStops * 0.30103;
-    return [0, 1, 2].map((c) => t + level + (1 - mix) * faithful[c] + mix * grey[c] + balance[c] + printStops * 0.30103);
+    const K = [0, 1, 2].map((c) => t + level + (1 - mix) * faithful[c] + mix * grey[c] + balance[c] + printStops * 0.30103);
+    // The print decision's fourth number, where the frame needs it: the highlight protection.
+    const roll = photo || !n ? null : F.highlightRoll;
+    if (roll) {
+      const top = luma[Math.min(n - 1, Math.floor(n * roll.share))] - level - printStops * 0.30103;
+      const base = F.printProfile.highlightProtection;
+      K.push(top > 0 ? Math.min(Math.max(1 / roll.target - 1 / top, base), roll.most) : base);
+    }
+    return K;
   }
 
   // Writes encoded sRGB: 0..1 floats, or 0..255 RGBA bytes when `rgba` is set.
@@ -737,7 +753,7 @@
   function printInto(d, count, K, F, out, rgba, grade = 0) {
     const { xMin, xMax, rows } = F.paper;
     const pivot = F.paperCurve.midtoneLogH;
-    const protect = F.printProfile.highlightProtection;
+    const protect = K.length > 3 ? K[3] : F.printProfile.highlightProtection;
     const N = F.lut.size;
     const lut = F.lutTable;
     const lo = F.lut.dLo;

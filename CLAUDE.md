@@ -12,7 +12,7 @@
 - **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift with `calibrated: false`; `PORTRA_FIT` 3×3s tune colour to real Portra scans.
   - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain).
   - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation. iOS ≤ 16 JPEGs: none.
-  - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement, `HIGHLIGHT_GUARD` (night); matches Darkroom.
+  - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; night: `HIGHLIGHT_GUARD`, `HIGHLIGHT_ROLL` (`K[3]`); Brightness starts −0.2.
   - **Speed:** `film-worker.js` spawns 2–6 helpers (row strips ± `stripMargin` 49). Bit-identical. 16 MP ~2.3 s.
   - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`, negative kept), Save reuses it. Caption bar (`filmCaptionBar`) once per develop; none for Brightness reprint or quiet detail.
   - **Strength** 0–100%, default 30 (user's pick; `filmPrefs.look`, `FilmEngine.look`): engine alone barely changes a finished photo (ΔE 3), so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`). 30% = ΔE 7.8. 0% bit-identical to calibrated.
@@ -45,13 +45,13 @@
 - Search Console: Domain property, Cloudflare TXT (keep). `security.txt` expires 2027-11-01: renew.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
-## Status (2026-11-09, end of session 13)
+## Status (2026-11-10, session 14)
 
 - User tests **Firefox** (Mac), **Safari** (iPhone); iPhone 16 HEIC, 15 Pro ProRAW, Sony A7C II ARW.
 - Confirmed: tools, formats, gain maps, Save to Photos, looks.
 - Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 7.45). Never ship DxO-derived data or third-party scans.
 - Cloudflare (keep): AI Crawl Control all allowed, Bot Preference Sync off, Always Use HTTPS, `www` AAAA `100::` + Redirect Rule to root. Skip other bot features.
-- Session 13: Film Strength, one bar, instant Brightness. User tests live site only: offer push.
+- Session 14: ProRAW night highlights. User tests live site only.
 - **Not yet checked by user:** Strength on ProRAW, HEIC, phone, skin; Save cancel; phone editors; write-ups.
 - User wants features non-techy people notice, obvious film look. Held off: lab chooser.
 - **Next ideas:** offline mode (service worker); "HEIC to JPG" + "remove location on iPhone" pages; camera RAW via DNG; `hello@inspicio.app`.
