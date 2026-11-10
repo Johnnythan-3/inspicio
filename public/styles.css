@@ -52,6 +52,7 @@
    them (html.look-shifting, set by prefs.js for a moment). */
 @property --bg { syntax: "<color>"; inherits: true; initial-value: #e9f0ee; }
 @property --surface { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+@property --bar { syntax: "<color>"; inherits: true; initial-value: #f9fbfa; }
 @property --card { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
 @property --card-hover { syntax: "<color>"; inherits: true; initial-value: #fbfbfa; }
 @property --stage { syntax: "<color>"; inherits: true; initial-value: #dfe7e4; }
@@ -63,13 +64,15 @@
 @property --accent { syntax: "<color>"; inherits: true; initial-value: #19448a; }
 @property --accent-soft { syntax: "<color>"; inherits: true; initial-value: transparent; }
 
-html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --card 0.8s ease, --card-hover 0.8s ease, --stage 0.8s ease, --text 0.8s ease, --muted 0.8s ease, --faint 0.8s ease, --line 0.8s ease, --line-strong 0.8s ease, --accent 0.8s ease, --accent-soft 0.8s ease; }
+html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --bar 0.8s ease, --card 0.8s ease, --card-hover 0.8s ease, --stage 0.8s ease, --text 0.8s ease, --muted 0.8s ease, --faint 0.8s ease, --line 0.8s ease, --line-strong 0.8s ease, --accent 0.8s ease, --accent-soft 0.8s ease; }
 
 
 :root {
   --bg: #e9f0ee;
   --bg-glow: rgba(25, 68, 138, 0.08);
   --surface: rgba(255, 255, 255, 0.72);
+  /* --surface over --bg as one solid colour: phones use it for the bars (see "Phones: bar colours"). */
+  --bar: #f9fbfa;
   --card: #ffffff;
   --card-hover: #fbfbfa;
   --stage: #dfe7e4;
@@ -108,6 +111,7 @@ html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --card 0.8
   --bg: #d6d3d1;
   --bg-glow: transparent;
   --surface: rgba(214, 211, 209, 0.82);
+  --bar: #d6d3d1;
   --card: #fafaf9;
   --card-hover: #f5f5f4;
   --stage: #d6d3d1;
@@ -139,6 +143,7 @@ html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --card 0.8
     --bg: #0b0b0d;
     --bg-glow: rgba(137, 173, 230, 0.10);
     --surface: rgba(18, 18, 21, 0.72);
+    --bar: #101013;
     --card: rgba(255, 255, 255, 0.035);
     --card-hover: rgba(255, 255, 255, 0.055);
     --stage: #070708;
@@ -162,6 +167,7 @@ html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --card 0.8
     --bg: #1c1917;
     --bg-glow: transparent;
     --surface: rgba(28, 25, 23, 0.82);
+    --bar: #1c1917;
     --card: #262220;
     --card-hover: #2e2a27;
     --stage: #1c1917;
@@ -188,6 +194,7 @@ html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --card 0.8
     --bg: #0b0b0d;
     --bg-glow: rgba(137, 173, 230, 0.10);
     --surface: rgba(18, 18, 21, 0.72);
+    --bar: #101013;
     --card: rgba(255, 255, 255, 0.035);
     --card-hover: rgba(255, 255, 255, 0.055);
     --stage: #070708;
@@ -211,6 +218,7 @@ html.look-shifting { transition: --bg 0.8s ease, --surface 0.8s ease, --card 0.8
     --bg: #1c1917;
     --bg-glow: transparent;
     --surface: rgba(28, 25, 23, 0.82);
+    --bar: #1c1917;
     --card: #262220;
     --card-hover: #2e2a27;
     --stage: #1c1917;
@@ -2610,6 +2618,13 @@ html[data-motion="calm"] .film-icon { animation: none !important; }
   .btn svg { width: 12px; height: 12px; }
   .local-badge svg { width: 9px; height: 11px; }
   [data-look="mellow"] .brand { font-size: 16px; }
+
+  /* Phones: bar colours. iPhone Safari colours the strip behind the clock, and the one behind its
+     own address bar, from the page: a solid bar pinned to that edge, else the body's background
+     colour. It skips see-through or blurred bars, so here the top bar is one solid colour, with a
+     pinned strip of the same colour at the very top to be sure. */
+  .topbar { background: var(--bar); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .topbar::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 8px; background: var(--bar); }
 }
 
 @media (max-width: 520px) {
@@ -2629,6 +2644,10 @@ html[data-motion="calm"] .film-icon { animation: none !important; }
 }
 
 html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
+
+/* The tools reach the bottom of the screen, so the strip under them (behind Safari's address bar)
+   takes their colour: the body's colour, and a pinned strip in the panel's bottom padding. */
+body:has(.viewer.is-editor:not([hidden])) { background: var(--bar); }
 
 .viewer.is-editor .stage,
 .viewer.is-editor .stage[data-kind="film"],
@@ -2670,7 +2689,12 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
   overflow: visible;
   padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
+  background: var(--bar);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
+
+.viewer.is-editor .panel::after { content: ""; position: fixed; bottom: 0; left: 0; right: 0; height: 8px; background: var(--bar); pointer-events: none; }
 
 .viewer.is-editor .panel .modes { margin: 0 0 10px; }
 
@@ -2696,7 +2720,7 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 }
 
 .editor-value {
-  min-width: 4ch;
+  min-width: 5ch;
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0;
@@ -2713,8 +2737,61 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
   background: repeating-linear-gradient(90deg, var(--line-strong) 0 1px, transparent 1px 10px) center / 100% 12px no-repeat;
 }
 
-.editor-pane input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(--accent); }
-.editor-pane input[type="range"]:disabled { opacity: 0.4; }
+/* Sliders. The box takes the touches (app.js slideBox), so the press area is taller than the
+   slider; the slider is drawn here, the same in every browser. --p (0 to 1) is how far along the
+   thumb is: the track is filled up to it. */
+.editor-slide { touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+.editor-frame-size { margin: -4px 0; padding: 4px 0; }
+
+.editor-slide input[type="range"] {
+  --thumb: 28px;
+  --track: 6px;
+  --filled: calc(var(--thumb) / 2 + var(--p, 0) * (100% - var(--thumb)));
+  display: block;
+  width: 100%;
+  height: var(--thumb);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: none;
+}
+
+.editor-slide input[type="range"]:disabled { opacity: 0.4; }
+.editor-slide input[type="range"]:focus-visible { outline-offset: 0; }
+
+.editor-slide input[type="range"]::-webkit-slider-runnable-track {
+  height: var(--track);
+  background: linear-gradient(90deg, var(--accent) 0 var(--filled), var(--line-strong) 0);
+}
+
+.editor-slide input[type="range"]::-moz-range-track {
+  height: var(--track);
+  background: linear-gradient(90deg, var(--accent) 0 var(--filled), var(--line-strong) 0);
+}
+
+.editor-slide input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((var(--track) - var(--thumb)) / 2);
+  border: 2px solid var(--accent);
+  border-radius: 0;
+  background: var(--bar);
+}
+
+.editor-slide input[type="range"]::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 2px solid var(--accent);
+  border-radius: 0;
+  background: var(--bar);
+}
 
 .editor-stack { display: grid; gap: 6px; }
 [data-look="mellow"] .editor-pane .seg button { height: 26px; }
@@ -2743,13 +2820,12 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 .editor-switch[aria-checked="true"] .switch { background: var(--accent); }
 .editor-switch[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateX(16px); }
 
-/* Square tool buttons. */
-.editor-tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.editor-tools:has(> :nth-child(6)) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.editor-tools:has(> :nth-child(7)) { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-/* Seven tools on a narrow phone: no room for their names. The line above names the open one. */
+/* Square tool buttons, one size in Film and Shot on: seven to a row (Film fills it), Save last. */
+.editor-tools { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.editor-tools > .tool-save { grid-column: 7; }
+/* A narrow phone has no room for the names. The line above names the open tool. */
 @media (max-width: 374px) {
-  .editor-tools:has(> :nth-child(7)) .tool { gap: 0; font-size: 0; }
+  .editor-tools .tool { gap: 0; font-size: 0; }
 }
 
 .tool {
@@ -2796,6 +2872,11 @@ body:has(.viewer.is-editor:not([hidden])) .prefs-panel { top: calc(var(--topbar-
 [data-look="mellow"] .editor-switch .switch { border: 0; border-radius: 999px; background: var(--line-strong); }
 [data-look="mellow"] .editor-switch[aria-checked="true"] .switch { background: var(--accent); }
 [data-look="mellow"] .editor-switch[aria-checked="true"] .switch-knob { background: var(--on-accent); }
+
+[data-look="mellow"] .editor-slide input[type="range"]::-webkit-slider-runnable-track { border-radius: 999px; }
+[data-look="mellow"] .editor-slide input[type="range"]::-moz-range-track { border-radius: 999px; }
+[data-look="mellow"] .editor-slide input[type="range"]::-webkit-slider-thumb { border: 0; border-radius: 50%; background: var(--raised); box-shadow: 0 0 0 1px var(--line), 0 2px 6px rgba(0, 0, 0, 0.22); }
+[data-look="mellow"] .editor-slide input[type="range"]::-moz-range-thumb { border: 0; border-radius: 50%; background: var(--raised); box-shadow: 0 0 0 1px var(--line), 0 2px 6px rgba(0, 0, 0, 0.22); }
 
 [data-look="mellow"] .tool {
   border: 1px solid var(--line-strong);

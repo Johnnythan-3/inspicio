@@ -2878,32 +2878,93 @@
     return { root: el('div', { class: 'tool-editor' }, head, controls, tools), show };
   }
 
+  // The editor's slider. The thumb glides with the finger (no steps) while the value moves in tidy
+  // `quantum` steps. The box around the slider takes the touches, so the press area is bigger than
+  // the slider: a touch on the thumb drags it, a touch beside it brings the thumb there, and two
+  // quick taps put the value back to `reset()`. `get`/`set` read and write the value, `done` runs
+  // when the finger lifts. --p (0 to 1) fills the track up to the thumb (styles.css).
+  const SLIDE_THUMB = 28; // px: --thumb in styles.css
+  function slideBox(cls, { min, max, quantum, label, get, set, reset, done }) {
+    const input = el('input', { type: 'range', min: String(min), max: String(max), step: 'any', 'aria-label': label });
+    const box = el('div', { class: `${cls} editor-slide` }, input);
+    const snap = (v) => Number((Math.round(Math.min(max, Math.max(min, v)) / quantum) * quantum).toFixed(4));
+    const paint = () => input.style.setProperty('--p', String((Number(input.value) - min) / (max - min)));
+    const sync = () => { input.value = String(get()); paint(); };
+    const put = (v) => {
+      input.value = String(v);
+      paint();
+      const tidy = snap(Number(input.value));
+      if (tidy !== get()) set(tidy);
+    };
+    const travel = () => {
+      const r = input.getBoundingClientRect();
+      return { left: r.left + SLIDE_THUMB / 2, width: Math.max(1, r.width - SLIDE_THUMB) };
+    };
+    let grab = null;
+    let lastTap = null;
+    const drag = (e) => {
+      if (!grab || e.pointerId !== grab.id) return;
+      if (Math.abs(e.clientX - grab.x) > 6) grab.moved = true;
+      const t = travel();
+      const ratio = Math.min(1, Math.max(0, (e.clientX - grab.offset - t.left) / t.width));
+      put(min + ratio * (max - min));
+    };
+    box.addEventListener('pointerdown', (e) => {
+      if (input.disabled || grab || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const t = travel();
+      const thumb = t.left + ((Number(input.value) - min) / (max - min)) * t.width;
+      const onThumb = Math.abs(e.clientX - thumb) <= SLIDE_THUMB / 2 + 10;
+      grab = { id: e.pointerId, x: e.clientX, offset: onThumb ? e.clientX - thumb : 0, moved: false };
+      try { box.setPointerCapture(e.pointerId); } catch { /* the drag still works inside the box */ }
+      e.preventDefault();
+      input.focus({ preventScroll: true });
+      if (!onThumb) drag(e);
+    });
+    box.addEventListener('pointermove', drag);
+    const drop = (e) => {
+      if (!grab || e.pointerId !== grab.id) return;
+      const tap = !grab.moved && e.type === 'pointerup';
+      const twice = tap && lastTap && e.timeStamp - lastTap.at < 400 && Math.abs(e.clientX - lastTap.x) < 30;
+      lastTap = tap && !twice ? { at: e.timeStamp, x: e.clientX } : null;
+      grab = null;
+      if (twice && reset) put(reset());
+      done?.();
+    };
+    box.addEventListener('pointerup', drop);
+    box.addEventListener('pointercancel', drop);
+    // Keys and screen readers move the slider itself.
+    input.addEventListener('keydown', (e) => {
+      const dir = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      put(snap(get() + dir * quantum));
+      done?.();
+    });
+    input.addEventListener('input', () => put(Number(input.value)));
+    sync();
+    return { box, input, sync };
+  }
+
   function buildFilmEditor(f, meta) {
     f.meta = meta;
     f.sourceNode = null;
     let shell = null;
     const refresh = () => shell?.show();
 
-    // `pref`: the value is a remembered preference (filmPrefs) with its own double-click reset.
+    // `pref`: the value is a remembered preference (filmPrefs) with its own reset value.
     // `syncs`: puts the photo's own sliders back in step when the app moves a value itself.
     const syncs = [];
-    const range = (key, min, max, step, label, pref = null) => {
+    const range = (key, min, max, quantum, label, pref = null) => {
       const target = pref ? filmPrefs : f;
-      const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
-      input.value = String(target[key]);
-      input.addEventListener('input', () => {
-        target[key] = Number(input.value);
-        refresh();
-        filmPreview();
+      const slide = slideBox('editor-pane editor-ruler', {
+        min, max, quantum, label,
+        get: () => target[key],
+        set: (v) => { target[key] = v; refresh(); filmPreview(); },
+        reset: () => (pref ? pref.reset : f.rest[key]),
+        done: pref ? saveFilmPrefs : null,
       });
-      if (pref) input.addEventListener('change', saveFilmPrefs);
-      else syncs.push(() => { input.value = String(f[key]); });
-      input.addEventListener('dblclick', () => {
-        input.value = String(pref ? pref.reset : f.rest[key]);
-        input.dispatchEvent(new Event('input'));
-        input.dispatchEvent(new Event('change'));
-      });
-      return input;
+      if (!pref) syncs.push(slide.sync);
+      return slide.box;
     };
     f.syncSliders = () => { syncs.forEach((sync) => sync()); refresh(); };
 
@@ -2914,12 +2975,17 @@
       Object.keys(FRAME_COLORS).map((v) => el('button', {
         type: 'button', 'data-value': v, 'aria-pressed': String(filmPrefs.frameColor === v),
       }, v === 'white' ? 'White' : 'Black')));
-    const size = el('input', { type: 'range', min: '1', max: '20', step: '0.5', 'aria-label': 'Frame size' });
-    size.value = String(filmPrefs.frameSize);
+    const size = slideBox('editor-frame-size', {
+      min: 1, max: 20, quantum: 0.1, label: 'Frame size',
+      get: () => filmPrefs.frameSize,
+      set: (v) => { filmPrefs.frameSize = v; filmApplyFrame(f); refresh(); },
+      reset: () => 5,
+      done: saveFilmPrefs,
+    });
     const frameState = () => {
       toggle.setAttribute('aria-checked', String(filmPrefs.frame));
       colors.classList.toggle('is-off', !filmPrefs.frame);
-      size.disabled = !filmPrefs.frame;
+      size.input.disabled = !filmPrefs.frame;
     };
     const frameChanged = () => {
       frameState();
@@ -2940,12 +3006,6 @@
       placeFill(colors);
       frameChanged();
     });
-    size.addEventListener('input', () => {
-      filmPrefs.frameSize = Number(size.value);
-      filmApplyFrame(f);
-      refresh();
-    });
-    size.addEventListener('change', saveFilmPrefs);
     frameState();
     trackFill(colors);
 
@@ -2974,15 +3034,15 @@
 
     shell = editorShell(f, {
       look: { tool: 'Look', label: 'Strength', icon: 'look', value: () => fmtPercent(filmPrefs.look),
-        node: el('div', { class: 'editor-pane editor-ruler' }, range('look', 0, 100, 10, 'Strength', { reset: FILM_LOOK_DEFAULT })) },
+        node: range('look', 0, 100, 1, 'Strength', { reset: FILM_LOOK_DEFAULT }) },
       exposure: { tool: 'Expose', label: 'Exposure', icon: 'exposure', value: () => fmtStops(f.exposure),
-        node: el('div', { class: 'editor-pane editor-ruler' }, range('exposure', -2, 3, 0.5, 'Exposure')) },
+        node: range('exposure', -2, 3, 0.05, 'Exposure') },
       brightness: { tool: 'Bright', label: 'Brightness', icon: 'brightness', value: () => fmtStops(f.brightness),
-        node: el('div', { class: 'editor-pane editor-ruler' }, range('brightness', -1.5, 1.5, 0.1, 'Brightness')) },
+        node: range('brightness', -1.5, 1.5, 0.05, 'Brightness') },
       highlights: { tool: 'Highs', label: 'Highlights', icon: 'highlights', value: () => fmtStops(f.highlights),
-        node: el('div', { class: 'editor-pane editor-ruler' }, range('highlights', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.5, 'Highlights')) },
+        node: range('highlights', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.1, 'Highlights') },
       frame: { tool: 'Frame', label: 'Frame', icon: 'frame', value: () => (filmPrefs.frame ? `${filmPrefs.frameSize}%` : 'Off'),
-        node: el('div', { class: 'editor-pane editor-stack' }, el('div', { class: 'editor-frame-row' }, toggle, colors), size) },
+        node: el('div', { class: 'editor-pane editor-stack' }, el('div', { class: 'editor-frame-row' }, toggle, colors), size.box) },
     }, [hold, save]);
     shell.show();
     return [shell.root, note];
