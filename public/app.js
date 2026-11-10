@@ -2598,7 +2598,7 @@
   // 0 is the film as calibrated, which leaves a finished photo close to itself.
   const FILM_KEY = 'inspicio.film';
   const FRAME_COLORS = { white: '#ffffff', black: '#000000' };
-  const FILM_LOOK_DEFAULT = 50;
+  const FILM_LOOK_DEFAULT = 30;
   const fmtPercent = (v) => `${v}%`;
   const filmPrefs = (() => {
     const prefs = { frame: false, frameColor: 'white', frameSize: 5, look: FILM_LOOK_DEFAULT };

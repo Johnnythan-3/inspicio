@@ -14,8 +14,8 @@
   - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation. iOS ≤ 16 JPEGs: none.
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
   - **Speed:** `film-worker.js` spawns 2–6 helpers (row strips ± `stripMargin` 49). Bit-identical. 16 MP ~2.3 s.
-  - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`: helpers end, negative kept), Save reuses it. Caption bar (`filmCaptionBar`) once per develop, none for Brightness reprint; detail's only on real zoom.
-  - **Strength** 0–100%, default 50 (`filmPrefs.look`, `FilmEngine.look`): engine alone barely changes a finished photo (ΔE 3), so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`). 0% bit-identical to calibrated.
+  - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`, negative kept), Save reuses it. Caption bar (`filmCaptionBar`) once per develop; none for Brightness reprint or quiet detail.
+  - **Strength** 0–100%, default 30 (user's pick; `filmPrefs.look`, `FilmEngine.look`): engine alone barely changes a finished photo (ΔE 3), so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`). 30% = ΔE 7.8. 0% bit-identical to calibrated.
   - Sliders: Exposure 0.5, Brightness 0.1 steps. **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms), one bar animation, speed per step (`barController`, `SAVE_STEPS`, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: "Save to Photos".
 - **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, 70 px control strip.
@@ -45,16 +45,16 @@
 - Search Console: Domain property, Cloudflare TXT (keep). `security.txt` expires 2027-11-01: renew.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
-## Status (2026-11-09, session 13)
+## Status (2026-11-09, end of session 13)
 
 - User tests **Firefox** (Mac), **Safari** (iPhone); iPhone 16 HEIC, 15 Pro ProRAW, Sony A7C II ARW.
-- Confirmed: tools, formats, gain maps, Save to Photos, looks, settings.
+- Confirmed: tools, formats, gain maps, Save to Photos, looks.
 - Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 7.45). Never ship DxO-derived data or third-party scans.
 - Cloudflare (keep): AI Crawl Control all allowed, Bot Preference Sync off, Always Use HTTPS, `www` AAAA `100::` + Redirect Rule to root. Skip other bot features.
-- Session 13: Film Strength. User tests live site only: offer push.
-- **Not yet checked by user:** Film Strength (ProRAW, HEIC, phone, skin) + calibration; phone editors; write-ups.
+- Session 13: Film Strength, one bar, instant Brightness. User tests live site only: offer push.
+- **Not yet checked by user:** Strength on ProRAW, HEIC, phone, skin; Save cancel; phone editors; write-ups.
 - User wants features non-techy people notice, obvious film look. Held off: lab chooser.
-- **Next ideas:** offline mode (service worker); "HEIC to JPG" + "remove location on iPhone" pages; per-tool OG images; camera RAW via DNG; `hello@inspicio.app`.
+- **Next ideas:** offline mode (service worker); "HEIC to JPG" + "remove location on iPhone" pages; camera RAW via DNG; `hello@inspicio.app`.
 
 ## Files
 
