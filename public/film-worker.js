@@ -107,6 +107,10 @@ function helperMessage(msg) {
     } else {
       self.postMessage({ id: msg.id });
     }
+  } else if (msg.kind === 'strip-keep') {
+    // A preview's strip handed over by the coordinator (see `reseed`), for reprints.
+    kept = { job: msg.job, neg: new Float32Array(msg.neg) };
+    self.postMessage({ id: msg.id });
   }
 }
 
@@ -117,6 +121,38 @@ let pool = null;
 let poolBroken = false;
 let helperSeq = 0;
 
+// Calling a job off (a full-detail develop nobody needs any more). The page used to end this
+// whole worker for that, which threw the preview's negative away with it, so the next change,
+// even of print brightness alone, started from nothing. Now only the helpers end, which stops a
+// develop that is on them at once; one that hasn't reached them stops at its next step
+// (`stopIfCancelled`). The kept negative stays here, and new helpers start with the next job.
+const CANCELLED = 'cancelled';
+const cancelled = new Set();
+let running = 0; // the job in hand
+let finished = 0; // the last job done; jobs come in order
+const isCancelled = (err) => Boolean(err) && err.message === CANCELLED;
+function stopIfCancelled() {
+  if (cancelled.has(running)) throw new Error(CANCELLED);
+}
+function abortJob(id) {
+  if (!(id > finished)) return;
+  cancelled.add(id);
+  if (id !== running || !pool) return;
+  for (const helper of pool) {
+    helper.dead = true;
+    helper.worker.terminate();
+    for (const job of helper.jobs.values()) job.reject(new Error(CANCELLED));
+    helper.jobs.clear();
+  }
+  pool = null;
+  // The kept negative's strips were on those helpers: it is reprinted here until the new
+  // helpers have them (`reseed`).
+  if (cache) {
+    cache.strips = null;
+    cache.seeding = null;
+  }
+}
+
 function helperPool() {
   if (pool || poolBroken) return pool;
   const cores = (self.navigator && self.navigator.hardwareConcurrency) || 4;
@@ -125,7 +161,7 @@ function helperPool() {
   if (typeof Worker !== 'function') { poolBroken = true; return null; }
   try {
     pool = Array.from({ length: count }, () => {
-      const helper = { worker: new Worker(`film-worker.js${FRESH}`), jobs: new Map() };
+      const helper = { worker: new Worker(`film-worker.js${FRESH}`), jobs: new Map(), dead: false };
       helper.worker.onmessage = (e) => {
         const job = helper.jobs.get(e.data.id);
         if (job && e.data.partial) { job.onStage?.(e.data.stage); return; }
@@ -150,6 +186,7 @@ function helperPool() {
 }
 
 function helperCall(helper, msg, transfer = [], onStage = null) {
+  if (helper.dead) return Promise.reject(new Error(CANCELLED));
   const id = ++helperSeq;
   return new Promise((resolve, reject) => {
     helper.jobs.set(id, { resolve, reject, onStage });
@@ -178,17 +215,41 @@ async function reprint(c, printStops, printOpts) {
     try {
       const K = FilmEngine.printExposuresFromSamples(s.samples, F, printStops, printOpts);
       return { rgba: await printStrips(s.helpers, s.job, K, s.rows, c.w, count, printOpts.grade), K };
-    } catch {
+    } catch (err) {
+      if (isCancelled(err)) throw err;
       c.strips = null;
     }
   }
   const rgba = new Uint8ClampedArray(count * 4);
   const { K } = FilmEngine.printNegative(F, c.density, c.w, c.h, printStops, rgba, printOpts);
+  reseed(c);
   return { rgba, K };
+}
+
+// Hands a kept negative's strips to the helpers (new ones, after a job was called off), so its
+// later reprints run on them again: nearly twice as fast as here, which shows while a slider is
+// dragged. The samples are the same ones the strips would have sent.
+function reseed(c) {
+  const helpers = pool;
+  const count = c.w * c.h;
+  if (!helpers || poolBroken || c.strips || c.seeding === helpers || count < PARALLEL_MIN_PIXELS) return;
+  c.seeding = helpers;
+  const job = ++helperSeq;
+  const n = helpers.length;
+  const rows = [];
+  for (let k = 0; k < n; k++) rows.push([Math.round((c.h * k) / n), Math.round((c.h * (k + 1)) / n)]);
+  const samples = FilmEngine.printSamples(c.density, FilmEngine.printStep(count), 0, count);
+  Promise.all(helpers.map((helper, k) => {
+    const neg = c.density.slice(rows[k][0] * c.w * 3, rows[k][1] * c.w * 3);
+    return helperCall(helper, { kind: 'strip-keep', job, neg: neg.buffer }, [neg.buffer]);
+  })).then(() => {
+    if (cache === c && pool === helpers) c.strips = { job, samples, rows, helpers };
+  }).catch(() => {});
 }
 
 async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) {
   const count = w * h;
+  stopIfCancelled();
   const helpers = count >= PARALLEL_MIN_PIXELS ? helperPool() : null;
   if (!helpers || poolBroken) {
     const density = FilmEngine.developNegative(F, rgb, w, h, devOpts);
@@ -198,6 +259,7 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
     return { density, rgba, K };
   }
   FilmEngine.developNegative(F, rgb, w, h, { ...devOpts, exposeOnly: true });
+  stopIfCancelled();
   const spatial = devOpts.spatial !== false;
   const minStep = devOpts.preview ? 2 : 1;
   let haloDone = !spatial;
@@ -220,6 +282,7 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
         [j.small.buffer]).then((r) => r.halo)));
       FilmEngine.halationApply(rgb, w, h, plan, halos);
       haloDone = true;
+      stopIfCancelled();
     }
     // The strips' stages, as the first helper reaches each one.
     const order = ['sharpness', 'curves', 'couplers', 'grain'];
@@ -249,7 +312,8 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
     const K = FilmEngine.printExposuresFromSamples(samples, F, printStops, printOpts);
     const rgba = await printStrips(helpers, job, K, rows, w, count, printOpts.grade);
     return { density, rgba, K, strips: keep ? { job, samples, rows, helpers } : null };
-  } catch {
+  } catch (err) {
+    if (isCancelled(err)) throw err;
     // Finish in one piece; rgb still holds the exposed light, with halation if it got that far.
     poolBroken = true;
     if (!haloDone) {
@@ -302,6 +366,7 @@ async function developRaw(msg) {
       self.postMessage({ id, stage: 'reading' });
       lin = { key, ds, ...FilmEngine.decodeDNG(dng, ds) };
       if (keep) rawLinear = lin;
+      stopIfCancelled();
     }
     w = lin.width;
     h = lin.height;
@@ -327,7 +392,11 @@ async function developRaw(msg) {
 let queue = Promise.resolve();
 
 self.onmessage = (e) => {
-  if (e.data.kind === 'halo' || e.data.kind === 'strip' || e.data.kind === 'strip-print') {
+  if (e.data.kind === 'abort') {
+    abortJob(e.data.id);
+    return;
+  }
+  if (e.data.kind === 'halo' || e.data.kind === 'strip' || e.data.kind === 'strip-print' || e.data.kind === 'strip-keep') {
     try {
       helperMessage(e.data);
     } catch (err) {
@@ -340,12 +409,26 @@ self.onmessage = (e) => {
 };
 
 async function handle(data) {
+  running = data.id;
+  try {
+    if (cancelled.has(data.id)) self.postMessage({ id: data.id, error: CANCELLED });
+    else await run(data);
+  } finally {
+    cancelled.delete(data.id);
+    finished = data.id;
+    running = 0;
+  }
+}
+
+async function run(data) {
   if (data.kind === 'raw') {
     try {
       await developRaw(data);
     } catch (err) {
-      rawFile = null;
-      rawLinear = null;
+      if (!isCancelled(err)) {
+        rawFile = null;
+        rawLinear = null;
+      }
       self.postMessage({ id: data.id, error: String((err && err.message) || err) });
     }
     return;
@@ -386,6 +469,7 @@ async function handle(data) {
           rgb[i * 3 + 2] = table[src[i * 4 + 2]] * b;
         }
         if (keep) inputCache = { key: inputKey, rgb: rgb.slice() };
+        stopIfCancelled();
       }
       ({ density, rgba, K, strips } = await developAndPrint(rgb, w, h,
         { primaries, exposureStops, preview: keep, fx, progress: (stage) => self.postMessage({ id, stage }) },
@@ -398,7 +482,7 @@ async function handle(data) {
     }
     self.postMessage({ id, done: true, rgba, width: w, height: h, K }, [rgba.buffer]);
   } catch (err) {
-    cache = null;
+    if (!isCancelled(err)) cache = null;
     self.postMessage({ id, error: String((err && err.message) || err) });
   }
 }

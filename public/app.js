@@ -2250,19 +2250,18 @@
     return filmWorker;
   }
 
-  // Stops whatever the worker is doing (a full-detail develop nobody needs any more); the next job
-  // starts a fresh worker.
-  function filmRestartWorker() {
-    if (!filmWorker) return;
-    filmWorker.terminate();
-    filmWorker = null;
-    for (const job of filmJobs.values()) job.reject(new Error('cancelled'));
-    filmJobs.clear();
+  // Calls off a develop nobody needs any more (a full-detail one), by the `track` given to
+  // filmJob. The worker stays, with the preview's negative, so the preview that follows doesn't
+  // start from nothing.
+  function filmAbort(track) {
+    if (filmWorker && track?.id && filmJobs.has(track.id)) filmWorker.postMessage({ kind: 'abort', id: track.id });
   }
 
-  function filmRun(message, transfer, onStage) {
+  // `track` (optional): an object that is given the job's id, for filmAbort.
+  function filmRun(message, transfer, onStage, track) {
     const worker = filmWorkerReady();
     const id = ++filmSeq;
+    if (track) track.id = id;
     return new Promise((resolve, reject) => {
       filmJobs.set(id, { resolve, reject, onStage });
       worker.postMessage({ id, ...message }, transfer);
@@ -2366,7 +2365,7 @@
   const fmtStops = (v) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`);
 
   // One develop, from the DNG's sensor data or from the finished picture.
-  async function filmJob(f, maxPixels, keep, onStage) {
+  async function filmJob(f, maxPixels, keep, onStage, track) {
     const settings = { key: f.key, exposureStops: f.exposure, printStops: -f.brightness, look: filmPrefs.look / 100, keep };
     for (let attempt = 0; f.raw !== 'no' && attempt < 2; attempt++) {
       try {
@@ -2378,7 +2377,7 @@
           transfer.push(msg.file);
           f.rawGen = filmWorkerGen;
         }
-        const res = await filmRun(msg, transfer, onStage);
+        const res = await filmRun(msg, transfer, onStage, track);
         f.raw = 'yes';
         return res;
       } catch (err) {
@@ -2401,7 +2400,7 @@
         f.gainGen = filmWorkerGen;
       }
       try {
-        return await filmRun(msg, [pixels], onStage);
+        return await filmRun(msg, [pixels], onStage, track);
       } catch (err) {
         if (err.message !== 'need-gain' || attempt) throw err;
         f.gainGen = -1;
@@ -2451,6 +2450,15 @@
     return f.capBar;
   }
 
+  // Takes a bar that is still up off the caption (its develop was called off).
+  function filmCaptionIdle(f) {
+    if (!f.capBar || !f.caption) return;
+    f.capBar.stop();
+    f.capBar = null;
+    f.caption.classList.remove('is-progress');
+    f.caption.textContent = f.captionText || '';
+  }
+
   function filmCaptionDone(f, bar, text) {
     if (!bar || f.capBar !== bar) return;
     bar.finish(160);
@@ -2470,17 +2478,27 @@
     if (f.detail && f.detail.settings !== filmSettings(f)) {
       // The sliders moved: the full-detail film is out of date. Stop developing it, unless it is
       // being saved, so the preview doesn't wait behind it.
-      if (f.detail.running && !f.saving) filmRestartWorker();
+      if (f.detail.running && !f.saving) filmAbort(f.detail.track);
       f.detail = null;
       filmShowDetail(f);
     }
     f.busy = true;
     f.again = false;
-    f.stage?.classList.add('is-developing');
-    const bar = filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS], FILM_PREVIEW_PIXELS / 1e6, 15);
-    bar?.step(f.raw !== 'no' ? 'reading' : 'prepare');
+    // Only Brightness moved since the last develop: the worker prints the negative it kept again,
+    // which is at once. So no bar, and the picture isn't dimmed while it waits.
+    const negative = `${f.exposure}|${filmPrefs.look}`;
+    const reprint = Boolean(filmWorker) && f.developed === `${negative}|${filmWorkerGen}`;
+    let bar = null;
+    if (reprint) {
+      filmCaptionIdle(f);
+    } else {
+      f.stage?.classList.add('is-developing');
+      bar = filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS], FILM_PREVIEW_PIXELS / 1e6, 15);
+      bar?.step(f.raw !== 'no' ? 'reading' : 'prepare');
+    }
     try {
       const res = await filmJob(f, FILM_PREVIEW_PIXELS, true, (stage) => bar?.step(stage));
+      f.developed = `${negative}|${filmWorkerGen}`;
       if (film !== f || !f.canvas) return;
       f.canvas.width = res.width;
       f.canvas.height = res.height;
@@ -2503,7 +2521,9 @@
       filmCaption(f);
       filmCaptionDone(f, bar, f.captionText);
     } catch (err) {
-      filmCaptionDone(f, bar, 'Couldn’t develop this photo');
+      f.developed = null;
+      if (bar) filmCaptionDone(f, bar, 'Couldn’t develop this photo');
+      else if (f.caption) f.caption.textContent = 'Couldn’t develop this photo';
       if (f.note) f.note.textContent = String(err.message || err);
     } finally {
       f.busy = false;
@@ -2523,7 +2543,7 @@
   function filmDetail(f, quiet = false) {
     const settings = filmSettings(f);
     if (f.detail?.settings === settings) return f.detail.promise;
-    const detail = { settings, canvas: null, running: true };
+    const detail = { settings, canvas: null, running: true, track: {} };
     f.detail = detail;
     const bar = quiet ? null : filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS],
       (f.saveW && f.saveH ? f.saveW * f.saveH : FILM_SAVE_PIXELS) / 1e6, 60);
@@ -2532,7 +2552,7 @@
       if (f.saving) f.saveStage?.(stage);
       if (f.detail === detail) bar?.step(stage);
     };
-    detail.promise = filmJob(f, FILM_SAVE_PIXELS, false, onStage).then((res) => {
+    detail.promise = filmJob(f, FILM_SAVE_PIXELS, false, onStage, detail.track).then((res) => {
       const canvas = el('canvas', { class: 'film-canvas film-detail is-ready' });
       canvas.width = res.width;
       canvas.height = res.height;
@@ -2705,7 +2725,7 @@
     const progress = saveProgress({ eyebrow: 'Developing · Portra 400', steps, megapixels: pixels / 1e6, learn: !ready });
     progress.cancellable(ready ? null : () => {
       cancelled = true;
-      if (f.detail?.running) filmRestartWorker();
+      if (f.detail?.running) filmAbort(f.detail.track);
     });
     f.saveStage = (stage) => progress.step(stage);
     progress.step(steps[0]);
