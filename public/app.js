@@ -2220,11 +2220,14 @@
   const filmJobs = new Map();
 
   let filmWorkerGen = 0; // which worker; a new one has to be sent a DNG's bytes again
+  // On this computer (development), the worker and the engine files it loads are fetched fresh on
+  // every page load: a reload doesn't refresh a worker's scripts, so an old engine could linger.
+  const FILM_FRESH = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? `?t=${Date.now()}` : '';
 
   function filmWorkerReady() {
     if (!filmWorker) {
       filmWorkerGen++;
-      filmWorker = new Worker('film-worker.js');
+      filmWorker = new Worker(`film-worker.js${FILM_FRESH}`);
       filmWorker.onmessage = (e) => {
         const job = filmJobs.get(e.data.id);
         if (!job) return;
@@ -2364,7 +2367,7 @@
 
   // One develop, from the DNG's sensor data or from the finished picture.
   async function filmJob(f, maxPixels, keep, onStage) {
-    const settings = { key: f.key, exposureStops: f.exposure, printStops: -f.brightness, keep };
+    const settings = { key: f.key, exposureStops: f.exposure, printStops: -f.brightness, look: filmPrefs.look / 100, keep };
     for (let attempt = 0; f.raw !== 'no' && attempt < 2; attempt++) {
       try {
         filmWorkerReady();
@@ -2506,21 +2509,23 @@
       f.busy = false;
       f.stage?.classList.remove('is-developing');
       if (f.again && film === f) filmPreview();
-      else filmWantDetail(f);
+      else filmWantDetail(f, true);
     }
   }
 
-  const filmSettings = (f) => `${f.exposure}|${f.brightness}`;
+  const filmSettings = (f) => `${f.exposure}|${f.brightness}|${filmPrefs.look}`;
 
   // Full detail: the film developed at its saved size. The preview is about 1.4 megapixels, so
   // once it is zoomed in past its own pixels this is developed in the background and replaces it,
   // until a slider moves. Saving uses it too, so a save after zooming is instant.
-  function filmDetail(f) {
+  // `quiet`: no caption bar. The develop that follows a preview on its own is quiet, so a new photo
+  // or a moved slider runs the bar once, not once for the preview and again for the detail.
+  function filmDetail(f, quiet = false) {
     const settings = filmSettings(f);
     if (f.detail?.settings === settings) return f.detail.promise;
     const detail = { settings, canvas: null, running: true };
     f.detail = detail;
-    const bar = filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS],
+    const bar = quiet ? null : filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS],
       (f.saveW && f.saveH ? f.saveW * f.saveH : FILM_SAVE_PIXELS) / 1e6, 60);
     bar?.step(f.raw !== 'no' ? 'reading' : 'prepare');
     const onStage = (stage) => {
@@ -2554,26 +2559,35 @@
   }
 
   // Asks for full detail once zooming settles past the preview's own pixels.
-  function filmWantDetail(f) {
+  // `quiet` as in filmDetail. A zoom still waiting when a quiet request comes keeps its bar.
+  function filmWantDetail(f, quiet = false) {
     clearTimeout(f.detailTimer);
+    if (!quiet) f.detailLoud = true;
     f.detailTimer = setTimeout(() => {
+      quiet = !f.detailLoud;
+      f.detailLoud = false;
       if (film !== f || !f.frame || !f.canvas || f.busy || !f.saveW) return;
       const shown = f.frame.clientWidth * (f.zoomScale || 1) * (window.devicePixelRatio || 1);
-      if (f.saveW > f.canvas.width * 1.1 && shown > f.canvas.width * 1.25) filmDetail(f).catch(() => {});
+      if (f.saveW > f.canvas.width * 1.1 && shown > f.canvas.width * 1.25) filmDetail(f, quiet).catch(() => {});
     }, 350);
   }
 
   // The Frame option: a plain white or black border around the print, as wide as a share of the
   // photo's shorter side. A display preference, so it is remembered.
+  // Strength (look, 0 to 100): how far the develop leans into the film's look (FilmEngine.look).
+  // 0 is the film as calibrated, which leaves a finished photo close to itself.
   const FILM_KEY = 'inspicio.film';
   const FRAME_COLORS = { white: '#ffffff', black: '#000000' };
+  const FILM_LOOK_DEFAULT = 50;
+  const fmtPercent = (v) => `${v}%`;
   const filmPrefs = (() => {
-    const prefs = { frame: false, frameColor: 'white', frameSize: 5 };
+    const prefs = { frame: false, frameColor: 'white', frameSize: 5, look: FILM_LOOK_DEFAULT };
     try {
       const saved = JSON.parse(localStorage.getItem(FILM_KEY) || '{}');
       if (typeof saved.frame === 'boolean') prefs.frame = saved.frame;
       if (FRAME_COLORS[saved.frameColor]) prefs.frameColor = saved.frameColor;
       if (saved.frameSize >= 1 && saved.frameSize <= 20) prefs.frameSize = Number(saved.frameSize);
+      if (saved.look >= 0 && saved.look <= 100) prefs.look = Math.round(Number(saved.look));
     } catch { /* storage blocked or bad value */ }
     return prefs;
   })();
@@ -2624,6 +2638,7 @@
     f.capBar = null;
     f.stage = el('div', { class: 'film-frame' }, el('div', { class: 'film-print' }, f.canvas, f.original));
     stageZoom?.stop();
+    f.zoomScale = 1;
     const z = zoomable(f.stage, { ar: f.canvas.width / f.canvas.height, natW: f.img.width,
       label: 'The photo developed on Portra 400.',
       pixels: () => Math.max(f.canvas?.width || 1, f.saveW || 0),
@@ -2631,10 +2646,14 @@
         const w = f.saveW || f.img.width;
         return w + 2 * framePx(w, f.saveH || f.img.height);
       },
-      onZoom: (scale) => { f.zoomScale = scale; filmWantDetail(f); } });
+      // The zoom reports on every layout change too; only a real zoom shows the caption bar.
+      onZoom: (scale) => {
+        const zoomed = scale !== f.zoomScale;
+        f.zoomScale = scale;
+        filmWantDetail(f, !zoomed);
+      } });
     f.frame = z.frame;
     stageZoom = z.zoom;
-    f.zoomScale = 1;
     filmApplyFrame(f);
     filmShowDetail(f);
     filmPreview();
@@ -2741,6 +2760,7 @@
   // show their control in one fixed-height strip above the row (so the photo never resizes),
   // Original is held to compare, and Save develops at full size.
   const TOOL_ICONS = {
+    look: ['........#', '........#', '......#.#', '......#.#', '....#.#.#', '....#.#.#', '..#.#.#.#', '..#.#.#.#', '#.#.#.#.#'],
     exposure: ['....#....', '.#.....#.', '...###...', '..#####..', '#.#####.#', '..#####..', '...###...', '.#.....#.', '....#....'],
     brightness: ['..#####..', '.#..####.', '#...#####', '#...#####', '#...#####', '#...#####', '#...#####', '.#..####.', '..#####..'],
     frame: ['#########', '#.......#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.......#', '#########'],
@@ -2824,17 +2844,21 @@
     let shell = null;
     const refresh = () => shell?.show();
 
-    const range = (key, min, max, step, label) => {
+    // `pref`: the value is a remembered preference (filmPrefs) with its own double-click reset.
+    const range = (key, min, max, step, label, pref = null) => {
+      const target = pref ? filmPrefs : f;
       const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
-      input.value = String(f[key]);
+      input.value = String(target[key]);
       input.addEventListener('input', () => {
-        f[key] = Number(input.value);
+        target[key] = Number(input.value);
         refresh();
         filmPreview();
       });
+      if (pref) input.addEventListener('change', saveFilmPrefs);
       input.addEventListener('dblclick', () => {
-        input.value = '0';
+        input.value = String(pref ? pref.reset : 0);
         input.dispatchEvent(new Event('input'));
+        input.dispatchEvent(new Event('change'));
       });
       return input;
     };
@@ -2882,7 +2906,8 @@
     trackFill(colors);
 
     // Original: shows the photo as it came for as long as it is held.
-    const hold = toolButton('original', 'Original');
+    // Six buttons share the row, so each label is six letters at most.
+    const hold = toolButton('original', 'Before');
     hold.classList.add('film-compare');
     hold.setAttribute('aria-label', 'Hold to see the original');
     const compare = (on) => {
@@ -2904,7 +2929,9 @@
     save.addEventListener('click', () => saveFilm(save, note));
 
     shell = editorShell(f, {
-      exposure: { tool: 'Exposure', label: 'Exposure', icon: 'exposure', value: () => fmtStops(f.exposure),
+      look: { tool: 'Look', label: 'Strength', icon: 'look', value: () => fmtPercent(filmPrefs.look),
+        node: el('div', { class: 'editor-pane editor-ruler' }, range('look', 0, 100, 10, 'Strength', { reset: FILM_LOOK_DEFAULT })) },
+      exposure: { tool: 'Expose', label: 'Exposure', icon: 'exposure', value: () => fmtStops(f.exposure),
         node: el('div', { class: 'editor-pane editor-ruler' }, range('exposure', -2, 3, 0.5, 'Exposure')) },
       brightness: { tool: 'Bright', label: 'Brightness', icon: 'brightness', value: () => fmtStops(f.brightness),
         node: el('div', { class: 'editor-pane editor-ruler' }, range('brightness', -1.5, 1.5, 0.1, 'Brightness')) },
@@ -3024,18 +3051,24 @@
     filmShowSource(f);
     nodes.push(f.sourceNode);
 
-    const slider = (label, key, min, max, step, help) => {
-      const value = el('span', { class: 'film-value' }, fmtStops(f[key]));
+    // `pref`: the value is a remembered preference (filmPrefs), shown as a percentage, with its
+    // own double-click reset.
+    const slider = (label, key, min, max, step, help, pref = null) => {
+      const target = pref ? filmPrefs : f;
+      const fmt = pref ? fmtPercent : fmtStops;
+      const value = el('span', { class: 'film-value' }, fmt(target[key]));
       const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
-      input.value = String(f[key]);
+      input.value = String(target[key]);
       input.addEventListener('input', () => {
-        f[key] = Number(input.value);
-        value.textContent = fmtStops(f[key]);
+        target[key] = Number(input.value);
+        value.textContent = fmt(target[key]);
         filmPreview();
       });
+      if (pref) input.addEventListener('change', saveFilmPrefs);
       input.addEventListener('dblclick', () => {
-        input.value = '0';
+        input.value = String(pref ? pref.reset : 0);
         input.dispatchEvent(new Event('input'));
+        input.dispatchEvent(new Event('change'));
       });
       return el('label', { class: 'card-row film-slider' },
         el('span', { class: 'card-label' }, label, value), input, el('small', null, help));
@@ -3063,6 +3096,8 @@
 
     nodes.push(
       el('div', { class: 'card-controls' },
+        slider('Strength', 'look', 0, 100, 10, 'How much of the film look goes on: its colours, soft blacks, grain and glow. 0 stays closest to your photo.',
+          { reset: FILM_LOOK_DEFAULT }),
         slider('Exposure', 'exposure', -2, 3, 0.5, 'Stops on the film. Portra loves extra light: + gives softer, airier colour.'),
         slider('Brightness', 'brightness', -1.5, 1.5, 0.1, 'Stops at the print, like a lab’s density button.'),
         compare,

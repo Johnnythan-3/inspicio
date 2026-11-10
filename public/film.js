@@ -354,18 +354,19 @@
 
   // `minStep` > 1 makes the halation grid coarser than rolls' for a quick preview; the glow is
   // broad, so it looks the same. Saves use rolls' own grid.
-  function halation(rgb, w, h, F, minStep = 1) {
-    const plan = halationPlan(rgb, w, h, F, minStep);
+  // `fx` (optional, see `look`): halationGain scales the glow, halationSize its reach.
+  function halation(rgb, w, h, F, minStep = 1, fx = null) {
+    const plan = halationPlan(rgb, w, h, F, minStep, fx);
     const halos = plan.jobs.map((j) => convolveFFT(j.small, plan.dw, plan.dh, j.values, j.radius, j.key));
     halationApply(rgb, w, h, plan, halos);
   }
 
   // Halation in two halves, so the convolutions (most of its time) can run elsewhere in parallel:
   // the plan holds each channel's frame averaged down to the halation grid and its kernel.
-  function halationPlan(rgb, w, h, F, minStep = 1) {
+  function halationPlan(rgb, w, h, F, minStep = 1, fx = null) {
     const H = F.halation;
     const n = H.refractiveIndex;
-    const t = H.baseThickness;
+    const t = H.baseThickness * ((fx && fx.halationSize) || 1);
     const micronsPerPixel = F.frameWidthMm * 1000 / w;
     const critical = 2 * t * Math.tan(Math.asin(1 / n));
     const step = Math.max(minStep, Math.round((critical / 5) / micronsPerPixel));
@@ -376,7 +377,7 @@
     for (let c = 0; c < 3; c++) {
       const k = H.strength[c] || 0;
       if (!(k > 0)) continue;
-      const kernKey = `${c}|${cell}`;
+      const kernKey = `${c}|${cell}|${t}`;
       const kern = kernels.get(kernKey) || halationKernel(k, n, t, cell);
       if (!kern) continue;
       kernels.set(kernKey, kern);
@@ -395,12 +396,13 @@
       }
       jobs.push({ c, small, values: kern.values, radius: kern.radius, key: kernKey });
     }
-    return { step, dw, dh, jobs };
+    return { step, dw, dh, jobs, gain: (fx && fx.halationGain) || 1 };
   }
 
   // Adds each channel's convolved glow (`halos`, in the plan's order) back at full size.
   function halationApply(rgb, w, h, plan, halos) {
     const { step, dw, dh } = plan;
+    const gain = plan.gain || 1;
     let cols = null; // the upsampling's per-column indices and weights, the same for every channel
     plan.jobs.forEach(({ c }, jobIndex) => {
       const halo = halos[jobIndex];
@@ -432,7 +434,7 @@
           const top = halo[r0 + x0] * (1 - wx) + halo[r0 + x1] * wx;
           const bot = halo[r1 + x0] * (1 - wx) + halo[r1 + x1] * wx;
           const i = (y * w + x) * 3 + c;
-          rgb[i] = Math.max(0, rgb[i] + top * (1 - wy) + bot * wy);
+          rgb[i] = Math.max(0, rgb[i] + gain * top * (1 - wy) + gain * bot * wy);
         }
       }
     });
@@ -585,13 +587,14 @@
     return top + ((c + (d - c) * u) - top) * v;
   }
 
-  function grainSetup(F, w, seedBase = 0x5eed) {
+  // `fx` (optional, see `look`): grainSize makes the grains bigger, grainGain stronger.
+  function grainSetup(F, w, seedBase = 0x5eed, fx = null) {
     const G = F.grain;
-    const rawCell = G.size / (F.frameWidthMm * 1000) * w;
+    const rawCell = G.size * ((fx && fx.grainSize) || 1) / (F.frameWidthMm * 1000) * w;
     const inv = 1 / Math.max(1, rawCell);
     const w2 = Math.min(Math.max(G.roughness, 0), 1) * 0.5;
     const channels = [0, 1, 2].map((c) => {
-      const amp = (G.amplitude[c] || 0) * Math.min(1, rawCell);
+      const amp = (G.amplitude[c] || 0) * ((fx && fx.grainGain) || 1) * Math.min(1, rawCell);
       const seed = (seedBase + Math.imul(c, 0x9e3779b9)) >>> 0;
       return { amp, seed, seed2: (seed + 0x68bc21eb) >>> 0 };
     });
@@ -606,8 +609,8 @@
 
   // The grain field's mean and scale per channel (normalizeToUnitRMS), from the same samples of
   // the whole frame as rolls takes, so a strip of the frame gets the same grain as the whole.
-  function grainStats(F, w, h) {
-    const g = grainSetup(F, w);
+  function grainStats(F, w, h, fx = null) {
+    const g = grainSetup(F, w, undefined, fx);
     const count = w * h;
     const stride = Math.max(1, Math.floor(count / 200000));
     return g.channels.map((ch) => {
@@ -625,8 +628,8 @@
   }
 
   // `y0` is the first row's place in the frame and `stats` the whole frame's, for a strip.
-  function grain(d, w, h, F, referenceDensity, y0 = 0, stats = null) {
-    const g = grainSetup(F, w);
+  function grain(d, w, h, F, referenceDensity, y0 = 0, stats = null, fx = null) {
+    const g = grainSetup(F, w, undefined, fx);
     const { G } = g;
     const refD = Math.max(referenceDensity, 0.01);
     const field = new Float32Array(w * h);
@@ -717,7 +720,8 @@
   }
 
   // Writes encoded sRGB: 0..1 floats, or 0..255 RGBA bytes when `rgba` is set.
-  function printInto(d, count, K, F, out, rgba) {
+  // `grade` (0..1, see `look`): that share of the scan look (gradeTable) on top of the print.
+  function printInto(d, count, K, F, out, rgba, grade = 0) {
     const { xMin, xMax, rows } = F.paper;
     const pivot = F.paperCurve.midtoneLogH;
     const protect = F.printProfile.highlightProtection;
@@ -728,6 +732,9 @@
     const s = [0, 0, 0];
     const idx = [0, 0, 0];
     const fr = [0, 0, 0];
+    const G = grade > 0 ? gradeTable() : null;
+    const gk = grade * 65535;
+    const gScale = (GRADE_N - 1) / 65535;
     for (let p = 0; p < count; p++) {
       for (let c = 0; c < 3; c++) {
         let logH = K[c] - d[p * 3 + c];
@@ -754,6 +761,32 @@
         s[0] += wgt * lut[base];
         s[1] += wgt * lut[base + 1];
         s[2] += wgt * lut[base + 2];
+      }
+      if (G) {
+        // The look's change for this colour (trilinear in its table), `grade` of it added.
+        for (let c = 0; c < 3; c++) {
+          const u = s[c] * gScale;
+          const i0 = Math.min(u | 0, GRADE_N - 2);
+          idx[c] = i0;
+          fr[c] = u - i0;
+        }
+        let d0 = 0;
+        let d1 = 0;
+        let d2 = 0;
+        for (let corner = 0; corner < 8; corner++) {
+          const dr = corner & 1;
+          const dg = (corner >> 1) & 1;
+          const db = (corner >> 2) & 1;
+          const wgt = (dr ? fr[0] : 1 - fr[0]) * (dg ? fr[1] : 1 - fr[1]) * (db ? fr[2] : 1 - fr[2]);
+          if (wgt === 0) continue;
+          const base = (((idx[2] + db) * GRADE_N + idx[1] + dg) * GRADE_N + idx[0] + dr) * 3;
+          d0 += wgt * G[base];
+          d1 += wgt * G[base + 1];
+          d2 += wgt * G[base + 2];
+        }
+        s[0] = Math.min(Math.max(s[0] + gk * d0, 0), 65535);
+        s[1] = Math.min(Math.max(s[1] + gk * d1, 0), 65535);
+        s[2] = Math.min(Math.max(s[2] + gk * d2, 0), 65535);
       }
       if (rgba) {
         const o = p * 4;
@@ -1216,7 +1249,7 @@
     if (opts.exposeOnly) return rgb;
     if (opts.spatial !== false) {
       report('halation');
-      halation(rgb, w, h, F, opts.preview ? 2 : 1);
+      halation(rgb, w, h, F, opts.preview ? 2 : 1, opts.fx);
     }
     return opts.halationOnly ? rgb : developStrip(F, rgb, w, h, opts);
   }
@@ -1242,7 +1275,7 @@
       report('couplers');
       couplers(rgb, w, h, F);
       report('grain');
-      if (opts.grain !== false) grain(rgb, w, h, F, F.reference[1], strip ? strip.y0 : 0, strip ? strip.stats : null);
+      if (opts.grain !== false) grain(rgb, w, h, F, F.reference[1], strip ? strip.y0 : 0, strip ? strip.stats : null, opts.fx);
     }
     return rgb;
   }
@@ -1257,8 +1290,8 @@
     return reach + 2;
   }
 
-  function printWithK(F, d, count, K, rgba) {
-    printInto(d, count, K, F, rgba, true);
+  function printWithK(F, d, count, K, rgba, grade = 0) {
+    printInto(d, count, K, F, rgba, true, grade);
     return rgba;
   }
 
@@ -1268,7 +1301,7 @@
     const count = w * h;
     const K = printExposures(d, count, F, printStops, opts);
     const out = rgba || new Float32Array(count * 3);
-    printInto(d, count, K, F, out, Boolean(rgba));
+    printInto(d, count, K, F, out, Boolean(rgba), opts.grade || 0);
     return { out, K };
   }
 
@@ -1349,7 +1382,150 @@
     return offsets;
   }
 
-  const api = { prepare, develop, developNegative, printNegative, photoTransfer,
+  /* ---------- Strength: the scan look (not in rolls) ---------- */
+
+  // The film as calibrated gives a finished photo back almost as it was: photoTransfer undoes
+  // the contrast, photoBalance the cast, and Portra's colour is close to true. What people know
+  // as the look of film is mostly the lab's scan of it. This is that look, designed by eye and
+  // not measured: matte blacks and a soft shoulder, shadows toward teal and highlights toward
+  // peach, greens toward olive, blues toward cyan, reds toward orange, and paler highlights.
+  // It is applied to the print, after everything that keeps the photo as it was.
+  const GRADE = {
+    // Lightness as an encoded grey, in -> out.
+    tone: [[0, 0.16], [0.1, 0.21], [0.25, 0.305], [0.5, 0.555], [0.75, 0.815], [0.9, 0.905], [1, 0.94]],
+    // Hue windows in Oklab: centre and half-width (degrees), hue shift (degrees), colour factor,
+    // lightness shift.
+    hues: [
+      [140, 55, -22, 0.72, -0.015], // greens
+      [255, 55, -20, 0.8, 0.03], // blues
+      [25, 35, 10, 0.95, 0], // reds
+      [62, 30, 0, 1.08, 0], // skin and oranges
+    ],
+    // Tints (Oklab a, b) for the shadows, the midtones and the highlights.
+    shadow: [-0.028, -0.012],
+    mid: [0.006, 0.018],
+    highlight: [0.01, 0.042],
+    pastel: 0.3, // colour taken out of the highlights
+    muted: 0.12, // and out of the shadows
+    colour: 1.05,
+  };
+  const GRADE_N = 33;
+
+  // A smooth curve through points that never turns back (monotone cubic, Fritsch-Carlson).
+  function monotoneCurve(points) {
+    const n = points.length;
+    const x = points.map((p) => p[0]);
+    const y = points.map((p) => p[1]);
+    const d = [];
+    const m = new Array(n);
+    for (let i = 0; i < n - 1; i++) d.push((y[i + 1] - y[i]) / (x[i + 1] - x[i]));
+    m[0] = d[0];
+    m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+      const a = m[i] / d[i];
+      const b = m[i + 1] / d[i];
+      const q = a * a + b * b;
+      if (q > 9) { const t = 3 / Math.sqrt(q); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+    }
+    return (v) => {
+      if (v <= x[0]) return y[0];
+      if (v >= x[n - 1]) return y[n - 1];
+      let i = 0;
+      while (v > x[i + 1]) i++;
+      const h = x[i + 1] - x[i];
+      const t = (v - x[i]) / h;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      return (2 * t3 - 3 * t2 + 1) * y[i] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * y[i + 1] + (t3 - t2) * h * m[i + 1];
+    };
+  }
+
+  // The look at full strength as the change it makes to each encoded sRGB colour, on a
+  // GRADE_N-cubed grid (red fastest, then green, then blue). Built once, on first use.
+  let gradeCache = null;
+  function gradeTable() {
+    if (gradeCache) return gradeCache;
+    const P = GRADE;
+    const N = GRADE_N;
+    const RAD = Math.PI / 180;
+    const dec = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+    const enc = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+    const clip = (v) => enc(Math.min(1, Math.max(0, v)));
+    const tone = monotoneCurve(P.tone);
+    const table = new Float32Array(N * N * N * 3);
+    let o = 0;
+    for (let bi = 0; bi < N; bi++) {
+      for (let gi = 0; gi < N; gi++) {
+        for (let ri = 0; ri < N; ri++) {
+          const r = ri / (N - 1);
+          const g = gi / (N - 1);
+          const b = bi / (N - 1);
+          // To Oklab (Ottosson 2020): lightness L, green-red a, blue-yellow b.
+          const R = dec(r);
+          const Gn = dec(g);
+          const B = dec(b);
+          const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * Gn + 0.0514459929 * B);
+          const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * Gn + 0.1073969566 * B);
+          const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * Gn + 0.6299787005 * B);
+          let L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+          let A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+          let Bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+          // Hues: each window turns, quiets and lightens its colours, most at its centre. Greys
+          // are left alone.
+          let C = Math.hypot(A, Bb);
+          let h = Math.atan2(Bb, A) / RAD;
+          if (h < 0) h += 360;
+          const gate = C / (C + 0.03);
+          let turn = 0;
+          let scale = 1;
+          let lift = 0;
+          for (const [centre, width, shift, colour, light] of P.hues) {
+            let dist = Math.abs(h - centre);
+            if (dist > 180) dist = 360 - dist;
+            if (dist >= width) continue;
+            const w = Math.cos((dist / width) * 90 * RAD) ** 2 * gate;
+            turn += w * shift;
+            scale *= 1 + w * (colour - 1);
+            lift += w * light;
+          }
+          h = (h + turn) * RAD;
+          C *= scale * P.colour;
+          L += lift;
+          // Tone, on the lightness as an encoded grey.
+          L = Math.cbrt(dec(tone(enc(Math.min(1, Math.max(0, L)) ** 3))));
+          // Paler highlights, quieter shadows, and the three tints.
+          const wh = L * L;
+          const ws = (1 - L) * (1 - L);
+          const wm = 4 * L * (1 - L);
+          C *= 1 - P.pastel * wh - P.muted * ws;
+          A = C * Math.cos(h) + ws * P.shadow[0] + wm * P.mid[0] + wh * P.highlight[0];
+          Bb = C * Math.sin(h) + ws * P.shadow[1] + wm * P.mid[1] + wh * P.highlight[1];
+          const l3 = (L + 0.3963377774 * A + 0.2158037573 * Bb) ** 3;
+          const m3 = (L - 0.1055613458 * A - 0.0638541728 * Bb) ** 3;
+          const s3 = (L - 0.0894841775 * A - 1.291485548 * Bb) ** 3;
+          table[o++] = clip(4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3) - r;
+          table[o++] = clip(-1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3) - g;
+          table[o++] = clip(-0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3) - b;
+        }
+      }
+    }
+    gradeCache = table;
+    return table;
+  }
+
+  // What a Strength s (0 to 1) asks of a develop. At 0, nothing: the film as calibrated. Above it,
+  // `grade` is the share of the scan look for the print, and `fx` makes grain and halation
+  // stronger and larger, as from a smaller negative. The slider's first half does most of it.
+  function look(s) {
+    const v = Math.min(Math.max(Number(s) || 0, 0), 1);
+    if (!(v > 0)) return { grade: 0, fx: null };
+    const k = Math.pow(v, 0.6);
+    return { grade: k, fx: { grainGain: 1 + 1.2 * k, grainSize: 1 + 2.5 * k, halationGain: 1 + 4 * k, halationSize: 1 + 1.5 * k } };
+  }
+
+  const api = { prepare, develop, developNegative, printNegative, photoTransfer, look,
     developStrip, stripMargin, halationPlan, halationApply, convolveFFT, grainStats, printStep, printSamples, printExposuresFromSamples, printWithK,
     parseDNG, dngSupported, decodeDNG, cameraToLayers, orientRGBA };
   root.FilmEngine = api;

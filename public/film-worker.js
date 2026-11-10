@@ -5,7 +5,9 @@
    device. */
 'use strict';
 
-importScripts('film-data.js', 'film.js');
+// The page adds a query in development so nothing here comes from the cache; it is passed on.
+const FRESH = (self.location && self.location.search) || '';
+importScripts(`film-data.js${FRESH}`, `film.js${FRESH}`);
 
 const F = FilmEngine.prepare(self.FILM_DATA);
 
@@ -100,7 +102,7 @@ function helperMessage(msg) {
       self.postMessage({ id: msg.id, error: 'gone' });
     } else if (msg.K) {
       const count = neg.length / 3;
-      const rgba = FilmEngine.printWithK(F, neg, count, msg.K, new Uint8ClampedArray(count * 4));
+      const rgba = FilmEngine.printWithK(F, neg, count, msg.K, new Uint8ClampedArray(count * 4), msg.grade || 0);
       self.postMessage({ id: msg.id, rgba }, [rgba.buffer]);
     } else {
       self.postMessage({ id: msg.id });
@@ -123,7 +125,7 @@ function helperPool() {
   if (typeof Worker !== 'function') { poolBroken = true; return null; }
   try {
     pool = Array.from({ length: count }, () => {
-      const helper = { worker: new Worker('film-worker.js'), jobs: new Map() };
+      const helper = { worker: new Worker(`film-worker.js${FRESH}`), jobs: new Map() };
       helper.worker.onmessage = (e) => {
         const job = helper.jobs.get(e.data.id);
         if (job && e.data.partial) { job.onStage?.(e.data.stage); return; }
@@ -160,8 +162,8 @@ function helperCall(helper, msg, transfer = [], onStage = null) {
 // each helper develops a strip of rows with enough rows around it that its own rows come out
 // exactly as in one piece, the print decision is taken from
 // all the strips' samples, and each helper prints its strip. If the helpers fail, it finishes here.
-async function printStrips(helpers, job, K, rows, w, count) {
-  const prints = await Promise.all(helpers.map((helper) => helperCall(helper, { kind: 'strip-print', job, K })));
+async function printStrips(helpers, job, K, rows, w, count, grade) {
+  const prints = await Promise.all(helpers.map((helper) => helperCall(helper, { kind: 'strip-print', job, K, grade })));
   const rgba = new Uint8ClampedArray(count * 4);
   prints.forEach((p, k) => rgba.set(p.rgba, rows[k][0] * w * 4));
   return rgba;
@@ -175,7 +177,7 @@ async function reprint(c, printStops, printOpts) {
   if (s && pool === s.helpers && !poolBroken) {
     try {
       const K = FilmEngine.printExposuresFromSamples(s.samples, F, printStops, printOpts);
-      return { rgba: await printStrips(s.helpers, s.job, K, s.rows, c.w, count), K };
+      return { rgba: await printStrips(s.helpers, s.job, K, s.rows, c.w, count, printOpts.grade), K };
     } catch {
       c.strips = null;
     }
@@ -202,7 +204,7 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
   const opts = { ...devOpts };
   delete opts.progress;
   const margin = FilmEngine.stripMargin(F, w);
-  const stats = FilmEngine.grainStats(F, w, h);
+  const stats = FilmEngine.grainStats(F, w, h, devOpts.fx);
   const step = FilmEngine.printStep(count);
   const job = ++helperSeq;
   const n = helpers.length;
@@ -212,7 +214,7 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
     if (spatial) {
       // Each channel's halation convolution on its own helper.
       devOpts.progress?.('halation');
-      const plan = FilmEngine.halationPlan(rgb, w, h, F, minStep);
+      const plan = FilmEngine.halationPlan(rgb, w, h, F, minStep, devOpts.fx);
       const halos = await Promise.all(plan.jobs.map((j, k) => helperCall(helpers[k % n],
         { kind: 'halo', small: j.small, dw: plan.dw, dh: plan.dh, values: j.values, radius: j.radius, key: j.key },
         [j.small.buffer]).then((r) => r.halo)));
@@ -245,13 +247,13 @@ async function developAndPrint(rgb, w, h, devOpts, printStops, printOpts, keep) 
     let at = 0;
     for (const p of parts) { samples.set(p.samples, at); at += p.samples.length; }
     const K = FilmEngine.printExposuresFromSamples(samples, F, printStops, printOpts);
-    const rgba = await printStrips(helpers, job, K, rows, w, count);
+    const rgba = await printStrips(helpers, job, K, rows, w, count, printOpts.grade);
     return { density, rgba, K, strips: keep ? { job, samples, rows, helpers } : null };
   } catch {
     // Finish in one piece; rgb still holds the exposed light, with halation if it got that far.
     poolBroken = true;
     if (!haloDone) {
-      const plan = FilmEngine.halationPlan(rgb, w, h, F, minStep);
+      const plan = FilmEngine.halationPlan(rgb, w, h, F, minStep, devOpts.fx);
       FilmEngine.halationApply(rgb, w, h, plan,
         plan.jobs.map((j) => FilmEngine.convolveFFT(j.small, plan.dw, plan.dh, j.values, j.radius, j.key)));
     }
@@ -271,6 +273,9 @@ let rawLinear = null;
 // own colour matrix and BaselineExposure, and rolls' Noritsu print decision.
 async function developRaw(msg) {
   const { id, key, file, maxPixels, exposureStops, printStops, keep } = msg;
+  const strength = msg.look || 0;
+  const { grade, fx } = FilmEngine.look(strength);
+  const printOpts = { placement: 'scene', grade };
   if (!rawFile || rawFile.key !== key) {
     if (!file) return self.postMessage({ id, error: 'need-file' });
     const dng = FilmEngine.parseDNG(new Uint8Array(file));
@@ -281,7 +286,7 @@ async function developRaw(msg) {
   const { dng, layers } = rawFile;
   const m = dng.meta;
   const ds = Math.max(1, Math.ceil(Math.sqrt((m.width * m.height) / maxPixels)));
-  const negKey = `raw|${key}|${ds}|${exposureStops}`;
+  const negKey = `raw|${key}|${ds}|${exposureStops}|${strength}`;
   let density;
   let w;
   let h;
@@ -302,13 +307,13 @@ async function developRaw(msg) {
     h = lin.height;
     const rgb = keep ? lin.rgb.slice() : lin.rgb;
     ({ density, rgba, K, strips } = await developAndPrint(rgb, w, h,
-      { matrix: layers, baselineExposure: m.baselineExposure, exposureStops, preview: keep, progress },
-      printStops, { placement: 'scene' }, keep));
+      { matrix: layers, baselineExposure: m.baselineExposure, exposureStops, preview: keep, progress, fx },
+      printStops, printOpts, keep));
     if (keep) cache = { key: negKey, density, w, h, strips };
   }
   if (!rgba) {
     progress('printing');
-    ({ rgba, K } = await reprint(cache, printStops, { placement: 'scene' }));
+    ({ rgba, K } = await reprint(cache, printStops, printOpts));
   }
   const o = FilmEngine.orientRGBA(rgba, w, h, m.orientation);
   const swaps = m.orientation >= 5 && m.orientation <= 8;
@@ -349,9 +354,12 @@ async function handle(data) {
   if (data.gain) gainMap = { key, ...data.gain };
   const map = data.useGain && gainMap?.key === key ? gainMap : null;
   if (data.useGain && !map) return self.postMessage({ id, error: 'need-gain' });
-  const printOpts = { placement: placement || 'scene', exposureStops };
+  // Strength (data.look, 0 to 1): how much of the scan look goes on top (FilmEngine.look).
+  const strength = data.look || 0;
+  const { grade, fx } = FilmEngine.look(strength);
+  const printOpts = { placement: placement || 'scene', exposureStops, grade };
   try {
-    const negKey = `${key}|${primaries}|${exposureStops}|${map ? 'hdr' : ''}`;
+    const negKey = `${key}|${primaries}|${exposureStops}|${map ? 'hdr' : ''}|${strength}`;
     let density;
     let rgba;
     let K;
@@ -380,7 +388,7 @@ async function handle(data) {
         if (keep) inputCache = { key: inputKey, rgb: rgb.slice() };
       }
       ({ density, rgba, K, strips } = await developAndPrint(rgb, w, h,
-        { primaries, exposureStops, preview: keep, progress: (stage) => self.postMessage({ id, stage }) },
+        { primaries, exposureStops, preview: keep, fx, progress: (stage) => self.postMessage({ id, stage }) },
         printStops, printOpts, keep));
       if (keep) cache = { key: negKey, density, w, h, strips };
     }

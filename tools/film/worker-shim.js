@@ -8,7 +8,7 @@ globalThis.self = globalThis;
 if (!globalThis.navigator) globalThis.navigator = {};
 try { Object.defineProperty(globalThis.navigator, 'hardwareConcurrency', { value: workerData.cores || os.cpus().length }); } catch {}
 self.postMessage = (msg, transfer) => parentPort.postMessage(msg, transfer);
-self.importScripts = (...files) => files.forEach((f) => require(path.join(dir, f)));
+self.importScripts = (...files) => files.forEach((f) => require(path.join(dir, f.split('?')[0])));
 class Worker {
   constructor(file) {
     this.w = new NodeWorker(__filename, { workerData: { dir, file: file.split('?')[0], cores: workerData.cores } });

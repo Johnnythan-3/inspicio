@@ -2745,6 +2745,7 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 
 /* Square tool buttons. */
 .editor-tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.editor-tools:has(> :nth-child(6)) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
 .tool {
   display: grid;
