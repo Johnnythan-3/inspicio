@@ -51,7 +51,7 @@
 - Sessions 10–11: OG/icons, tool pages, robots, sitemap, security.txt, write-ups, JSON-LD, cache, `llms.txt`.
 - Session 12: Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 10.1 → 7.45). Never ship DxO-derived data or third-party scans. Left: purple/red a bit dark, bluish green +15°, no underexposure desaturation.
 - Cloudflare: AI Crawl Control all allowed, Bot Preference Sync off (keep). Skip Markdown for Agents, Bot Fight Mode, AI Labyrinth, Turnstile.
-- **User to do:** Always Use HTTPS (`http://` serves 200); `www` DNS + redirect; resubmit sitemap; Bing Webmaster import from Search Console.
+- Done 2026-11-09: Always Use HTTPS; `www` AAAA `100::` + Redirect Rule to root (keep both); sitemap resubmitted; Bing Webmaster import.
 - **Not yet checked by user:** Film calibration on own photos/phone; phone Film + Shot on editors; smaller top bar; no-flash tab switch; faster settings exit; write-ups.
 - User wants features non-techy people notice. Held off: Film lab chooser.
 - **Next ideas:** offline mode (service worker); "HEIC to JPG" + "remove location on iPhone" pages; per-tool OG images; Apple `linearthumbnail`; camera RAW via DNG; `hello@inspicio.app`.
