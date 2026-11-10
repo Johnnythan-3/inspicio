@@ -45,12 +45,12 @@
 - Search Console: Domain property, Cloudflare TXT (keep). `security.txt` expires 2027-11-01: renew.
 - Never put owner's email or anything derived from it in URLs, files, commits.
 
-## Status (2026-11-10, session 15)
+## Status (2026-11-10, end of session 15)
 
 - User tests live site only: **Firefox** (Mac), **Safari** (iPhone); iPhone 16 HEIC, 15 Pro ProRAW, Sony A7C II ARW.
-- Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 7.45). Never ship DxO-derived data or third-party scans.
+- Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 7.45). Never ship DxO data or third-party scans.
 - Cloudflare (keep): AI Crawl Control all allowed, Bot Preference Sync off, Always Use HTTPS, `www` AAAA `100::` + Redirect Rule to root.
-- **Not yet checked by user:** session 15 (phone sliders, tools, bar colours, DNG contrast, Shadows); Strength on skin; write-ups.
+- DNG contrast: user says better. **Not yet checked:** phone sliders, tools, bar colours, settings button, Shadows, night ProRAW; write-ups.
 - User wants features non-techy people notice, obvious film look. Held off: lab chooser; RAW sky colour (lab mix 88%).
 - **Next:** "HEIC to JPG" page; offline mode (service worker); "remove location on iPhone" page; camera RAW via DNG; `hello@inspicio.app`.
 
