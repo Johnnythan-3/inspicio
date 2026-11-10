@@ -2504,13 +2504,16 @@
     // it kept again, which is at once. So no bar, and the picture isn't dimmed while it waits.
     const negative = `${f.exposure}|${filmPrefs.look}`;
     const reprint = Boolean(filmWorker) && f.developed === `${negative}|${filmWorkerGen}`;
+    // The bar is for a photo's first develop only. After that a slider moved: the picture on
+    // screen dims a little until the new one is in, and the caption stays as it is.
+    const first = !f.canvas.classList.contains('is-ready');
     let bar = null;
-    if (reprint) {
-      filmCaptionIdle(f);
-    } else {
-      f.stage?.classList.add('is-developing');
+    if (!reprint) f.stage?.classList.add('is-developing');
+    if (first) {
       bar = filmCaptionBar(f, [f.raw !== 'no' ? 'reading' : 'prepare', ...FILM_STEPS], FILM_PREVIEW_PIXELS / 1e6, 15);
       bar?.step(f.raw !== 'no' ? 'reading' : 'prepare');
+    } else {
+      filmCaptionIdle(f);
     }
     try {
       const res = await filmJob(f, FILM_PREVIEW_PIXELS, true, (stage) => bar?.step(stage));

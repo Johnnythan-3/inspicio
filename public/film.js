@@ -1613,11 +1613,13 @@
   // What a Strength s (0 to 1) asks of a develop. At 0, nothing: the film as calibrated. Above it,
   // `grade` is the share of the scan look for the print, and `fx` makes grain and halation
   // stronger and larger, as from a smaller negative. The slider's first half does most of it.
+  // GRAIN_TASTE: the user's pick, grain a fifth weaker than first designed.
+  const GRAIN_TASTE = 0.8;
   function look(s) {
     const v = Math.min(Math.max(Number(s) || 0, 0), 1);
     if (!(v > 0)) return { grade: 0, fx: null };
     const k = Math.pow(v, 0.6);
-    return { grade: k, fx: { grainGain: 1 + 1.2 * k, grainSize: 1 + 2.5 * k, halationGain: 1 + 4 * k, halationSize: 1 + 1.5 * k } };
+    return { grade: k, fx: { grainGain: GRAIN_TASTE * (1 + 1.2 * k), grainSize: 1 + 2.5 * k, halationGain: 1 + 4 * k, halationSize: 1 + 1.5 * k } };
   }
 
   const api = { prepare, develop, developNegative, printNegative, photoTransfer, photoLight, look,
