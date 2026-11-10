@@ -2291,9 +2291,10 @@
   let film = null; // the open photo's film settings and preview state
   let filmKeySeq = 0;
 
-  // Where Brightness starts for a photo developed from sensor data (the user's pick: the lab's
-  // print of a RAW frame runs a little bright). A finished picture starts at 0.
-  const FILM_RAW_BRIGHTNESS = -0.2;
+  // Where Brightness starts for a photo developed from sensor data. It was -0.2 while the look
+  // lifted a RAW print's blacks, which read as too bright; with deep blacks the lab's own print
+  // matches the camera's rendering at 0 (medians within a few levels on the test frames).
+  const FILM_RAW_BRIGHTNESS = 0;
 
   function filmFor(file, img) {
     if (film?.file !== file) {

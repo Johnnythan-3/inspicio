@@ -339,7 +339,7 @@ async function developRaw(msg) {
   const { id, key, file, maxPixels, exposureStops, printStops, keep } = msg;
   const strength = msg.look || 0;
   const { grade, fx } = FilmEngine.look(strength);
-  const printOpts = { placement: 'scene', grade, highlights: msg.highlights || 0 };
+  const printOpts = { placement: 'scene', exposureStops, grade, highlights: msg.highlights || 0 };
   if (!rawFile || rawFile.key !== key) {
     if (!file) return self.postMessage({ id, error: 'need-file' });
     const dng = FilmEngine.parseDNG(new Uint8Array(file));

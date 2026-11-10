@@ -48,17 +48,29 @@
   const HIGHLIGHT_GUARD = [[0.90, 0.42], [0.75, 0.30]];
 
   /* What is still brighter than that rolls off instead of clipping, the way negative film holds
-     its highlights: the print's highlight protection (printInto) is raised until the frame's
-     brightest part (`share` of the frame is darker) lands `target` log exposure above mid-grey,
-     just inside paper white, and no further than `most`. Lamps and screens beyond that still
-     print white. A frame whose highlights already fit keeps the profile's own protection. */
-  const HIGHLIGHT_ROLL = { share: 0.98, target: 0.36, most: 1.6 };
+     its highlights. The print is left alone up to `knee` log exposure above mid-grey (about a
+     stop: the midtones keep the film's full contrast); above it a shoulder bends the rest so the
+     frame's brightest part (`share` of the frame is darker) lands `target` above mid-grey, at
+     paper white, and no harder than `most`. Lamps and screens beyond that still print white. A
+     frame whose highlights already fit is not bent at all. */
+  const HIGHLIGHT_ROLL = { share: 0.98, knee: 0.15, target: 0.44, most: 6 };
 
   /* The Highlights slider (opts.highlights, -1 to 1): bends the print above mid-grey only. Log
      exposure t above mid-grey becomes t + lift * t^2 / (t + knee): no change at mid-grey or in the
      shadows, growing to (1 + lift) times in the brightest parts. + prints them lighter, - holds
-     them back. `up` and `down` are the lift at the ends of the slider. */
-  const HIGHLIGHT_LIFT = { knee: 0.15, up: 0.9, down: 0.6 };
+     them back. `up` and `down` are the lift at the ends of the slider for a finished photo;
+     `rawUp` and `rawDown` for RAW, whose highlights the shoulder has already placed at paper
+     white, so a smaller bend moves them as far. */
+  const HIGHLIGHT_LIFT = { knee: 0.15, up: 0.9, down: 0.6, rawUp: 0.45, rawDown: 0.6 };
+
+  /* RAW and the Exposure slider. The lab's rule (the frame's median prints mid-grey) undoes any
+     change of exposure: the negative gets denser and the print is made that much darker, so the
+     slider moved the picture along the film's curve and left its brightness where it was. Here
+     the print gives back only part: `exposure` is the share of the slider's change, measured at
+     the film's mid-grey, that stays in the print. More Exposure prints lighter, less darker. (The
+     camera's own metering is no guide to brightness: an iPhone exposes ProRAW for the highlights,
+     up to two stops under.) */
+  const RAW_PRINT = { exposure: 0.6 };
 
   // opts.calibrated: false gives rolls' data as baked (for the Swift comparisons).
   function prepare(data, opts = {}) {
@@ -74,6 +86,7 @@
       rawFit: fit ? fit.raw : null,
       highlightGuard: fit ? HIGHLIGHT_GUARD : null,
       highlightRoll: fit ? HIGHLIGHT_ROLL : null,
+      rawPrint: fit ? RAW_PRINT : null,
       neg: curve(data.characteristic),
       paper: curve(data.paperCurve),
       lutTable: new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2),
@@ -738,23 +751,30 @@
       level = [0, 1, 2].reduce((a, c) => a + lookup(F.neg.rows[c], F.neg.xMin, F.neg.xMax, logH), 0) / 3;
     } else {
       level = luma[Math.min(n - 1, Math.floor(n * Math.round(F.printProfile.percentile * 100) / 100))];
+      if (n && F.rawPrint && opts.exposureStops) {
+        const grey = (stops) => {
+          const logH = F.logHReference + (F.ratingStops + stops) * 0.30103;
+          return [0, 1, 2].reduce((a, c) => a + lookup(F.neg.rows[c], F.neg.xMin, F.neg.xMax, logH), 0) / 3;
+        };
+        level -= F.rawPrint.exposure * (grey(opts.exposureStops) - grey(0));
+      }
       for (const [share, above] of (n ? F.highlightGuard || [] : [])) {
         level = Math.max(level, luma[Math.min(n - 1, Math.floor(n * share))] - above);
       }
     }
     const t = F.paperCurve.midtoneLogH + F.printProfile.exposureStops * 0.30103;
     const K = [0, 1, 2].map((c) => t + level + (1 - mix) * faithful[c] + mix * grey[c] + balance[c] + printStops * 0.30103);
-    // The print decision's fourth and fifth numbers, where the frame needs them: the highlight
-    // protection and the Highlights slider's lift.
+    // The print decision's further numbers, where the frame needs them: the highlight
+    // protection and the Highlights slider's lift; for RAW, the shoulder's strength in place of
+    // the protection, and its knee (a sixth number, which also tells printInto it is RAW).
     const roll = photo || !n ? null : F.highlightRoll;
     const h = Math.min(Math.max(opts.highlights || 0, -1), 1);
-    if (roll || h) {
-      let protect = F.printProfile.highlightProtection;
-      if (roll) {
-        const top = luma[Math.min(n - 1, Math.floor(n * roll.share))] - level - printStops * 0.30103;
-        if (top > 0) protect = Math.min(Math.max(1 / roll.target - 1 / top, protect), roll.most);
-      }
-      K.push(protect, h * (h > 0 ? HIGHLIGHT_LIFT.up : HIGHLIGHT_LIFT.down));
+    if (roll) {
+      const top = luma[Math.min(n - 1, Math.floor(n * roll.share))] - level - printStops * 0.30103;
+      const bend = top > roll.target ? Math.min(1 / (roll.target - roll.knee) - 1 / (top - roll.knee), roll.most) : 0;
+      K.push(bend, h * (h > 0 ? HIGHLIGHT_LIFT.rawUp : HIGHLIGHT_LIFT.rawDown), roll.knee);
+    } else if (h) {
+      K.push(F.printProfile.highlightProtection, h * (h > 0 ? HIGHLIGHT_LIFT.up : HIGHLIGHT_LIFT.down));
     }
     return K;
   }
@@ -767,6 +787,9 @@
     const protect = K.length > 3 ? K[3] : F.printProfile.highlightProtection;
     const lift = K.length > 4 ? K[4] : 0;
     const knee = HIGHLIGHT_LIFT.knee;
+    // RAW (a sixth number): the shoulder starts at `start` above mid-grey, not at mid-grey.
+    const raw = K.length > 5;
+    const start = raw ? K[5] : 0;
     const N = F.lut.size;
     const lut = F.lutTable;
     const lo = F.lut.dLo;
@@ -774,7 +797,7 @@
     const s = [0, 0, 0];
     const idx = [0, 0, 0];
     const fr = [0, 0, 0];
-    const G = grade > 0 ? gradeTable() : null;
+    const G = grade > 0 ? gradeTable(raw) : null;
     const gk = grade * 65535;
     const gScale = (GRADE_N - 1) / 65535;
     for (let p = 0; p < count; p++) {
@@ -783,7 +806,7 @@
         if (protect > 0 || lift) {
           let t = pivot - logH;
           if (t > 0) {
-            if (protect > 0) t /= 1 + protect * t;
+            if (protect > 0 && t > start) t = start + (t - start) / (1 + protect * (t - start));
             if (lift) t += lift * t * t / (t + knee);
             logH = pivot - t;
           }
@@ -1504,6 +1527,16 @@
     muted: 0.12, // and out of the shadows
     colour: 1.05,
   };
+  /* The same look for RAW. A finished photo arrives with its camera's contrast and colour, and
+     the look softens them; RAW arrives as the film printed it, already soft, so here the look
+     keeps the print's blacks and whites and most of its colour. */
+  const GRADE_RAW = {
+    ...GRADE,
+    tone: [[0, 0.03], [0.1, 0.115], [0.25, 0.26], [0.5, 0.53], [0.75, 0.795], [0.9, 0.93], [1, 0.985]],
+    pastel: 0.15,
+    muted: 0.04,
+    colour: 1.12,
+  };
   const GRADE_N = 33;
 
   // A smooth curve through points that never turns back (monotone cubic, Fritsch-Carlson).
@@ -1539,10 +1572,10 @@
 
   // The look at full strength as the change it makes to each encoded sRGB colour, on a
   // GRADE_N-cubed grid (red fastest, then green, then blue). Built once, on first use.
-  let gradeCache = null;
-  function gradeTable() {
-    if (gradeCache) return gradeCache;
-    const P = GRADE;
+  const gradeCache = [null, null];
+  function gradeTable(raw = false) {
+    if (gradeCache[raw ? 1 : 0]) return gradeCache[raw ? 1 : 0];
+    const P = raw ? GRADE_RAW : GRADE;
     const N = GRADE_N;
     const RAD = Math.PI / 180;
     const dec = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
@@ -1606,7 +1639,7 @@
         }
       }
     }
-    gradeCache = table;
+    gradeCache[raw ? 1 : 0] = table;
     return table;
   }
 
