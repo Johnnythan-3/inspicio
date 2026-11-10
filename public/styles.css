@@ -2856,15 +2856,12 @@ body:has(.viewer.is-editor:not([hidden])) { background: var(--bar); }
 .tool:disabled { opacity: 0.35; cursor: default; }
 .tool.tool-save:disabled { opacity: 0.6; cursor: progress; }
 
-/* The settings button moves to the photo's top corner, clear of the tools. */
-body:has(.viewer.is-editor:not([hidden])) .prefs-btn {
-  top: calc(var(--topbar-h) + 10px);
-  bottom: auto;
-  width: 34px;
-  height: 34px;
-}
-body:has(.viewer.is-editor:not([hidden])) .prefs-btn svg { width: 17px; height: 17px; }
-body:has(.viewer.is-editor:not([hidden])) .prefs-panel { top: calc(var(--topbar-h) + 52px); bottom: auto; }
+/* The settings button moves into the top bar (app.js syncEditor), clear of the photo and the
+   tools. It is the size of the bar's other buttons; ::after widens where a finger can press. */
+.topbar .prefs-btn { position: relative; right: auto; bottom: auto; width: 26px; height: 26px; box-shadow: none; }
+.topbar .prefs-btn::after { content: ""; position: absolute; inset: -10px -6px; }
+.topbar .prefs-btn svg { width: 14px; height: 14px; }
+body:has(.viewer.is-editor:not([hidden])) .prefs-panel { top: calc(var(--topbar-h) + 8px); bottom: auto; }
 
 /* Mellow. */
 [data-look="mellow"] .editor-head { font-size: 13px; letter-spacing: 0; text-transform: none; }

@@ -18,7 +18,7 @@
   - **Strength** 0–100%, default 30 (`filmPrefs.look`, `FilmEngine.look`): engine alone: ΔE 3 on a finished photo, so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`; grain × `GRAIN_TASTE` 0.8). 0% bit-identical to calibrated.
   - Sliders: Exposure 0.5, Brightness 0.1, Highlights ±5 (`HIGHLIGHT_LIFT`, `K[4]`). Phone: `slideBox` (glides, steps 0.05/0.05/0.1, double-tap resets). **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms), one bar animation, speed per step (`barController`, `SAVE_STEPS`, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: "Save to Photos".
-- **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, 70 px strip; tools one size, icons only < 375 px. Bars solid `--bar`, no blur (iOS 26 Safari tint: body colour or pinned solid bar).
+- **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, 70 px strip; tools one size, icons only < 375 px, settings button in top bar. Bars solid `--bar`, no blur (iOS 26 Safari tint: body colour or pinned bar).
 - **HEIC:** Safari native; else vendored libheif 1.19.8 pure-JS (LGPL; WASM needs CSP change) → q0.95 JPEG.
 - **RAW:** largest embedded JPEG (`loadRawPreview`). Photos drags: preview notice.
 
@@ -51,7 +51,7 @@
 - Confirmed: all through session 14.
 - Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 7.45). Never ship DxO-derived data or third-party scans.
 - Cloudflare (keep): AI Crawl Control all allowed, Bot Preference Sync off, Always Use HTTPS, `www` AAAA `100::` + Redirect Rule to root.
-- **Not yet checked by user:** session 15 (phone sliders, tool sizes, Safari bar colours); Strength on skin; write-ups.
+- **Not yet checked by user:** session 15 (phone sliders, tools, bar colours); Strength on skin; write-ups.
 - User wants features non-techy people notice, obvious film look. Held off: lab chooser.
 - **Next:** "HEIC to JPG" page; offline mode (service worker); "remove location on iPhone" page; camera RAW via DNG; `hello@inspicio.app`.
 
@@ -65,7 +65,7 @@
 
 ## Working notes
 
-- Keep this file under 8 KB.
+- This file < 8 KB.
 - Firefox rounds timestamps: use CSS/WAAPI. Mapbox `pk.` push warning: allowed.
 - No third-party code in Node; our `film.js` OK.
 - Don't reuse `data-mode` outside tabs.

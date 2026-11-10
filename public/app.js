@@ -3135,7 +3135,18 @@
 
   // Phones get the editor in Film and Shot on; the class switches the page to its fixed, no-scroll layout.
   const editorWanted = () => Boolean(narrowLayout.matches && current?.img.ok && (mode === 'film' || mode === 'shot-on'));
-  const syncEditor = () => viewerView.classList.toggle('is-editor', editorWanted());
+  const syncEditor = () => {
+    const on = editorWanted();
+    viewerView.classList.toggle('is-editor', on);
+    // The settings button (prefs.js) floats over the page's corner; in the editor that corner is
+    // the photo or the tools, so the button sits in the top bar, left of the bar's own buttons.
+    const gear = document.querySelector('.prefs-btn');
+    const bar = document.querySelector('.topbar-right');
+    if (gear && bar && (gear.parentNode === bar) !== on) {
+      if (on) bar.prepend(gear);
+      else document.body.append(gear);
+    }
+  };
 
   function buildFilmPanel(file, meta, img) {
     const f = filmFor(file, img);
