@@ -1393,13 +1393,62 @@
       const t = (y - Y[i - 1]) / Math.max(Y[i] - Y[i - 1], 1e-12);
       return Math.exp(Math.log(L[i - 1]) + (Math.log(L[i]) - Math.log(L[i - 1])) * t);
     };
+    // Each channel's curve stops at `knee`, where it turns steep (the paper's shoulder: the last
+    // tenth of a stop of brightness costs stops of light). Brighter pixels are taken the rest of
+    // the way by photoLight, which needs each code value's linear light (`light`) and, for a
+    // pixel of luminance knee..1, how many times more light it gets (`lift`): the curve's own
+    // rise up to the paper's white (cap), then a stretch of 2 stops into highlights.
     const top = invert(cap);
+    const knee = dec(PHOTO_KNEE / 255);
+    const atKnee = invert(knee);
     const table = new Float32Array(256);
+    const light = new Float32Array(256);
     for (let v = 0; v < 256; v++) {
-      const y = dec(v / 255);
-      table[v] = y <= cap ? invert(y) : top * Math.pow(2, 2 * (y - cap) / (1 - cap));
+      light[v] = dec(v / 255);
+      table[v] = invert(Math.min(light[v], knee));
     }
+    const lift = new Float32Array(PHOTO_LIFT_STEPS + 1);
+    for (let i = 0; i <= PHOTO_LIFT_STEPS; i++) {
+      const y = knee + (1 - knee) * i / PHOTO_LIFT_STEPS;
+      lift[i] = (y <= cap ? invert(y) : top * Math.pow(2, 2 * (y - cap) / (1 - cap))) / atKnee;
+    }
+    table.light = light;
+    table.knee = knee;
+    table.lift = lift;
     return table;
+  }
+
+  // The 8-bit value where a finished photo's channels stop being decoded one by one.
+  const PHOTO_KNEE = 245;
+  const PHOTO_LIFT_STEPS = 1024;
+
+  // Scene light for a finished photo's pixels (`src`: RGBA bytes) through photoTransfer's
+  // `table`. `boost` (optional): each pixel's HDR gain.
+  // Near white the curve is steep: 245 to 255 is 2.6 stops of light, so lamps and the sun still
+  // bloom. That part goes by the pixel's luminance and lifts its three channels alike, so a grey
+  // or white pixel gets exactly the curve. Done channel by channel it sent one clipped channel
+  // stops up on its own: the red glow round a setting sun (255, 200, 50) printed as a flat pale
+  // disc with a hard edge where the red left 255.
+  function photoLight(table, src, count, boost = null) {
+    const { light, knee, lift } = table;
+    const scale = PHOTO_LIFT_STEPS / (1 - knee);
+    const rgb = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const r = src[i * 4];
+      const g = src[i * 4 + 1];
+      const b = src[i * 4 + 2];
+      let k = boost ? boost[i] : 1;
+      const y = 0.2126 * light[r] + 0.7152 * light[g] + 0.0722 * light[b];
+      if (y > knee) {
+        const u = Math.min((y - knee) * scale, PHOTO_LIFT_STEPS);
+        const j = Math.min(u | 0, PHOTO_LIFT_STEPS - 1);
+        k *= lift[j] + (lift[j + 1] - lift[j]) * (u - j);
+      }
+      rgb[i * 3] = table[r] * k;
+      rgb[i * 3 + 1] = table[g] * k;
+      rgb[i * 3 + 2] = table[b] * k;
+    }
+    return rgb;
   }
 
   // Filtration for finished photos: small offsets to K so a mid-grey prints neutral, as a lab
@@ -1571,7 +1620,7 @@
     return { grade: k, fx: { grainGain: 1 + 1.2 * k, grainSize: 1 + 2.5 * k, halationGain: 1 + 4 * k, halationSize: 1 + 1.5 * k } };
   }
 
-  const api = { prepare, develop, developNegative, printNegative, photoTransfer, look,
+  const api = { prepare, develop, developNegative, printNegative, photoTransfer, photoLight, look,
     developStrip, stripMargin, halationPlan, halationApply, convolveFFT, grainStats, printStep, printSamples, printExposuresFromSamples, printWithK,
     parseDNG, dngSupported, decodeDNG, cameraToLayers, orientRGBA };
   root.FilmEngine = api;

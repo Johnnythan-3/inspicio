@@ -457,16 +457,19 @@ async function run(data) {
         rgb = inputCache.rgb.slice();
       } else {
         const src = new Uint8ClampedArray(pixels);
-        rgb = new Float32Array(count * 3);
-        // 'photo': a finished photo, decoded through the curve that undoes its tone curve.
-        // Otherwise plain sRGB / P3 decoding to linear light.
-        const table = placement === 'photo' ? (PHOTO ||= FilmEngine.photoTransfer(F)) : DECODE;
         const boost = map ? gainFactors(map, w, h) : null;
-        for (let i = 0; i < count; i++) {
-          const b = boost ? boost[i] : 1;
-          rgb[i * 3] = table[src[i * 4]] * b;
-          rgb[i * 3 + 1] = table[src[i * 4 + 1]] * b;
-          rgb[i * 3 + 2] = table[src[i * 4 + 2]] * b;
+        if (placement === 'photo') {
+          // A finished photo, decoded through the curve that undoes its tone curve.
+          rgb = FilmEngine.photoLight(PHOTO ||= FilmEngine.photoTransfer(F), src, count, boost);
+        } else {
+          // Plain sRGB / P3 decoding to linear light.
+          rgb = new Float32Array(count * 3);
+          for (let i = 0; i < count; i++) {
+            const b = boost ? boost[i] : 1;
+            rgb[i * 3] = DECODE[src[i * 4]] * b;
+            rgb[i * 3 + 1] = DECODE[src[i * 4 + 1]] * b;
+            rgb[i * 3 + 2] = DECODE[src[i * 4 + 2]] * b;
+          }
         }
         if (keep) inputCache = { key: inputKey, rgb: rgb.slice() };
         stopIfCancelled();
