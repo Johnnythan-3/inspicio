@@ -2298,9 +2298,9 @@
   function filmFor(file, img) {
     if (film?.file !== file) {
       const brightness = /\.dng$/i.test(file.name) ? FILM_RAW_BRIGHTNESS : 0;
-      film = { file, img, key: ++filmKeySeq, exposure: 0, brightness, source: null,
+      film = { file, img, key: ++filmKeySeq, exposure: 0, brightness, highlights: 0, source: null,
         // Where a double-click puts each slider back.
-        rest: { exposure: 0, brightness },
+        rest: { exposure: 0, brightness, highlights: 0 },
         canvas: null, caption: null, original: null, busy: false, again: false, saving: false,
         // A DNG is developed from its sensor data when the worker can read it ('maybe' until
         // it has tried); everything else, and a DNG it can't read, from the finished picture.
@@ -2369,11 +2369,13 @@
     return { gain, width, height, meta: found.meta };
   }
 
+  const FILM_HIGHLIGHTS_MAX = 5; // the Highlights slider runs from minus this to plus this
   const fmtStops = (v) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`);
 
   // One develop, from the DNG's sensor data or from the finished picture.
   async function filmJob(f, maxPixels, keep, onStage, track) {
-    const settings = { key: f.key, exposureStops: f.exposure, printStops: -f.brightness, look: filmPrefs.look / 100, keep };
+    const settings = { key: f.key, exposureStops: f.exposure, printStops: -f.brightness,
+      highlights: f.highlights / FILM_HIGHLIGHTS_MAX, look: filmPrefs.look / 100, keep };
     for (let attempt = 0; f.raw !== 'no' && attempt < 2; attempt++) {
       try {
         filmWorkerReady();
@@ -2498,8 +2500,8 @@
     }
     f.busy = true;
     f.again = false;
-    // Only Brightness moved since the last develop: the worker prints the negative it kept again,
-    // which is at once. So no bar, and the picture isn't dimmed while it waits.
+    // Only Brightness or Highlights moved since the last develop: the worker prints the negative
+    // it kept again, which is at once. So no bar, and the picture isn't dimmed while it waits.
     const negative = `${f.exposure}|${filmPrefs.look}`;
     const reprint = Boolean(filmWorker) && f.developed === `${negative}|${filmWorkerGen}`;
     let bar = null;
@@ -2547,7 +2549,7 @@
     }
   }
 
-  const filmSettings = (f) => `${f.exposure}|${f.brightness}|${filmPrefs.look}`;
+  const filmSettings = (f) => `${f.exposure}|${f.brightness}|${f.highlights}|${filmPrefs.look}`;
 
   // Full detail: the film developed at its saved size. The preview is about 1.4 megapixels, so
   // once it is zoomed in past its own pixels this is developed in the background and replaces it,
@@ -2797,6 +2799,7 @@
     look: ['........#', '........#', '......#.#', '......#.#', '....#.#.#', '....#.#.#', '..#.#.#.#', '..#.#.#.#', '#.#.#.#.#'],
     exposure: ['....#....', '.#.....#.', '...###...', '..#####..', '#.#####.#', '..#####..', '...###...', '.#.....#.', '....#....'],
     brightness: ['..#####..', '.#..####.', '#...#####', '#...#####', '#...#####', '#...#####', '#...#####', '.#..####.', '..#####..'],
+    highlights: ['..#####..', '.#######.', '#########', '#########', '#.......#', '#.......#', '#.......#', '.#.....#.', '..#####..'],
     frame: ['#########', '#.......#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.......#', '#########'],
     original: ['.........', '..#####..', '.#.....#.', '#...#...#', '#..###..#', '#...#...#', '.#.....#.', '..#####..', '.........'],
     save: ['....#....', '....#....', '....#....', '..#.#.#..', '...###...', '....#....', '.........', '#.......#', '#########'],
@@ -2973,6 +2976,8 @@
         node: el('div', { class: 'editor-pane editor-ruler' }, range('exposure', -2, 3, 0.5, 'Exposure')) },
       brightness: { tool: 'Bright', label: 'Brightness', icon: 'brightness', value: () => fmtStops(f.brightness),
         node: el('div', { class: 'editor-pane editor-ruler' }, range('brightness', -1.5, 1.5, 0.1, 'Brightness')) },
+      highlights: { tool: 'Highs', label: 'Highlights', icon: 'highlights', value: () => fmtStops(f.highlights),
+        node: el('div', { class: 'editor-pane editor-ruler' }, range('highlights', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.5, 'Highlights')) },
       frame: { tool: 'Frame', label: 'Frame', icon: 'frame', value: () => (filmPrefs.frame ? `${filmPrefs.frameSize}%` : 'Off'),
         node: el('div', { class: 'editor-pane editor-stack' }, el('div', { class: 'editor-frame-row' }, toggle, colors), size) },
     }, [hold, save]);
@@ -3141,6 +3146,7 @@
           { reset: FILM_LOOK_DEFAULT }),
         slider('Exposure', 'exposure', -2, 3, 0.5, 'Stops on the film. Portra loves extra light: + gives softer, airier colour.'),
         slider('Brightness', 'brightness', -1.5, 1.5, 0.1, 'Stops at the print, like a lab’s density button.'),
+        slider('Highlights', 'highlights', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.5, 'The bright parts only: + prints them lighter, − holds them back.'),
         compare,
       ),
       filmFrameControls(f),

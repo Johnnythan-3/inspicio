@@ -15,10 +15,10 @@
   - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; night: `HIGHLIGHT_GUARD`, `HIGHLIGHT_ROLL` (`K[3]`); Brightness starts −0.2.
   - **Speed:** `film-worker.js` spawns 2–6 helpers (row strips ± `stripMargin` 49). Bit-identical. 16 MP ~2.3 s.
   - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`, negative kept), Save reuses it. Caption bar (`filmCaptionBar`) once per develop; none for Brightness reprint or quiet detail.
-  - **Strength** 0–100%, default 30 (user's pick; `filmPrefs.look`, `FilmEngine.look`): engine alone barely changes a finished photo (ΔE 3), so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`). 30% = ΔE 7.8. 0% bit-identical to calibrated.
-  - Sliders: Exposure 0.5, Brightness 0.1 steps. **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
+  - **Strength** 0–100%, default 30 (`filmPrefs.look`, `FilmEngine.look`): engine alone: ΔE 3 on a finished photo, so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`). 30% = ΔE 7.8. 0% bit-identical to calibrated.
+  - Sliders: Exposure 0.5, Brightness 0.1, Highlights ±5 (`HIGHLIGHT_LIFT`, `K[4]`). **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); `.film-print` inset in stage; save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms), one bar animation, speed per step (`barController`, `SAVE_STEPS`, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: "Save to Photos".
-- **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, 70 px control strip.
+- **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, 70 px strip; 7 Film tools, icons only < 375 px.
 - **HEIC:** Safari native; else vendored libheif 1.19.8 pure-JS (LGPL; WASM needs CSP change) → q0.95 JPEG.
 - **RAW:** largest embedded JPEG (`loadRawPreview`). Photos drags: preview notice.
 
@@ -51,8 +51,8 @@
 - Confirmed: tools, formats, gain maps, Save to Photos, looks.
 - Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 7.45). Never ship DxO-derived data or third-party scans.
 - Cloudflare (keep): AI Crawl Control all allowed, Bot Preference Sync off, Always Use HTTPS, `www` AAAA `100::` + Redirect Rule to root. Skip other bot features.
-- Session 14: ProRAW night highlights. User tests live site only.
-- **Not yet checked by user:** Strength on ProRAW, HEIC, phone, skin; Save cancel; phone editors; write-ups.
+- User tests live site only.
+- **Not yet checked by user:** Strength on HEIC, phone, skin; Highlights; Save cancel; phone editors; write-ups.
 - User wants features non-techy people notice, obvious film look. Held off: lab chooser.
 - **Next ideas:** offline mode (service worker); "HEIC to JPG" + "remove location on iPhone" pages; camera RAW via DNG; `hello@inspicio.app`.
 

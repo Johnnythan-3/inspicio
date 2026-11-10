@@ -54,6 +54,12 @@
      print white. A frame whose highlights already fit keeps the profile's own protection. */
   const HIGHLIGHT_ROLL = { share: 0.98, target: 0.36, most: 1.6 };
 
+  /* The Highlights slider (opts.highlights, -1 to 1): bends the print above mid-grey only. Log
+     exposure t above mid-grey becomes t + lift * t^2 / (t + knee): no change at mid-grey or in the
+     shadows, growing to (1 + lift) times in the brightest parts. + prints them lighter, - holds
+     them back. `up` and `down` are the lift at the ends of the slider. */
+  const HIGHLIGHT_LIFT = { knee: 0.15, up: 0.9, down: 0.6 };
+
   // opts.calibrated: false gives rolls' data as baked (for the Swift comparisons).
   function prepare(data, opts = {}) {
     const curve = (c) => ({
@@ -738,12 +744,17 @@
     }
     const t = F.paperCurve.midtoneLogH + F.printProfile.exposureStops * 0.30103;
     const K = [0, 1, 2].map((c) => t + level + (1 - mix) * faithful[c] + mix * grey[c] + balance[c] + printStops * 0.30103);
-    // The print decision's fourth number, where the frame needs it: the highlight protection.
+    // The print decision's fourth and fifth numbers, where the frame needs them: the highlight
+    // protection and the Highlights slider's lift.
     const roll = photo || !n ? null : F.highlightRoll;
-    if (roll) {
-      const top = luma[Math.min(n - 1, Math.floor(n * roll.share))] - level - printStops * 0.30103;
-      const base = F.printProfile.highlightProtection;
-      K.push(top > 0 ? Math.min(Math.max(1 / roll.target - 1 / top, base), roll.most) : base);
+    const h = Math.min(Math.max(opts.highlights || 0, -1), 1);
+    if (roll || h) {
+      let protect = F.printProfile.highlightProtection;
+      if (roll) {
+        const top = luma[Math.min(n - 1, Math.floor(n * roll.share))] - level - printStops * 0.30103;
+        if (top > 0) protect = Math.min(Math.max(1 / roll.target - 1 / top, protect), roll.most);
+      }
+      K.push(protect, h * (h > 0 ? HIGHLIGHT_LIFT.up : HIGHLIGHT_LIFT.down));
     }
     return K;
   }
@@ -754,6 +765,8 @@
     const { xMin, xMax, rows } = F.paper;
     const pivot = F.paperCurve.midtoneLogH;
     const protect = K.length > 3 ? K[3] : F.printProfile.highlightProtection;
+    const lift = K.length > 4 ? K[4] : 0;
+    const knee = HIGHLIGHT_LIFT.knee;
     const N = F.lut.size;
     const lut = F.lutTable;
     const lo = F.lut.dLo;
@@ -767,9 +780,13 @@
     for (let p = 0; p < count; p++) {
       for (let c = 0; c < 3; c++) {
         let logH = K[c] - d[p * 3 + c];
-        if (protect > 0) {
-          const t = pivot - logH;
-          if (t > 0) logH = pivot - t / (1 + protect * t);
+        if (protect > 0 || lift) {
+          let t = pivot - logH;
+          if (t > 0) {
+            if (protect > 0) t /= 1 + protect * t;
+            if (lift) t += lift * t * t / (t + knee);
+            logH = pivot - t;
+          }
         }
         const dens = lookup(rows[c], xMin, xMax, logH);
         let u = (dens - lo[c]) / (hi[c] - lo[c]) * (N - 1);

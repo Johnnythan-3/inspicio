@@ -339,7 +339,7 @@ async function developRaw(msg) {
   const { id, key, file, maxPixels, exposureStops, printStops, keep } = msg;
   const strength = msg.look || 0;
   const { grade, fx } = FilmEngine.look(strength);
-  const printOpts = { placement: 'scene', grade };
+  const printOpts = { placement: 'scene', grade, highlights: msg.highlights || 0 };
   if (!rawFile || rawFile.key !== key) {
     if (!file) return self.postMessage({ id, error: 'need-file' });
     const dng = FilmEngine.parseDNG(new Uint8Array(file));
@@ -440,7 +440,7 @@ async function run(data) {
   // Strength (data.look, 0 to 1): how much of the scan look goes on top (FilmEngine.look).
   const strength = data.look || 0;
   const { grade, fx } = FilmEngine.look(strength);
-  const printOpts = { placement: placement || 'scene', exposureStops, grade };
+  const printOpts = { placement: placement || 'scene', exposureStops, grade, highlights: data.highlights || 0 };
   try {
     const negKey = `${key}|${primaries}|${exposureStops}|${map ? 'hdr' : ''}|${strength}`;
     let density;

@@ -2746,6 +2746,11 @@ html:has(.viewer.is-editor:not([hidden])) { overscroll-behavior: none; }
 /* Square tool buttons. */
 .editor-tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .editor-tools:has(> :nth-child(6)) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.editor-tools:has(> :nth-child(7)) { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+/* Seven tools on a narrow phone: no room for their names. The line above names the open one. */
+@media (max-width: 374px) {
+  .editor-tools:has(> :nth-child(7)) .tool { gap: 0; font-size: 0; }
+}
 
 .tool {
   display: grid;
