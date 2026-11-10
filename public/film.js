@@ -39,6 +39,14 @@
     photo: [1.051, -0.0831, 0.0321, 0.0788, 0.8945, 0.0267, 0.0595, -0.0122, 0.9527],
   };
 
+  /* The lab's print decision puts the frame's median at mid-grey. In a night or backlit frame
+     the median is shadow, so everything lit prints white. These hold the print back: each pair is
+     [share of the frame, density above the printed mid-grey] - the frame's 90th percentile prints
+     no brighter than the paper's last highlight detail (0.42), its 75th no brighter than a light
+     tone (0.30). Set by eye on a night ProRAW and a sunset; an evenly lit frame never reaches
+     them. */
+  const HIGHLIGHT_GUARD = [[0.90, 0.42], [0.75, 0.30]];
+
   // opts.calibrated: false gives rolls' data as baked (for the Swift comparisons).
   function prepare(data, opts = {}) {
     const curve = (c) => ({
@@ -51,6 +59,7 @@
       ...data,
       layers: fit ? { sRGB: mul3(fit.photo, data.layers.sRGB), displayP3: mul3(fit.photo, data.layers.displayP3) } : data.layers,
       rawFit: fit ? fit.raw : null,
+      highlightGuard: fit ? HIGHLIGHT_GUARD : null,
       neg: curve(data.characteristic),
       paper: curve(data.paperCurve),
       lutTable: new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2),
@@ -666,7 +675,8 @@
 
   // The printing decision K. `opts.placement`:
   //   'scene' - the lab's: the negative's 48th percentile prints mid-grey and the colour is 88%
-  //             integrated to grey (rolls' Noritsu profile, for scene-linear RAW input).
+  //             integrated to grey (rolls' Noritsu profile, for scene-linear RAW input). Held
+  //             back where that would print the highlights white (HIGHLIGHT_GUARD).
   //   'photo' - for a finished photo, where the photographer already chose the brightness and
   //             the white balance: the film's own mid-grey at the rated exposure prints mid-grey
   //             (an enlarger set once for the roll), and the colour is printed faithfully.
@@ -714,6 +724,9 @@
       level = [0, 1, 2].reduce((a, c) => a + lookup(F.neg.rows[c], F.neg.xMin, F.neg.xMax, logH), 0) / 3;
     } else {
       level = luma[Math.min(n - 1, Math.floor(n * Math.round(F.printProfile.percentile * 100) / 100))];
+      for (const [share, above] of (n ? F.highlightGuard || [] : [])) {
+        level = Math.max(level, luma[Math.min(n - 1, Math.floor(n * share))] - above);
+      }
     }
     const t = F.paperCurve.midtoneLogH + F.printProfile.exposureStops * 0.30103;
     return [0, 1, 2].map((c) => t + level + (1 - mix) * faithful[c] + mix * grey[c] + balance[c] + printStops * 0.30103);

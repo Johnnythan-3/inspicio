@@ -12,7 +12,7 @@
 - **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift with `calibrated: false`; `PORTRA_FIT` 3×3s tune colour to real Portra scans.
   - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey; "close, not exact". **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map (raw libheif C calls); input × max(1, gain).
   - **HDR JPEG** (iPhone, Ultra HDR, Lightroom): `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; decoded without ICC, turned by EXIF orientation. iOS ≤ 16 JPEGs: none.
-  - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement; matches Darkroom. Other RAW: embedded preview.
+  - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement, `HIGHLIGHT_GUARD` (night); matches Darkroom.
   - **Speed:** `film-worker.js` spawns 2–6 helpers (row strips ± `stripMargin` 49). Bit-identical. 16 MP ~2.3 s.
   - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`, negative kept), Save reuses it. Caption bar (`filmCaptionBar`) once per develop; none for Brightness reprint or quiet detail.
   - **Strength** 0–100%, default 30 (user's pick; `filmPrefs.look`, `FilmEngine.look`): engine alone barely changes a finished photo (ΔE 3), so it adds a scan look by eye (`GRADE`, `gradeTable`, in `printInto`) + bigger grain/halation (`fx`). 30% = ΔE 7.8. 0% bit-identical to calibrated.
