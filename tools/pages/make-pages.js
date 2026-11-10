@@ -76,7 +76,7 @@ const PAGES = [
         <li><strong>Grain</strong> in each color layer of the film, as on a real negative.</li>
       </ul>
       <h2>How to use it</h2>
-      <p>Drop a photo and it is developed in a few seconds. Choose how strong the film look is, change the exposure, brightness and highlights like you would at the lab, and add a white or black border. iPhone ProRAW and HDR photos give the most faithful result, because they keep more of the light that film would have seen. A normal JPEG or HEIC photo works too, and comes close.</p>
+      <p>Drop a photo and it is developed in a few seconds. Change the exposure, brightness, highlights and shadows like you would at the lab, and add a white or black border. iPhone ProRAW and HDR photos give the most faithful result, because they keep more of the light that film would have seen. A normal JPEG or HEIC photo works too, and comes close.</p>
       <h2>Questions</h2>
       <h3>Is my photo uploaded?</h3>
       <p>No. The whole development runs in your browser, on your own device.</p>

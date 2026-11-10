@@ -12,11 +12,11 @@
 - **Film:** rolls engine (Portra 400 → Endura, Noritsu) in `film.js`, data `film-data.js` (937 KB). Matches Swift with `calibrated: false`; `PORTRA_FIT` 3×3s tune colour to real Portra scans.
   - JPEG/HEIC = finished photo: `photoTransfer` undoes tone curve, K at film mid-grey. `photoLight`: per channel to 245, above by luminance (else rings). **HEIC gain map** (iOS 18+): `heif-worker.js` reads ISO 21496-1 `tmap` + Apple aux map; input × max(1, gain).
   - **HDR JPEG**: `gainmap.js` finds MPF gain map, metadata ISO APP2 > hdrgm XMP > Apple `HDRGainMapHeadroom`; no ICC, EXIF-turned. iOS ≤ 16 JPEGs: none.
-  - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement (iPhone metering too dark); night `HIGHLIGHT_GUARD`; shoulder `HIGHLIGHT_ROLL` (`K[3]`; `K[5]` = RAW); Exposure 60% in print (`RAW_PRINT`); look `GRADE_RAW`; Brightness starts 0.
+  - **ProRAW DNG**: `parseDNG`/`decodeDNG`, file's matrices, scene placement (iPhone metering too dark); night `HIGHLIGHT_GUARD`; shoulder `HIGHLIGHT_ROLL` (`K[3]`; `K[5]` > 0 = RAW); Exposure 60% in print (`RAW_PRINT`); look `GRADE_RAW`; Brightness starts 0.
   - **Speed:** `film-worker.js` spawns 2–6 helpers (row strips ± `stripMargin` 49). Bit-identical.
   - Preview 1.4 MP; zoom past it develops full detail (`filmDetail`), slider calls it off (`filmAbort`, negative kept), Save reuses it. Caption bar (`filmCaptionBar`): first develop + zoom detail only.
-  - **Strength** 0–100%, default 30 (`filmPrefs.look`, `FilmEngine.look`): engine alone is ΔE 3 on a finished photo, so scan look by eye (`GRADE`, `gradeTable`) + bigger grain/halation (`fx`; grain × `GRAIN_TASTE` 0.8). 0% bit-identical to calibrated.
-  - Sliders: Exposure 0.5, Brightness 0.1, Highlights ±5 (`HIGHLIGHT_LIFT`, `K[4]`). Phone: `slideBox` (glides, double-tap resets). **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
+  - **Strength** fixed 30%, no slider (user's choice; `FILM_LOOK_DEFAULT`): engine alone is ΔE 3 on a finished photo, so scan look by eye (`GRADE`, `gradeTable`) + bigger grain/halation (`fx`; grain × `GRAIN_TASTE` 0.8).
+  - Sliders: Exposure 0.5, Brightness 0.1, Highlights, Shadows ±5 (`HIGHLIGHT_LIFT` `K[4]`, `SHADOW_LIFT` `K[6]`). Phone: `slideBox` (glides, double-tap resets). **Frame**: square switch, White/Black, size 1–20% of short side (`inspicio.film`); save draws border (framed ≤ 16 MP). Save ≤ 16 MP (8 touch).
 - **Saving** (Film, Shot on): dim overlay, step names (≥ 450 ms), one bar animation, speed per step (`barController`, `SAVE_STEPS`, learned `inspicio.speed`). Cancel (Film). Touch + `canShare`: "Save to Photos".
 - **Phones (≤ 860 px):** top bar 50 px. **Film + Shot on = photo editor** (`editorShell`, `.viewer.is-editor`): no scroll, 70 px strip; tools one size, icons only < 375 px, settings button in top bar. Bars solid `--bar`, no blur (iOS 26 Safari tint: body colour or pinned bar).
 - **HEIC:** Safari native; else vendored libheif 1.19.8 pure-JS (LGPL; WASM needs CSP change) → q0.95 JPEG.
@@ -50,7 +50,7 @@
 - User tests live site only: **Firefox** (Mac), **Safari** (iPhone); iPhone 16 HEIC, 15 Pro ProRAW, Sony A7C II ARW.
 - Film calibrated to 5 public Portra 400 chart scans (ProRAW ΔE 7.45). Never ship DxO-derived data or third-party scans.
 - Cloudflare (keep): AI Crawl Control all allowed, Bot Preference Sync off, Always Use HTTPS, `www` AAAA `100::` + Redirect Rule to root.
-- **Not yet checked by user:** session 15 (phone sliders, tools, bar colours, DNG contrast); Strength on skin; write-ups.
+- **Not yet checked by user:** session 15 (phone sliders, tools, bar colours, DNG contrast, Shadows); Strength on skin; write-ups.
 - User wants features non-techy people notice, obvious film look. Held off: lab chooser; RAW sky colour (lab mix 88%).
 - **Next:** "HEIC to JPG" page; offline mode (service worker); "remove location on iPhone" page; camera RAW via DNG; `hello@inspicio.app`.
 
@@ -64,7 +64,7 @@
 
 ## Working notes
 
-- This file < 8 KB.
+- File < 8 KB.
 - Firefox rounds timestamps: use CSS/WAAPI. Mapbox `pk.` push warning: allowed.
 - No third-party code in Node; our `film.js` OK.
 - Don't reuse `data-mode` outside tabs.

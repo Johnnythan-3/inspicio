@@ -2299,9 +2299,9 @@
   function filmFor(file, img) {
     if (film?.file !== file) {
       const brightness = /\.dng$/i.test(file.name) ? FILM_RAW_BRIGHTNESS : 0;
-      film = { file, img, key: ++filmKeySeq, exposure: 0, brightness, highlights: 0, source: null,
+      film = { file, img, key: ++filmKeySeq, exposure: 0, brightness, highlights: 0, shadows: 0, source: null,
         // Where a double-click puts each slider back.
-        rest: { exposure: 0, brightness, highlights: 0 },
+        rest: { exposure: 0, brightness, highlights: 0, shadows: 0 },
         canvas: null, caption: null, original: null, busy: false, again: false, saving: false,
         // A DNG is developed from its sensor data when the worker can read it ('maybe' until
         // it has tried); everything else, and a DNG it can't read, from the finished picture.
@@ -2370,13 +2370,14 @@
     return { gain, width, height, meta: found.meta };
   }
 
-  const FILM_HIGHLIGHTS_MAX = 5; // the Highlights slider runs from minus this to plus this
+  const FILM_HIGHLIGHTS_MAX = 5; // the Highlights and Shadows sliders run from minus this to plus this
   const fmtStops = (v) => (v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`);
 
   // One develop, from the DNG's sensor data or from the finished picture.
   async function filmJob(f, maxPixels, keep, onStage, track) {
     const settings = { key: f.key, exposureStops: f.exposure, printStops: -f.brightness,
-      highlights: f.highlights / FILM_HIGHLIGHTS_MAX, look: filmPrefs.look / 100, keep };
+      highlights: f.highlights / FILM_HIGHLIGHTS_MAX, shadows: f.shadows / FILM_HIGHLIGHTS_MAX,
+      look: filmPrefs.look / 100, keep };
     for (let attempt = 0; f.raw !== 'no' && attempt < 2; attempt++) {
       try {
         filmWorkerReady();
@@ -2501,7 +2502,7 @@
     }
     f.busy = true;
     f.again = false;
-    // Only Brightness or Highlights moved since the last develop: the worker prints the negative
+    // Only Brightness, Highlights or Shadows moved since the last develop: the worker prints the negative
     // it kept again, which is at once. So no bar, and the picture isn't dimmed while it waits.
     const negative = `${f.exposure}|${filmPrefs.look}`;
     const reprint = Boolean(filmWorker) && f.developed === `${negative}|${filmWorkerGen}`;
@@ -2553,7 +2554,7 @@
     }
   }
 
-  const filmSettings = (f) => `${f.exposure}|${f.brightness}|${f.highlights}|${filmPrefs.look}`;
+  const filmSettings = (f) => `${f.exposure}|${f.brightness}|${f.highlights}|${f.shadows}|${filmPrefs.look}`;
 
   // Full detail: the film developed at its saved size. The preview is about 1.4 megapixels, so
   // once it is zoomed in past its own pixels this is developed in the background and replaces it,
@@ -2615,11 +2616,11 @@
   // The Frame option: a plain white or black border around the print, as wide as a share of the
   // photo's shorter side. A display preference, so it is remembered.
   // Strength (look, 0 to 100): how far the develop leans into the film's look (FilmEngine.look).
-  // 0 is the film as calibrated, which leaves a finished photo close to itself.
+  // 0 is the film as calibrated, which leaves a finished photo close to itself. It was a slider;
+  // the user settled on one strength for every photo, so it is fixed at FILM_LOOK_DEFAULT.
   const FILM_KEY = 'inspicio.film';
   const FRAME_COLORS = { white: '#ffffff', black: '#000000' };
   const FILM_LOOK_DEFAULT = 30;
-  const fmtPercent = (v) => `${v}%`;
   const filmPrefs = (() => {
     const prefs = { frame: false, frameColor: 'white', frameSize: 5, look: FILM_LOOK_DEFAULT };
     try {
@@ -2627,7 +2628,6 @@
       if (typeof saved.frame === 'boolean') prefs.frame = saved.frame;
       if (FRAME_COLORS[saved.frameColor]) prefs.frameColor = saved.frameColor;
       if (saved.frameSize >= 1 && saved.frameSize <= 20) prefs.frameSize = Number(saved.frameSize);
-      if (saved.look >= 0 && saved.look <= 100) prefs.look = Math.round(Number(saved.look));
     } catch { /* storage blocked or bad value */ }
     return prefs;
   })();
@@ -2800,10 +2800,10 @@
   // show their control in one fixed-height strip above the row (so the photo never resizes),
   // Original is held to compare, and Save develops at full size.
   const TOOL_ICONS = {
-    look: ['........#', '........#', '......#.#', '......#.#', '....#.#.#', '....#.#.#', '..#.#.#.#', '..#.#.#.#', '#.#.#.#.#'],
     exposure: ['....#....', '.#.....#.', '...###...', '..#####..', '#.#####.#', '..#####..', '...###...', '.#.....#.', '....#....'],
     brightness: ['..#####..', '.#..####.', '#...#####', '#...#####', '#...#####', '#...#####', '#...#####', '.#..####.', '..#####..'],
     highlights: ['..#####..', '.#######.', '#########', '#########', '#.......#', '#.......#', '#.......#', '.#.....#.', '..#####..'],
+    shadows: ['..#####..', '.#.....#.', '#.......#', '#.......#', '#.......#', '#########', '#########', '.#######.', '..#####..'],
     frame: ['#########', '#.......#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.#####.#', '#.......#', '#########'],
     original: ['.........', '..#####..', '.#.....#.', '#...#...#', '#..###..#', '#...#...#', '.#.....#.', '..#####..', '.........'],
     save: ['....#....', '....#....', '....#....', '..#.#.#..', '...###...', '....#....', '.........', '#.......#', '#########'],
@@ -2952,19 +2952,16 @@
     let shell = null;
     const refresh = () => shell?.show();
 
-    // `pref`: the value is a remembered preference (filmPrefs) with its own reset value.
-    // `syncs`: puts the photo's own sliders back in step when the app moves a value itself.
+    // `syncs`: puts the sliders back in step when the app moves a value itself.
     const syncs = [];
-    const range = (key, min, max, quantum, label, pref = null) => {
-      const target = pref ? filmPrefs : f;
+    const range = (key, min, max, quantum, label) => {
       const slide = slideBox('editor-pane editor-ruler', {
         min, max, quantum, label,
-        get: () => target[key],
-        set: (v) => { target[key] = v; refresh(); filmPreview(); },
-        reset: () => (pref ? pref.reset : f.rest[key]),
-        done: pref ? saveFilmPrefs : null,
+        get: () => f[key],
+        set: (v) => { f[key] = v; refresh(); filmPreview(); },
+        reset: () => f.rest[key],
       });
-      if (!pref) syncs.push(slide.sync);
+      syncs.push(slide.sync);
       return slide.box;
     };
     f.syncSliders = () => { syncs.forEach((sync) => sync()); refresh(); };
@@ -3034,14 +3031,14 @@
     save.addEventListener('click', () => saveFilm(save, note));
 
     shell = editorShell(f, {
-      look: { tool: 'Look', label: 'Strength', icon: 'look', value: () => fmtPercent(filmPrefs.look),
-        node: range('look', 0, 100, 1, 'Strength', { reset: FILM_LOOK_DEFAULT }) },
       exposure: { tool: 'Expose', label: 'Exposure', icon: 'exposure', value: () => fmtStops(f.exposure),
         node: range('exposure', -2, 3, 0.05, 'Exposure') },
       brightness: { tool: 'Bright', label: 'Brightness', icon: 'brightness', value: () => fmtStops(f.brightness),
         node: range('brightness', -1.5, 1.5, 0.05, 'Brightness') },
       highlights: { tool: 'Highs', label: 'Highlights', icon: 'highlights', value: () => fmtStops(f.highlights),
         node: range('highlights', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.1, 'Highlights') },
+      shadows: { tool: 'Shadow', label: 'Shadows', icon: 'shadows', value: () => fmtStops(f.shadows),
+        node: range('shadows', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.1, 'Shadows') },
       frame: { tool: 'Frame', label: 'Frame', icon: 'frame', value: () => (filmPrefs.frame ? `${filmPrefs.frameSize}%` : 'Off'),
         node: el('div', { class: 'editor-pane editor-stack' }, el('div', { class: 'editor-frame-row' }, toggle, colors), size.box) },
     }, [hold, save]);
@@ -3169,25 +3166,21 @@
     filmShowSource(f);
     nodes.push(f.sourceNode);
 
-    // `pref`: the value is a remembered preference (filmPrefs), shown as a percentage, with its
-    // own double-click reset.
+    // Each slider goes back to where it started on a double-click.
     const syncs = [];
     f.syncSliders = () => syncs.forEach((sync) => sync());
-    const slider = (label, key, min, max, step, help, pref = null) => {
-      const target = pref ? filmPrefs : f;
-      const fmt = pref ? fmtPercent : fmtStops;
-      const value = el('span', { class: 'film-value' }, fmt(target[key]));
+    const slider = (label, key, min, max, step, help) => {
+      const value = el('span', { class: 'film-value' }, fmtStops(f[key]));
       const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), 'aria-label': label });
-      input.value = String(target[key]);
+      input.value = String(f[key]);
       input.addEventListener('input', () => {
-        target[key] = Number(input.value);
-        value.textContent = fmt(target[key]);
+        f[key] = Number(input.value);
+        value.textContent = fmtStops(f[key]);
         filmPreview();
       });
-      if (pref) input.addEventListener('change', saveFilmPrefs);
-      else syncs.push(() => { input.value = String(f[key]); value.textContent = fmt(f[key]); });
+      syncs.push(() => { input.value = String(f[key]); value.textContent = fmtStops(f[key]); });
       input.addEventListener('dblclick', () => {
-        input.value = String(pref ? pref.reset : f.rest[key]);
+        input.value = String(f.rest[key]);
         input.dispatchEvent(new Event('input'));
         input.dispatchEvent(new Event('change'));
       });
@@ -3217,11 +3210,10 @@
 
     nodes.push(
       el('div', { class: 'card-controls' },
-        slider('Strength', 'look', 0, 100, 10, 'How much of the film look goes on: its colours, soft blacks, grain and glow. 0 stays closest to your photo.',
-          { reset: FILM_LOOK_DEFAULT }),
         slider('Exposure', 'exposure', -2, 3, 0.5, 'Stops on the film. Portra loves extra light: + gives softer, airier colour.'),
         slider('Brightness', 'brightness', -1.5, 1.5, 0.1, 'Stops at the print, like a lab’s density button.'),
         slider('Highlights', 'highlights', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.5, 'The bright parts only: + prints them lighter, − holds them back.'),
+        slider('Shadows', 'shadows', -FILM_HIGHLIGHTS_MAX, FILM_HIGHLIGHTS_MAX, 0.5, 'The dark parts only: + opens them up, − prints them deeper.'),
         compare,
       ),
       filmFrameControls(f),

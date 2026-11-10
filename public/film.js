@@ -63,6 +63,12 @@
      white, so a smaller bend moves them as far. */
   const HIGHLIGHT_LIFT = { knee: 0.15, up: 0.9, down: 0.6, rawUp: 0.45, rawDown: 0.6 };
 
+  /* The Shadows slider (opts.shadows, -1 to 1): the same bend below mid-grey. Log exposure u below
+     mid-grey becomes u - lift * u^2 / (u + knee): no change at mid-grey or in the highlights. +
+     opens the shadows (the deepest tones move least, on the paper's toe),
+     - prints them deeper. */
+  const SHADOW_LIFT = { knee: 0.15, up: 0.55, down: 0.6 };
+
   /* RAW and the Exposure slider. The lab's rule (the frame's median prints mid-grey) undoes any
      change of exposure: the negative gets denser and the print is made that much darker, so the
      slider moved the picture along the film's curve and left its brightness where it was. Here
@@ -764,17 +770,20 @@
     }
     const t = F.paperCurve.midtoneLogH + F.printProfile.exposureStops * 0.30103;
     const K = [0, 1, 2].map((c) => t + level + (1 - mix) * faithful[c] + mix * grey[c] + balance[c] + printStops * 0.30103);
-    // The print decision's further numbers, where the frame needs them: the highlight
-    // protection and the Highlights slider's lift; for RAW, the shoulder's strength in place of
-    // the protection, and its knee (a sixth number, which also tells printInto it is RAW).
+    // The print decision's further numbers, where the frame needs them: [3] the highlight
+    // protection, [4] the Highlights slider's lift, [5] where the protection starts above
+    // mid-grey, [6] the Shadows slider's lift. For RAW [3] is the shoulder's strength and [5] its
+    // knee; [5] is 0 for a finished photo, which is how printInto tells them apart.
     const roll = photo || !n ? null : F.highlightRoll;
     const h = Math.min(Math.max(opts.highlights || 0, -1), 1);
+    const sh = Math.min(Math.max(opts.shadows || 0, -1), 1);
+    const shadow = sh * (sh > 0 ? SHADOW_LIFT.up : SHADOW_LIFT.down);
     if (roll) {
       const top = luma[Math.min(n - 1, Math.floor(n * roll.share))] - level - printStops * 0.30103;
       const bend = top > roll.target ? Math.min(1 / (roll.target - roll.knee) - 1 / (top - roll.knee), roll.most) : 0;
-      K.push(bend, h * (h > 0 ? HIGHLIGHT_LIFT.rawUp : HIGHLIGHT_LIFT.rawDown), roll.knee);
-    } else if (h) {
-      K.push(F.printProfile.highlightProtection, h * (h > 0 ? HIGHLIGHT_LIFT.up : HIGHLIGHT_LIFT.down));
+      K.push(bend, h * (h > 0 ? HIGHLIGHT_LIFT.rawUp : HIGHLIGHT_LIFT.rawDown), roll.knee, shadow);
+    } else if (h || sh) {
+      K.push(F.printProfile.highlightProtection, h * (h > 0 ? HIGHLIGHT_LIFT.up : HIGHLIGHT_LIFT.down), 0, shadow);
     }
     return K;
   }
@@ -787,9 +796,11 @@
     const protect = K.length > 3 ? K[3] : F.printProfile.highlightProtection;
     const lift = K.length > 4 ? K[4] : 0;
     const knee = HIGHLIGHT_LIFT.knee;
-    // RAW (a sixth number): the shoulder starts at `start` above mid-grey, not at mid-grey.
-    const raw = K.length > 5;
-    const start = raw ? K[5] : 0;
+    // RAW: the shoulder starts at `start` above mid-grey, not at mid-grey.
+    const start = K.length > 5 ? K[5] : 0;
+    const raw = start > 0;
+    const shadow = K.length > 6 ? K[6] : 0;
+    const shadowKnee = SHADOW_LIFT.knee;
     const N = F.lut.size;
     const lut = F.lutTable;
     const lo = F.lut.dLo;
@@ -803,12 +814,14 @@
     for (let p = 0; p < count; p++) {
       for (let c = 0; c < 3; c++) {
         let logH = K[c] - d[p * 3 + c];
-        if (protect > 0 || lift) {
+        if (protect > 0 || lift || shadow) {
           let t = pivot - logH;
           if (t > 0) {
             if (protect > 0 && t > start) t = start + (t - start) / (1 + protect * (t - start));
             if (lift) t += lift * t * t / (t + knee);
             logH = pivot - t;
+          } else if (shadow) {
+            logH = pivot - t - shadow * t * t / (shadowKnee - t);
           }
         }
         const dens = lookup(rows[c], xMin, xMax, logH);
