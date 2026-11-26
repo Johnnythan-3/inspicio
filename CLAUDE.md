@@ -47,7 +47,8 @@
 - Cloudflare (keep): AI Crawl Control all allowed, Bot Preference Sync off, Always Use HTTPS, `www` AAAA `100::` + Redirect Rule to root.
 - Visitors (2026-11-20): Cloudflare zone analytics only (Domains → Analytics; ~70% bots). No Web Analytics beacon: breaks "no analytics" + CSP. Search Console: 0 clicks, position 11.
 - Promotion plan: Show HN (Tue–Thu morning ET), r/SideProject; Reddit account too new for r/webdev. Drafts mentioned Film/Shot on: rewrite for metadata only.
-- Removal tested locally (both looks, phone width, HEIC); **not yet checked by user on live site.**
+- Removal (`ba914a7`) tested locally (both looks, phone width, HEIC) and live by curl (2 tabs, redirects 301); **not yet checked by user in Firefox or iPhone Safari.**
+- Repo is public: `archived/film/` engine is visible there. Ask the user if the new film site needs it private.
 - **Next:** "remove location on iPhone" page; "HEIC to JPG" page; offline mode (service worker); `hello@inspicio.app`.
 
 ## Files
