@@ -11,7 +11,7 @@
 // skipped). Fits start from rolls' data (calibrated: false) and print a matrix for PORTRA_FIT.
 const path = require('path');
 const C = require('./color.js');
-const SITE = path.join(__dirname, '../../../public');
+const SITE = path.join(__dirname, '../..'); // archived/film, where film.js now is
 globalThis.self = globalThis;
 require(SITE + '/film-data.js');
 const E = require(SITE + '/film.js');

@@ -1,4 +1,4 @@
-// Makes one page per tool (public/remove-metadata.html and so on) from public/index.html, so each
+// Makes one page per tool (public/remove-metadata.html) from public/index.html, so each
 // tool can be found in search under its own address. The site itself has no build step: these
 // pages are committed like any other file. Run this after every change to index.html, or to the
 // tool titles and lines in MODES (app.js):
@@ -41,55 +41,11 @@ const PAGES = [
       <h3>Does it make the photo worse?</h3>
       <p>Not for JPEG and PNG, which keep every pixel. Other formats are saved once as a high quality JPEG.</p>`,
   },
-  {
-    tool: 'shot-on',
-    file: 'shot-on-frame.html',
-    url: `${SITE}/shot-on-frame`,
-    description: 'Add a Shot on frame to your photo with the camera, lens and settings from its EXIF data, ready for Instagram. Free, in your browser, never uploaded.',
-    about: `
-      <h2>A Shot on frame for your photo</h2>
-      <p class="doc-lead">Put the camera and settings under your photo, the way photographers share their work. Inspicio reads them from the photo itself, so there is nothing to type.</p>
-      <ul>
-        <li><strong>The camera</strong> as the title, such as iPhone 16 Pro.</li>
-        <li><strong>The settings:</strong> focal length (as 35 mm equivalent), aperture, shutter speed and ISO.</li>
-        <li><strong>The lens and the date</strong> in a small line underneath.</li>
-      </ul>
-      <h2>Make it yours</h2>
-      <p>Choose a light, dark or pixel frame, and a serif, wide or digital camera font, with the orange date stamp of an old point-and-shoot. Keep the photo's own shape, or make it square or 4:5 for Instagram. The frame is saved as a sharp image up to 3240 pixels on the long side.</p>
-      <h2>Questions</h2>
-      <h3>Where do the settings come from?</h3>
-      <p>From the photo's EXIF data, which your camera or phone writes into every photo it takes. A screenshot or a photo saved from a social app usually has none left.</p>
-      <h3>Is my photo uploaded?</h3>
-      <p>No. The frame is drawn in your browser and the photo never leaves your device.</p>`,
-  },
-  {
-    tool: 'film',
-    file: 'film-filter.html',
-    url: `${SITE}/film-filter`,
-    description: 'Make a photo look like film: Kodak Portra 400 built from its datasheet, with halation, grain and a real print. Free, in your browser, never uploaded.',
-    about: `
-      <h2>A film look built like real film</h2>
-      <p class="doc-lead">Most film filters are a color preset. Inspicio develops your photo the way film works: it exposes Kodak Portra 400, prints it on paper and scans the print, using the numbers from Kodak's own datasheets.</p>
-      <ul>
-        <li><strong>Color and contrast</strong> from the film and the paper, not from a preset.</li>
-        <li><strong>Halation:</strong> the warm glow around bright lights, from light bouncing inside the film.</li>
-        <li><strong>Grain</strong> in each color layer of the film, as on a real negative.</li>
-      </ul>
-      <h2>How to use it</h2>
-      <p>Drop a photo and it is developed in a few seconds. Change the exposure, brightness, highlights and shadows like you would at the lab, and add a white or black border. iPhone ProRAW and HDR photos give the most faithful result, because they keep more of the light that film would have seen. A normal JPEG or HEIC photo works too, and comes close.</p>
-      <h2>Questions</h2>
-      <h3>Is my photo uploaded?</h3>
-      <p>No. The whole development runs in your browser, on your own device.</p>
-      <h3>Which photos work best?</h3>
-      <p>RAW and HDR photos straight from the camera. Photos that were already edited or filtered have lost some of the light the film needs.</p>`,
-  },
 ];
 
 const OTHER_LINKS = {
   inspect: ['./', 'See photo metadata'],
   wipe: ['remove-metadata', 'Remove photo metadata'],
-  'shot-on': ['shot-on-frame', 'Shot on frame'],
-  film: ['film-filter', 'Film filter'],
 };
 
 // Tool titles and lines come from MODES in app.js, so the page shows what app.js would show.
